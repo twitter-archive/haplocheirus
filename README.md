@@ -46,6 +46,10 @@ server uses only the initial i64 and treats the rest as a blob (byte array).
   Write an entry into the timeline names given. Appends will silently do nothing if a timeline has
   not been created using `set`.
 
+- `delete(entry: TimelineEntry, timelines: list<string>)`
+
+  Delete an entry from timelines. This corresponds to a deleted tweet.
+
 - `get(timeline: string, offset: i32, length: i32): list<TimelineEntry>`
 
   Fetch a span of entries from a timeline. The offset & length are counted from most recent to
@@ -81,6 +85,9 @@ Pending some horrific new discovery, redis will be the backend storage engine. T
 "lists" in redis terminology. Periodically, `BGSAVE` will be used to create a snapshot of each redis
 server's memory contents. Write operations will be pipelined to each redis server for performance
 reasons. (See the performance doc.)
+
+Deleted entries will be marked with a tombstone so that out-of-order operations always honor a
+deletion as the final state. Deleted entries can't be reinstated.
 
 ## List modifications
 
