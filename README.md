@@ -55,11 +55,10 @@ server uses only the initial i64 and treats the rest as a blob (byte array).
   Fetch a span of entries from a timeline. The offset & length are counted from most recent to
   oldest, so an offset of 0 is the newest entry.
 
-- `getSince(timeline: string, entryId: i64): list<TimelineEntry>`
+- `getRange(timeline: string, fromId: option<i64>, toId: option<i64>): list<TimelineEntry>`
 
-  Fetch any entries that have been added after entryId.
-  *This may include entries with a lower id that were inserted out of order.*
-  The results are always sorted by recency.
+  Fetch any entries that have been added after fromId, until toId.
+  *This may include entries with a lower or higher id that were inserted out of order.*
 
 - `set(timeline: string, entries: list<TimelineEntry>)`
 
@@ -80,6 +79,10 @@ server uses only the initial i64 and treats the rest as a blob (byte array).
 Homogenous scala servers will implement the API and use gizzard for sharding and writes. This means
 the timeline namespace will be split across horizontal partitions, with each partition handling its
 own replication. Write operations will be handled by a pool of worker threads.
+
+Timelines will be append-only for adds, even if the ids are added out of order. Results may be
+sorted by id before being returned to the client (although it sounds like nobody really cares if
+they are, so we may punt on that), but the stored order is used for `getSince` queries.
 
 Pending some horrific new discovery, redis will be the backend storage engine. Timelines will be
 "lists" in redis terminology. Periodically, `BGSAVE` will be used to create a snapshot of each redis
