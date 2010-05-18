@@ -12,7 +12,13 @@ import org.jredis.ri.alphazero.JRedisClient
 
 
 class TimelineStoreService extends thrift.TimelineStore.Iface {
-  def append(entry: Array[Byte], timeline_ids: JList[String]) {
+  def append(entry: Array[Byte], timeline_ids: JList[String]) { }
+  def remove(entry: Array[Byte], timeline_ids: JList[String]) { }
+  def get(timeline_id: String, offset: Int, length: Int) = null
+  def get_range(timeline_id: String, from_id: Long, to_id: Long) = null
+  def store(timeline_id: String, entries: JList[Array[Byte]]) { }
+  def merge(timeline_id: String, entries: JList[Array[Byte]]) { }
+  def unmerge(timeline_id: String, entries: JList[Array[Byte]]) { }
 
     // ...
     /*
@@ -37,12 +43,13 @@ class TimelineStoreService extends thrift.TimelineStore.Iface {
               System.exit(1)
           }
           */
-  }
+
 }
 
 object Main extends Service {
   val log = Logger.get(getClass.getName)
   var thriftServer: TSelectorServer = null
+  var gizzardServices: GizzardServices = null
   private val deathSwitch = new CountDownLatch(1)
 
   def main(args: Array[String]) {
@@ -75,14 +82,15 @@ object Main extends Service {
 
   def startThrift(config: ConfigMap) {
     try {
-      val clientTimeout = config("client_timeout_msec").toInt.milliseconds
-      val idleTimeout = config("idle_timeout_sec").toInt.seconds
-
-      val executor = TSelectorServer.makeThreadPoolExecutor(config)
+//      gizzardServices = new GizzardServices(config.configMap("gizzard_services"),
+//                                            flock.edges.nameServer,
+//                                            flock.edges.copyFactory,
+//                                            flock.edges.schedule,
+//                                            Priority.Medium.id)
 
       val processor = new thrift.TimelineStore.Processor(new TimelineStoreService())
-      thriftServer = TSelectorServer("timelines", config("server_port").toInt, processor,
-                                     executor, clientTimeout, idleTimeout)
+      thriftServer = TSelectorServer("timelines", config("server_port").toInt,
+                                     config.configMap("gizzard_services"), processor)
       thriftServer.serve()
     } catch {
       case e: Exception =>
@@ -94,7 +102,7 @@ object Main extends Service {
 
   def stopThrift() {
     log.info("Thrift servers shutting down...")
-    thriftServer.stop()
+    thriftServer.shutdown()
     thriftServer = null
   }
 }
