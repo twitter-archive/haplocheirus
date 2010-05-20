@@ -2,7 +2,7 @@ package com.twitter.haplocheirus
 
 import java.util.{List => JList}
 import java.util.concurrent.CountDownLatch
-import com.twitter.gizzard.thrift.TSelectorServer
+import com.twitter.gizzard.thrift.{GizzardServices, TSelectorServer}
 import com.twitter.ostrich.{BackgroundProcess, Service, ServiceTracker, Stats}
 import com.twitter.xrayspecs.TimeConversions._
 import net.lag.configgy.{Configgy, ConfigMap, RuntimeEnvironment}
@@ -49,7 +49,7 @@ class TimelineStoreService extends thrift.TimelineStore.Iface {
 object Main extends Service {
   val log = Logger.get(getClass.getName)
   var thriftServer: TSelectorServer = null
-  var gizzardServices: GizzardServices = null
+  var gizzardServices: GizzardServices[HaplocheirusShard] = null
   private val deathSwitch = new CountDownLatch(1)
 
   def main(args: Array[String]) {
