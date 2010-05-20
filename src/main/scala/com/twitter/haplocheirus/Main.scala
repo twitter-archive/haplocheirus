@@ -11,7 +11,7 @@ import org.jredis._
 import org.jredis.ri.alphazero.JRedisClient
 
 
-class TimelineStoreService extends thrift.TimelineStore.Iface {
+class TimelineStore extends thrift.TimelineStore.Iface {
   def append(entry: Array[Byte], timeline_ids: JList[String]) { }
   def remove(entry: Array[Byte], timeline_ids: JList[String]) { }
   def get(timeline_id: String, offset: Int, length: Int) = null
@@ -88,7 +88,7 @@ object Main extends Service {
 //                                            flock.edges.schedule,
 //                                            Priority.Medium.id)
 
-      val processor = new thrift.TimelineStore.Processor(new TimelineStoreService())
+      val processor = new thrift.TimelineStore.Processor(new TimelineStore())
       thriftServer = TSelectorServer("timelines", config("server_port").toInt,
                                      config.configMap("gizzard_services"), processor)
       thriftServer.serve()

@@ -9,29 +9,6 @@ import net.lag.configgy.ConfigMap
 import net.lag.logging.{Logger, ThrottledLogger}
 
 
-trait HaplocheirusShard extends Shard {
-  @throws(classOf[ShardException]) def doNothing(x: Int): Int
-}
-
-class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[HaplocheirusShard]) extends HaplocheirusShard {
-  def doNothing(x: Int) = x
-}
-
-class HaplocheirusShardAdapter(shard: ReadWriteShard[HaplocheirusShard])
-  extends ReadWriteShardAdapter(shard) with HaplocheirusShard {
-  def doNothing(x: Int): Int = shard.readOperation(_.doNothing(x))
-}
-
-class RedisShardFactory(config: ConfigMap) extends ShardFactory[HaplocheirusShard] {
-  def instantiate(shardInfo: ShardInfo, weight: Int, children: Seq[HaplocheirusShard]) = {
-    new RedisShard(shardInfo, weight, children)
-  }
-
-  def materialize(shardInfo: ShardInfo) {
-    // no.
-  }
-}
-
 object Haplocheirus {
   def statsCollector(w3c: W3CStats) = {
     new StatsCollector {
@@ -52,7 +29,6 @@ object Haplocheirus {
 
     val nameServer = NameServer(config.configMap("nameservers"), Some(stats),
                                 shardRepository, log, replicationFuture)
-    val forwardingManager = new ForwardingManager(nameServer)
     nameServer.reload()
 
     new Haplocheirus()
