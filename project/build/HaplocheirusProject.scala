@@ -19,4 +19,5 @@ class HaplocheirusProject(info: ProjectInfo) extends StandardProject(info) {
   val xrayspecs = "com.twitter" % "xrayspecs" % "1.0.7"  //--auto--
 
   val jredis = "jredis" % "jredis" % "1.0-rc1"
+  val codec = "commons-codec" % "commons-codec" % "1.4"
 }
