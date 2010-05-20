@@ -5,7 +5,7 @@ import com.twitter.gizzard.jobs.{BoundJobParser, PolymorphicJobParser}
 import com.twitter.gizzard.nameserver.{BasicShardRepository, NameServer}
 import com.twitter.gizzard.scheduler.PrioritizingJobScheduler
 import com.twitter.gizzard.shards._
-import com.twitter.ostrich.{W3CStats}
+import com.twitter.ostrich.Stats
 import com.twitter.querulous.StatsCollector
 import net.lag.configgy.ConfigMap
 import net.lag.logging.{Logger, ThrottledLogger}
@@ -17,16 +17,12 @@ object Haplocheirus {
     val Write = Value(2)
   }
 
-  def statsCollector(w3c: W3CStats) = {
-    new StatsCollector {
-      def incr(name: String, count: Int) = w3c.incr(name, count)
-      def time[A](name: String)(f: => A): A = w3c.time(name)(f)
-    }
+  val statsCollector = new StatsCollector {
+    def incr(name: String, count: Int) = Stats.incr(name, count)
+    def time[A](name: String)(f: => A): A = Stats.time(name)(f)
   }
 
-  def apply(config: ConfigMap, w3c: W3CStats): Haplocheirus = {
-    val stats = statsCollector(w3c)
-
+  def apply(config: ConfigMap): Haplocheirus = {
     val log = new ThrottledLogger[String](Logger(), config("throttled_log.period_msec").toInt,
                                           config("throttled_log.rate").toInt)
     val replicationFuture = new Future("ReplicationFuture", config.configMap("replication_pool"))
@@ -34,7 +30,7 @@ object Haplocheirus {
       new HaplocheirusShardAdapter(_), log, replicationFuture)
     shardRepository += ("com.twitter.haplocheirus.RedisShard" -> new RedisShardFactory(config))
 
-    val nameServer = NameServer(config.configMap("nameservers"), Some(stats),
+    val nameServer = NameServer(config.configMap("nameservers"), Some(statsCollector),
                                 shardRepository, log, replicationFuture)
     nameServer.reload()
 
@@ -49,11 +45,13 @@ object Haplocheirus {
 
     scheduler.start()
 
-    new Haplocheirus()
+    val future = new Future("TimelineStoreService", config.configMap("service_pool"))
+    val service = new TimelineStoreService(nameServer, future)
+    new Haplocheirus(service)
   }
 }
 
-class Haplocheirus {
+class Haplocheirus(val service: TimelineStoreService) {
   //
 }
 
