@@ -11,12 +11,12 @@ import net.lag.configgy.ConfigMap
 import net.lag.logging.{Logger, ThrottledLogger}
 
 
-object Haplocheirus {
-  object Priority extends Enumeration {
-    val Migrate = Value(1)
-    val Write = Value(2)
-  }
+object Priority extends Enumeration {
+  val Migrate = Value(1)
+  val Write = Value(2)
+}
 
+object Haplocheirus {
   val statsCollector = new StatsCollector {
     def incr(name: String, count: Int) = Stats.incr(name, count)
     def time[A](name: String)(f: => A): A = Stats.time(name)(f)
@@ -46,13 +46,14 @@ object Haplocheirus {
     scheduler.start()
 
     val future = new Future("TimelineStoreService", config.configMap("service_pool"))
-    val service = new TimelineStoreService(nameServer, future)
+    val service = new TimelineStoreService(nameServer, scheduler, future, replicationFuture)
     new Haplocheirus(service)
   }
 }
 
 class Haplocheirus(val service: TimelineStoreService) {
   //
+  
 }
 
 /*
@@ -69,11 +70,5 @@ object NuLoggingProxy {
       rv
     }
   }
-}
-*/
-
-/*
-  val future = new Future("EdgesFuture", config.configMap("edges.future"))
-  new FlockDB(new EdgesService(nameServer, forwardingManager, jobs.CopyFactory, scheduler, future))
 }
 */
