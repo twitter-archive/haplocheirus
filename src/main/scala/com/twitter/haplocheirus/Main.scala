@@ -50,6 +50,7 @@ object Main extends Service {
                                             haplocheirus.service.copyFactory,
                                             haplocheirus.service.scheduler,
                                             Priority.Migrate.id)
+      gizzardServices.start()
 
       val processor = new thrift.TimelineStore.Processor(new TimelineStore(haplocheirus.service))
       thriftServer = TSelectorServer("timelines", config("server_port").toInt,
