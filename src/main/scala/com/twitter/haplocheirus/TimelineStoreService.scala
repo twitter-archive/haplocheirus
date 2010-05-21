@@ -1,6 +1,7 @@
 package com.twitter.haplocheirus
 
 import com.twitter.gizzard.Future
+import com.twitter.gizzard.jobs.CopyFactory
 import com.twitter.gizzard.nameserver.NameServer
 import com.twitter.gizzard.scheduler.PrioritizingJobScheduler
 import com.twitter.gizzard.thrift.conversions.Sequences._
@@ -8,6 +9,7 @@ import com.twitter.gizzard.thrift.conversions.Sequences._
 
 class TimelineStoreService(val nameServer: NameServer[HaplocheirusShard],
                            val scheduler: PrioritizingJobScheduler,
+                           val copyFactory: CopyFactory[HaplocheirusShard],
                            val future: Future,
                            val replicationFuture: Future) {
   def shutdown() {

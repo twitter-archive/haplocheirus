@@ -1,7 +1,7 @@
 package com.twitter.haplocheirus
 
 import scala.collection.mutable
-import com.twitter.gizzard.jobs.{BoundJobParser, UnboundJob}
+import com.twitter.gizzard.jobs.{BoundJobParser, Copy, CopyFactory, UnboundJob}
 import com.twitter.gizzard.nameserver.NameServer
 import com.twitter.xrayspecs.Time
 import com.twitter.xrayspecs.TimeConversions._
@@ -28,5 +28,33 @@ object Jobs {
         nameServer.findCurrentForwarding(0, Hash.FNV1A_64(timeline)).append(entry, timeline)
       }
     }
+  }
+
+  object RedisCopyFactory extends CopyFactory[HaplocheirusShard] {
+    def apply(sourceShardId: Int, destinationShardId: Int) = null
+    //new RedisCopy(sourceShardId, destinationShardId, RedisCopy.START)
+  }
+
+  type Cursor = Int
+  val COPY_COUNT = 1000
+
+  class RedisCopy(sourceShardId: Int, destinationShardId: Int, cursor: Cursor, count: Int)
+        extends Copy[HaplocheirusShard](sourceShardId, destinationShardId, count) {
+    def this(sourceShardId: Int, destinationShardId: Int, cursor: Cursor) =
+      this(sourceShardId, destinationShardId, cursor, Jobs.COPY_COUNT)
+
+    def this(attributes: Map[String, AnyVal]) = {
+      this(
+        attributes("source_shard_id").toInt,
+        attributes("destination_shard_id").toInt,
+        attributes("cursor").toInt,
+        attributes("count").toInt)
+    }
+
+    def copyPage(sourceShard: HaplocheirusShard, destinationShard: HaplocheirusShard, count: Int) = {
+      Some(new RedisCopy(sourceShardId, destinationShardId, cursor, count))
+    }
+
+    def serialize = Map("cursor" -> cursor)
   }
 }

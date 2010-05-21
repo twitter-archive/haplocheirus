@@ -17,7 +17,7 @@ object TimelineStoreServiceSpec extends Specification with JMocker with ClassMoc
     var service: TimelineStoreService = null
 
     doBefore {
-      service = new TimelineStoreService(nameServer, scheduler, future, replicationFuture)
+      service = new TimelineStoreService(nameServer, scheduler, Jobs.RedisCopyFactory, future, replicationFuture)
     }
 
     "append" in {
