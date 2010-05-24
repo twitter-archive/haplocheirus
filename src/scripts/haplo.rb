@@ -75,8 +75,13 @@ class JobManager < ThriftClient::Simple::ThriftService
   thrift_method :inject_job, void, field(:priority, i32, 1), field(:job, string, 2)
 end
 
-SHARD_PORT = 7690
-JOB_PORT = 7691
+class TimelineStore < ThriftClient::Simple::ThriftService
+  thrift_method :append, void, field(:entry, string, 1), field(:timeline_ids, list(string), 2)
+end
+
+SHARD_PORT = 7668
+JOB_PORT = 7669
+TIMELINE_PORT = 7666
 
 # ruby 1.9 is incompatible with 1.8 :(
 def ord(char)
@@ -93,13 +98,25 @@ def connect_job_service(hostname)
   JobManager.new(TCPSocket.new(hostname, JOB_PORT))
 end
 
+def connect_timeline_service(hostname)
+  TimelineStore.new(TCPSocket.new(hostname, TIMELINE_PORT))
+end
+
 def command_setup_dev
   service = connect_shard_service("localhost")
   shard = service.create_shard(ShardInfo.new("com.twitter.haplocheirus.RedisShard", "dev1", "localhost", "", "", 0))
   service.set_forwarding(Forwarding.new(0, 0, shard))
+  service.reload_forwardings()
+end
+
+def command_go
+  timeline = connect_timeline_service("localhost")
+  timeline.append(Time.now.to_s, [ "commie" ])
 end
 
 case ARGV[0]
 when "setup-dev"
   command_setup_dev
+when "go"
+  command_go
 end
