@@ -77,6 +77,7 @@ end
 
 class TimelineStore < ThriftClient::Simple::ThriftService
   thrift_method :append, void, field(:entry, string, 1), field(:timeline_ids, list(string), 2)
+  thrift_method :remove, void, field(:entry, string, 1), field(:timeline_ids, list(string), 2)
 end
 
 SHARD_PORT = 7668
@@ -109,14 +110,21 @@ def command_setup_dev
   service.reload_forwardings()
 end
 
-def command_go
+def command_append(timeline_name, entry)
   timeline = connect_timeline_service("localhost")
-  timeline.append(Time.now.to_s, [ "commie" ])
+  timeline.append(entry, [ timeline_name ])
+end
+
+def command_remove(timeline_name, entry)
+  timeline = connect_timeline_service("localhost")
+  timeline.remove(entry, [ timeline_name ])
 end
 
 case ARGV[0]
 when "setup-dev"
   command_setup_dev
-when "go"
-  command_go
+when "append"
+  command_append(ARGV[1], ARGV[2])
+when "remove"
+  command_remove(ARGV[1], ARGV[2])
 end
