@@ -22,21 +22,21 @@ object Haplocheirus {
     def time[A](name: String)(f: => A): A = Stats.time(name)(f)
   }
 
-  def apply(config: ConfigMap): Haplocheirus = {
+  def apply(config: ConfigMap): TimelineStoreService = {
+    val jobParser = new PolymorphicJobParser
+    val scheduler = PrioritizingJobScheduler(config.configMap("queue"), jobParser,
+      Map(Priority.Write.id -> "write", Priority.Migrate.id -> "migrate"))
+
     val log = new ThrottledLogger[String](Logger(), config("throttled_log.period_msec").toInt,
                                           config("throttled_log.rate").toInt)
     val replicationFuture = new Future("ReplicationFuture", config.configMap("replication_pool"))
     val shardRepository = new BasicShardRepository[HaplocheirusShard](
       new HaplocheirusShardAdapter(_), log, replicationFuture)
-    shardRepository += ("com.twitter.haplocheirus.RedisShard" -> new RedisShardFactory(config))
+    shardRepository += ("com.twitter.haplocheirus.RedisShard" -> new RedisShardFactory(config, scheduler(Priority.Write.id).queue))
 
     val nameServer = NameServer(config.configMap("nameservers"), Some(statsCollector),
                                 shardRepository, log, replicationFuture)
     nameServer.reload()
-
-    val jobParser = new PolymorphicJobParser
-    val scheduler = PrioritizingJobScheduler(config.configMap("queue"), jobParser,
-      Map(Priority.Write.id -> "write", Priority.Migrate.id -> "migrate"))
 
     val writeJobParser = new BoundJobParser(nameServer)
     val copyJobParser = new BoundJobParser((nameServer, scheduler(Priority.Migrate.id)))
@@ -46,15 +46,8 @@ object Haplocheirus {
     scheduler.start()
 
     val future = new Future("TimelineStoreService", config.configMap("service_pool"))
-    val service = new TimelineStoreService(nameServer, scheduler, Jobs.RedisCopyFactory,
-                                           future, replicationFuture)
-    new Haplocheirus(service)
+    new TimelineStoreService(nameServer, scheduler, Jobs.RedisCopyFactory, future, replicationFuture)
   }
-}
-
-class Haplocheirus(val service: TimelineStoreService) {
-  //
-  
 }
 
 /*

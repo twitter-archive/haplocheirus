@@ -10,4 +10,5 @@ service TimelineStore {
   void store(1: string timeline_id, 2: list<binary> entries);
   void merge(1: string timeline_id, 2: list<binary> entries);
   void unmerge(1: string timeline_id, 2: list<binary> entries);
+  void delete_timeline(1: string timeline_id);
 }

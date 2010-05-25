@@ -19,6 +19,10 @@ class TimelineStoreService(val nameServer: NameServer[HaplocheirusShard],
   }
 
   def append(entry: Array[Byte], timelines: Seq[String]) {
-    scheduler(Priority.Write.id)(Jobs.Append(entry, timelines))
+    Jobs.Append(entry, timelines)(nameServer)
+  }
+
+  def remove(entry: Array[Byte], timelines: Seq[String]) {
+    Jobs.Remove(entry, timelines)(nameServer)
   }
 }

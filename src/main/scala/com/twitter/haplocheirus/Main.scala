@@ -13,7 +13,7 @@ object Main extends Service {
   val log = Logger.get(getClass.getName)
   var thriftServer: TSelectorServer = null
   var gizzardServices: GizzardServices[HaplocheirusShard] = null
-  var haplocheirus: Haplocheirus = null
+  var service: TimelineStoreService = null
 
   private val deathSwitch = new CountDownLatch(1)
 
@@ -32,7 +32,7 @@ object Main extends Service {
 
   def shutdown() {
     log.info("Shutting down!")
-    haplocheirus.service.shutdown()
+    service.shutdown()
     stopThrift()
     deathSwitch.countDown()
     log.info("Goodbye!")
@@ -44,15 +44,15 @@ object Main extends Service {
 
   def startThrift(config: ConfigMap) {
     try {
-      haplocheirus = Haplocheirus(config)
+      service = Haplocheirus(config)
       gizzardServices = new GizzardServices(config.configMap("gizzard_services"),
-                                            haplocheirus.service.nameServer,
-                                            haplocheirus.service.copyFactory,
-                                            haplocheirus.service.scheduler,
+                                            service.nameServer,
+                                            service.copyFactory,
+                                            service.scheduler,
                                             Priority.Migrate.id)
       gizzardServices.start()
 
-      val processor = new thrift.TimelineStore.Processor(new TimelineStore(haplocheirus.service))
+      val processor = new thrift.TimelineStore.Processor(new TimelineStore(service))
       thriftServer = TSelectorServer("timelines", config("server_port").toInt,
                                      config.configMap("gizzard_services"), processor)
       thriftServer.serve()
