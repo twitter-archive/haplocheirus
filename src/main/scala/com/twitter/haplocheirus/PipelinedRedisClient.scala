@@ -2,6 +2,7 @@ package com.twitter.haplocheirus
 
 import java.util.concurrent.Future
 import scala.collection.mutable
+import com.twitter.gizzard.thrift.conversions.Sequences._
 import com.twitter.gizzard.scheduler.ErrorHandlingJobQueue
 import net.lag.logging.Logger
 import org.jredis._
@@ -41,10 +42,23 @@ class PipelinedRedisClient(hostname: String, pipelineMaxSize: Int, queue: ErrorH
     }
   }
 
-  def execute(errorJob: Jobs.RedisJob)(f: (JRedisPipeline) => Future[ResponseStatus]) {
-    pipeline += PipelinedRequest(f(redisClient), errorJob)
+  def checkPipeline() {
     while (pipeline.size > pipelineMaxSize) {
       finishRequest(pipeline.remove(0))
     }
+  }
+
+  def push(timeline: String, entry: Array[Byte], errorJob: Jobs.RedisJob) {
+    pipeline += PipelinedRequest(redisClient.lpushx(timeline, entry), errorJob)
+    checkPipeline()
+  }
+
+  def pop(timeline: String, entry: Array[Byte], errorJob: Jobs.RedisJob) {
+    pipeline += PipelinedRequest(redisClient.ldelete(timeline, entry), errorJob)
+    checkPipeline()
+  }
+
+  def get(timeline: String, offset: Int, length: Int): Seq[Array[Byte]] = {
+    redisClient.lrange(timeline, offset, length).get().toSeq
   }
 }

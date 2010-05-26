@@ -1,6 +1,8 @@
 package com.twitter.haplocheirus
 
 import java.util.concurrent.Future
+import java.util.{List => JList}
+import com.twitter.gizzard.thrift.conversions.Sequences._
 import com.twitter.gizzard.scheduler.ErrorHandlingJobQueue
 import org.jredis.protocol.ResponseStatus
 import org.jredis.ri.alphazero.{JRedisFutureSupport, JRedisPipeline}
@@ -13,6 +15,7 @@ object PipelinedRedisClientSpec extends Specification with JMocker with ClassMoc
     val jredis = mock[JRedisPipeline]
     val queue = mock[ErrorHandlingJobQueue]
     val future = mock[JRedisFutureSupport.FutureStatus]
+    val future2 = mock[Future[JList[Array[Byte]]]]
     var client: PipelinedRedisClient = null
 
     val timeline = "t1"
@@ -25,13 +28,33 @@ object PipelinedRedisClientSpec extends Specification with JMocker with ClassMoc
       }
     }
 
-    "execute" in {
+    "push" in {
       expect {
-        one(jredis).rpush(timeline, data) willReturn future
+        one(jredis).lpushx(timeline, data) willReturn future
       }
 
-      client.execute(job) { _.rpush(timeline, data) }
+      client.push(timeline, data, job)
       client.pipeline.toList mustEqual List(PipelinedRequest(future, job))
+    }
+
+    "pop" in {
+      expect {
+        one(jredis).ldelete(timeline, data) willReturn future
+      }
+
+      client.pop(timeline, data, job)
+      client.pipeline.toList mustEqual List(PipelinedRequest(future, job))
+    }
+
+    "get" in {
+      val result = List("a".getBytes, "z".getBytes)
+
+      expect {
+        one(jredis).lrange(timeline, 0, 10) willReturn future2
+        one(future2).get() willReturn result.toJavaList
+      }
+
+      client.get(timeline, 0, 10).toList mustEqual result
     }
 
     "finishRequest" in {

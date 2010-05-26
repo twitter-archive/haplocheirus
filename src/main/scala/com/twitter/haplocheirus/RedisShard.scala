@@ -25,10 +25,14 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
   lazy val redisClient = new PipelinedRedisClient(shardInfo.hostname, pipelineMaxSize, queue)
 
   def append(entry: Array[Byte], timeline: String) {
-    redisClient.execute(Jobs.Append(entry, List(timeline))) { _.rpushx(timeline, entry) }
+    redisClient.push(timeline, entry, Jobs.Append(entry, List(timeline)))
   }
 
   def remove(entry: Array[Byte], timeline: String) {
-    redisClient.execute(Jobs.Remove(entry, List(timeline))) { _.ldelete(timeline, entry) }
+    redisClient.pop(timeline, entry, Jobs.Remove(entry, List(timeline)))
+  }
+
+  def get(timeline: String, offset: Int, length: Int): Seq[Array[Byte]] = {
+    redisClient.get(timeline, offset, length)
   }
 }

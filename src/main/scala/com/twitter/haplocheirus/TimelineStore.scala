@@ -13,7 +13,10 @@ class TimelineStore(service: TimelineStoreService) extends thrift.TimelineStore.
     service.remove(entry, timeline_ids.toSeq)
   }
 
-  def get(timeline_id: String, offset: Int, length: Int) = null
+  def get(timeline_id: String, offset: Int, length: Int) = {
+    service.get(timeline_id, offset, length).toJavaList
+  }
+
   def get_range(timeline_id: String, from_id: Long, to_id: Long) = null
   def store(timeline_id: String, entries: JList[Array[Byte]]) { }
   def merge(timeline_id: String, entries: JList[Array[Byte]]) { }

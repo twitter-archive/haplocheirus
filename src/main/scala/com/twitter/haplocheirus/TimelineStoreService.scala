@@ -18,11 +18,19 @@ class TimelineStoreService(val nameServer: NameServer[HaplocheirusShard],
     replicationFuture.shutdown()
   }
 
+  private def shardFor(timeline: String) = {
+    nameServer.findCurrentForwarding(0, Hash.FNV1A_64(timeline))
+  }
+
   def append(entry: Array[Byte], timelines: Seq[String]) {
     Jobs.Append(entry, timelines)(nameServer)
   }
 
   def remove(entry: Array[Byte], timelines: Seq[String]) {
     Jobs.Remove(entry, timelines)(nameServer)
+  }
+
+  def get(timeline: String, offset: Int, length: Int) = {
+    shardFor(timeline).get(timeline, offset, length)
   }
 }
