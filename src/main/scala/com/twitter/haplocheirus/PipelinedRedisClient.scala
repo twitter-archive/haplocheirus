@@ -59,6 +59,6 @@ class PipelinedRedisClient(hostname: String, pipelineMaxSize: Int, queue: ErrorH
   }
 
   def get(timeline: String, offset: Int, length: Int): Seq[Array[Byte]] = {
-    redisClient.lrange(timeline, offset, length).get().toSeq
+    redisClient.lrange(timeline, offset, offset + length - 1).get().toSeq
   }
 }

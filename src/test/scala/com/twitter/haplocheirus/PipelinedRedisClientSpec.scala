@@ -50,11 +50,11 @@ object PipelinedRedisClientSpec extends Specification with JMocker with ClassMoc
       val result = List("a".getBytes, "z".getBytes)
 
       expect {
-        one(jredis).lrange(timeline, 0, 10) willReturn future2
+        one(jredis).lrange(timeline, 5, 14) willReturn future2
         one(future2).get() willReturn result.toJavaList
       }
 
-      client.get(timeline, 0, 10).toList mustEqual result
+      client.get(timeline, 5, 10).toList mustEqual result
     }
 
     "finishRequest" in {
