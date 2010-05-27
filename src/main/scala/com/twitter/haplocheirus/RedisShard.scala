@@ -10,9 +10,9 @@ import net.lag.configgy.ConfigMap
 
 class RedisShardFactory(config: ConfigMap, queue: ErrorHandlingJobQueue) extends ShardFactory[HaplocheirusShard] {
   def instantiate(shardInfo: ShardInfo, weight: Int, children: Seq[HaplocheirusShard]) = {
-    val pipelineSize = config("redis_pipeline").toInt
-    val timeout = config("redis_timeout_msec").toInt.milliseconds
-    val expiration = config("redis_expiration_sec").toInt.seconds
+    val pipelineSize = config("pipeline").toInt
+    val timeout = config("timeout_msec").toInt.milliseconds
+    val expiration = config("expiration_hours").toInt.hours
     new RedisShard(shardInfo, weight, children, pipelineSize, timeout, expiration, queue)
   }
 

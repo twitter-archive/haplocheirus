@@ -32,7 +32,8 @@ object Haplocheirus {
     val replicationFuture = new Future("ReplicationFuture", config.configMap("replication_pool"))
     val shardRepository = new BasicShardRepository[HaplocheirusShard](
       new HaplocheirusShardAdapter(_), log, replicationFuture)
-    shardRepository += ("com.twitter.haplocheirus.RedisShard" -> new RedisShardFactory(config, scheduler(Priority.Write.id).queue))
+    shardRepository += ("com.twitter.haplocheirus.RedisShard" ->
+      new RedisShardFactory(config.configMap("redis"), scheduler(Priority.Write.id).queue))
 
     val nameServer = NameServer(config.configMap("nameservers"), Some(statsCollector),
                                 shardRepository, log, replicationFuture)
