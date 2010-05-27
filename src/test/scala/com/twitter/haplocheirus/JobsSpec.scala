@@ -17,7 +17,7 @@ object JobsSpec extends Specification with JMocker with ClassMocker {
     "Append" in {
       val data = "hello".getBytes
       val append = Jobs.Append(data, List("t1", "t2"))
-      val text = "{\"entry\":\"aGVsbG8=\\r\\n\",\"timelines\":[\"t1\",\"t2\"]}"
+      val text = "{\"entry\":\"aGVsbG8=\",\"timelines\":[\"t1\",\"t2\"]}"
 
       expect {
         // yes, these 2 keys map to similar longs, but the byte_swapper in gizzard will fix that.
@@ -27,7 +27,7 @@ object JobsSpec extends Specification with JMocker with ClassMocker {
         one(shard2).append(data, "t2")
       }
 
-      append.toMap mustEqual Map("entry" -> "aGVsbG8=\r\n", "timelines" -> List("t1", "t2"))
+      append.toMap mustEqual Map("entry" -> "aGVsbG8=", "timelines" -> List("t1", "t2"))
       append.apply(nameServer)
 
       Json.build(append.toMap).toString mustEqual text
@@ -38,7 +38,7 @@ object JobsSpec extends Specification with JMocker with ClassMocker {
     "Remove" in {
       val data = "hello".getBytes
       val remove = Jobs.Remove(data, List("t1", "t2"))
-      val text = "{\"entry\":\"aGVsbG8=\\r\\n\",\"timelines\":[\"t1\",\"t2\"]}"
+      val text = "{\"entry\":\"aGVsbG8=\",\"timelines\":[\"t1\",\"t2\"]}"
 
       expect {
         // yes, these 2 keys map to similar longs, but the byte_swapper in gizzard will fix that.
@@ -48,7 +48,7 @@ object JobsSpec extends Specification with JMocker with ClassMocker {
         one(shard2).remove(data, "t2")
       }
 
-      remove.toMap mustEqual Map("entry" -> "aGVsbG8=\r\n", "timelines" -> List("t1", "t2"))
+      remove.toMap mustEqual Map("entry" -> "aGVsbG8=", "timelines" -> List("t1", "t2"))
       remove.apply(nameServer)
 
       Json.build(remove.toMap).toString mustEqual text

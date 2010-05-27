@@ -21,5 +21,8 @@ class TimelineStore(service: TimelineStoreService) extends thrift.TimelineStore.
   def store(timeline_id: String, entries: JList[Array[Byte]]) { }
   def merge(timeline_id: String, entries: JList[Array[Byte]]) { }
   def unmerge(timeline_id: String, entries: JList[Array[Byte]]) { }
-  def delete_timeline(timeline_id: String) { }
+
+  def delete_timeline(timeline_id: String) {
+    service.deleteTimeline(timeline_id)
+  }
 }

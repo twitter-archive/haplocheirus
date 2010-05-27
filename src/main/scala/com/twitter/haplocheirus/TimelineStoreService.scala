@@ -33,4 +33,8 @@ class TimelineStoreService(val nameServer: NameServer[HaplocheirusShard],
   def get(timeline: String, offset: Int, length: Int) = {
     shardFor(timeline).get(timeline, offset, length)
   }
+
+  def deleteTimeline(timeline: String) {
+    scheduler(Priority.Write.id)(Jobs.DeleteTimeline(timeline))
+  }
 }

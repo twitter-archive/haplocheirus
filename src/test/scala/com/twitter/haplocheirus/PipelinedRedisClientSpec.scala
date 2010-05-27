@@ -1,16 +1,17 @@
 package com.twitter.haplocheirus
 
-import java.util.concurrent.Future
+import java.util.concurrent.{ExecutionException, Future, TimeUnit}
 import java.util.{List => JList}
 import com.twitter.gizzard.thrift.conversions.Sequences._
 import com.twitter.gizzard.scheduler.ErrorHandlingJobQueue
+import com.twitter.xrayspecs.TimeConversions._
 import org.jredis.protocol.ResponseStatus
 import org.jredis.ri.alphazero.{JRedisFutureSupport, JRedisPipeline}
 import org.specs.Specification
 import org.specs.mock.{ClassMocker, JMocker}
 
 
-object PipelinedRedisClientSpec extends Specification with JMocker with ClassMocker {
+object PipelinedRedisClientSpec extends ConfiguredSpecification with JMocker with ClassMocker {
   "PipelinedRedisClient" should {
     val jredis = mock[JRedisPipeline]
     val queue = mock[ErrorHandlingJobQueue]
@@ -23,7 +24,7 @@ object PipelinedRedisClientSpec extends Specification with JMocker with ClassMoc
     val job = Jobs.Append(data, List(timeline))
 
     doBefore {
-      client = new PipelinedRedisClient("localhost", 10, queue) {
+      client = new PipelinedRedisClient("localhost", 10, 1.second, 1.day, queue) {
         override def makeRedisClient = jredis
       }
     }
@@ -34,7 +35,7 @@ object PipelinedRedisClientSpec extends Specification with JMocker with ClassMoc
       }
 
       client.push(timeline, data, job)
-      client.pipeline.toList mustEqual List(PipelinedRequest(future, job))
+      client.pipeline.toList mustEqual List(PipelinedRequest(future, Some(job)))
     }
 
     "pop" in {
@@ -43,7 +44,7 @@ object PipelinedRedisClientSpec extends Specification with JMocker with ClassMoc
       }
 
       client.pop(timeline, data, job)
-      client.pipeline.toList mustEqual List(PipelinedRequest(future, job))
+      client.pipeline.toList mustEqual List(PipelinedRequest(future, Some(job)))
     }
 
     "get" in {
@@ -51,18 +52,28 @@ object PipelinedRedisClientSpec extends Specification with JMocker with ClassMoc
 
       expect {
         one(jredis).lrange(timeline, 5, 14) willReturn future2
-        one(future2).get() willReturn result.toJavaList
+        one(future2).get(1000, TimeUnit.MILLISECONDS) willReturn result.toJavaList
+        one(jredis).expire("t1", 86400)
       }
 
       client.get(timeline, 5, 10).toList mustEqual result
     }
 
+    "delete" in {
+      expect {
+        one(jredis).del(timeline) willReturn future
+        one(future).get(1000, TimeUnit.MILLISECONDS) willReturn ResponseStatus.STATUS_OK
+      }
+
+      client.delete(timeline)
+    }
+
     "finishRequest" in {
-      val request = PipelinedRequest(future, job)
+      val request = PipelinedRequest(future, Some(job))
 
       "success" in {
         expect {
-          one(future).get() willReturn ResponseStatus.STATUS_OK
+          one(future).get(1000, TimeUnit.MILLISECONDS) willReturn ResponseStatus.STATUS_OK
         }
 
         client.finishRequest(request)
@@ -70,7 +81,16 @@ object PipelinedRedisClientSpec extends Specification with JMocker with ClassMoc
 
       "failure" in {
         expect {
-          one(future).get() willReturn new ResponseStatus(ResponseStatus.Code.ERROR, "I burped.")
+          one(future).get(1000, TimeUnit.MILLISECONDS) willReturn new ResponseStatus(ResponseStatus.Code.ERROR, "I burped.")
+          one(queue).putError(job)
+        }
+
+        client.finishRequest(request)
+      }
+
+      "exception" in {
+        expect {
+          one(future).get(1000, TimeUnit.MILLISECONDS) willThrow new ExecutionException(new Exception("I died."))
           one(queue).putError(job)
         }
 

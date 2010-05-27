@@ -62,5 +62,14 @@ object TimelineStoreServiceSpec extends Specification with JMocker with ClassMoc
 
       service.get("t1", offset, length) mustEqual data
     }
+
+    "deleteTimeline" in {
+      expect {
+        one(scheduler).apply(Priority.Write.id) willReturn jobScheduler
+        one(jobScheduler).apply(Jobs.DeleteTimeline("t1"))
+      }
+
+      service.deleteTimeline("t1")
+    }
   }
 }

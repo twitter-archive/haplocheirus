@@ -12,7 +12,13 @@ import org.apache.commons.codec.binary.Base64
 class JobParser(nameServer: NameServer[HaplocheirusShard]) extends BoundJobParser(nameServer)
 
 object Jobs {
-  abstract class RedisJob extends UnboundJob[NameServer[HaplocheirusShard]]
+  abstract class RedisJob extends UnboundJob[NameServer[HaplocheirusShard]] {
+    override def toString = "<%s: %s>".format(getClass.getName, toMap)
+  }
+
+  def encodeBase64(data: Array[Byte]) = {
+    Base64.encodeBase64String(data).replaceAll("\r\n", "")
+  }
 
   case class Append(entry: Array[Byte], timelines: Seq[String]) extends RedisJob {
     def this(attributes: Map[String, Any]) = {
@@ -21,7 +27,7 @@ object Jobs {
     }
 
     def toMap = {
-      Map("entry" -> Base64.encodeBase64String(entry), "timelines" -> timelines)
+      Map("entry" -> encodeBase64(entry), "timelines" -> timelines)
     }
 
     def apply(nameServer: NameServer[HaplocheirusShard]) {
@@ -38,7 +44,7 @@ object Jobs {
     }
 
     def toMap = {
-      Map("entry" -> Base64.encodeBase64String(entry), "timelines" -> timelines)
+      Map("entry" -> encodeBase64(entry), "timelines" -> timelines)
     }
 
     def apply(nameServer: NameServer[HaplocheirusShard]) {
@@ -48,6 +54,23 @@ object Jobs {
     }
   }
 
+  case class DeleteTimeline(timeline: String) extends RedisJob {
+    def this(attributes: Map[String, Any]) = {
+      this(attributes("timeline").asInstanceOf[String])
+    }
+
+    def toMap = {
+      Map("timeline" -> timeline)
+    }
+
+    def apply(nameServer: NameServer[HaplocheirusShard]) {
+      nameServer.findCurrentForwarding(0, Hash.FNV1A_64(timeline)).deleteTimeline(timeline)
+    }
+  }
+
+
+
+  // FIXME
   object RedisCopyFactory extends CopyFactory[HaplocheirusShard] {
     def apply(sourceShardId: Int, destinationShardId: Int) = null
     //new RedisCopy(sourceShardId, destinationShardId, RedisCopy.START)
