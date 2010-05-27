@@ -55,5 +55,21 @@ object JobsSpec extends Specification with JMocker with ClassMocker {
       // can't compare byte arrays in case classes. suck.
       new Jobs.Remove(Json.parse(text).asInstanceOf[Map[String, Any]]).timelines mustEqual remove.timelines
     }
+
+    "DeleteTimeline" in {
+      val deleteTimeline = Jobs.DeleteTimeline("t1")
+      val text = "{\"timeline\":\"t1\"}"
+
+      expect {
+        one(nameServer).findCurrentForwarding(0, 632754681242344982L) willReturn shard1
+        one(shard1).deleteTimeline("t1")
+      }
+
+      deleteTimeline.toMap mustEqual Map("timeline" -> "t1")
+      deleteTimeline.apply(nameServer)
+
+      Json.build(deleteTimeline.toMap).toString mustEqual text
+      new Jobs.DeleteTimeline(Json.parse(text).asInstanceOf[Map[String, Any]]) mustEqual deleteTimeline
+    }
   }
 }
