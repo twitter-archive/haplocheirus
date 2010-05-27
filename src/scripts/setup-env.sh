@@ -19,18 +19,18 @@ if java -version 2>&1 |grep "1\.5"; then
   exit 1
 fi
 
-if [ "x$DB_USERNAME" = "x" -o "x$DB_PASSWORD" = "x" ]; then
-  echo "Please set DB_USERNAME and DB_PASSWORD."
-  exit 1
-fi
+#if [ "x$DB_USERNAME" = "x" -o "x$DB_PASSWORD" = "x" ]; then
+#  echo "Please set DB_USERNAME and DB_PASSWORD."
+#  exit 1
+#fi
 
 echo "Killing any running haplo..."
 curl http://localhost:7667/shutdown >/dev/null 2>/dev/null
 sleep 3
 
 echo "Launching haplo..."
-echo "DROP DATABASE IF EXISTS timelines_development" | mysql -u$DB_USERNAME -p$DB_PASSWORD
-echo "CREATE DATABASE IF NOT EXISTS timelines_development" | mysql -u$DB_USERNAME -p$DB_PASSWORD
+#echo "DROP DATABASE IF EXISTS timelines_development" | mysql -u$DB_USERNAME -p$DB_PASSWORD
+#echo "CREATE DATABASE IF NOT EXISTS timelines_development" | mysql -u$DB_USERNAME -p$DB_PASSWORD
 
 JAVA_OPTS="-Xms256m -Xmx256m -XX:NewSize=64m -XX:+UseConcMarkSweepGC -XX:+UseParNewGC -server"
 java -Dstage=development $JAVA_OPTS -jar ./dist/haplocheirus/haplocheirus-1.0.jar &
