@@ -45,6 +45,13 @@ class PipelinedRedisClient(hostname: String, pipelineMaxSize: Int, timeout: Dura
     def cancel(x: Boolean) = future.cancel(x)
   }
 
+  def shutdown() {
+    while (pipeline.size > 0) {
+      finishRequest(pipeline.remove(0))
+    }
+    redisClient.quit()
+  }
+
   def replay(request: PipelinedRequest) {
     request.errorJob.map { queue.putError(_) }
   }
