@@ -233,8 +233,10 @@ class ThriftClient
     end
 
     class ThriftService
-      def initialize(sock)
+      def initialize(sock, pipeline_size=0)
         @sock = sock
+        @pipeline_size = pipeline_size
+        @pipeline = []
       end
 
       def self._arg_structs
@@ -256,8 +258,16 @@ class ThriftClient
         arg_class, rv_class = cls._arg_structs[method_name.to_sym]
         arg_struct = arg_class.new(*args)
         @sock.write(ThriftClient::Simple.pack_request(method_name, arg_struct))
-        rv = ThriftClient::Simple.read_response(@sock, rv_class)
-        rv[2]
+        if @pipeline_size > 0
+          @pipeline << rv_class
+          while @pipeline.size > @pipeline_size
+            ThriftClient::Simple.read_response(@sock, @pipeline.shift)
+          end
+          nil
+        else
+          rv = ThriftClient::Simple.read_response(@sock, rv_class)
+          rv[2]
+        end
       end
 
       # convenience. robey is lazy.

@@ -128,7 +128,7 @@ def command_get(timeline_name, offset, length)
 end
 
 def command_spam(pushes, timeline_count)
-  timeline = connect_timeline_service("localhost")
+  timeline = TimelineStore.new(TCPSocket.new("localhost", TIMELINE_PORT), 100)
   entry = ("\x00" * 15) + "\x01"
   current_timeline = 0
 
