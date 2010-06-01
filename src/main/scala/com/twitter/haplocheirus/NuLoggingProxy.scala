@@ -10,7 +10,7 @@ object NuLoggingProxy {
     Proxy(obj) { method =>
       stats.incr("operation-" + name + ":" + method.name)
       val (rv, nanosec) = Stats.durationNanos { method() }
-      stats.addTiming("x-operation-" + name + ":" + method.name + "-ns", nanosec.toInt)
+      stats.addTiming("x-operation-" + name + ":" + method.name + "-usec", (nanosec / 1000).toInt)
       rv
     }
   }

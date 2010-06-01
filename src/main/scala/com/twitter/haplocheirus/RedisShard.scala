@@ -25,7 +25,7 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
 
   def append(entry: Array[Byte], timeline: String) {
     pool.withClient(shardInfo.hostname) { client =>
-      Stats.timeNanos("redis-op-ns") {
+      Stats.timeMicros("redis-op-usec") {
         client.push(timeline, entry, Jobs.Append(entry, List(timeline)))
       }
     }

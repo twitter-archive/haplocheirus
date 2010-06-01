@@ -49,11 +49,11 @@ class RedisPool(config: ConfigMap, queue: ErrorHandlingJobQueue) {
   }
 
   def withClient[T](hostname: String)(f: PipelinedRedisClient => T): T = {
-    val client = Stats.timeNanos("redis-acquire-ns") { get(hostname) }
+    val client = Stats.timeMicros("redis-acquire-usec") { get(hostname) }
     try {
       f(client)
     } finally {
-      Stats.timeNanos("redis-release-ns") { giveBack(hostname, client) }
+      Stats.timeMicros("redis-release-usec") { giveBack(hostname, client) }
     }
   }
 
