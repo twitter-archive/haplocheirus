@@ -30,10 +30,10 @@ object Haplocheirus {
     val log = new ThrottledLogger[String](Logger(), config("throttled_log.period_msec").toInt,
                                           config("throttled_log.rate").toInt)
     val replicationFuture = new Future("ReplicationFuture", config.configMap("replication_pool"))
+    val redisPool = new RedisPool(config.configMap("redis"), scheduler(Priority.Write.id).queue)
     val shardRepository = new BasicShardRepository[HaplocheirusShard](
       new HaplocheirusShardAdapter(_), log, replicationFuture)
-    shardRepository += ("com.twitter.haplocheirus.RedisShard" ->
-      new RedisShardFactory(config.configMap("redis"), scheduler(Priority.Write.id).queue))
+    shardRepository += ("com.twitter.haplocheirus.RedisShard" -> new RedisShardFactory(redisPool))
 
     val nameServer = NameServer(config.configMap("nameservers"), Some(statsCollector),
                                 shardRepository, log, replicationFuture)
@@ -47,23 +47,6 @@ object Haplocheirus {
     scheduler.start()
 
     val future = new Future("TimelineStoreService", config.configMap("service_pool"))
-    new TimelineStoreService(nameServer, scheduler, Jobs.RedisCopyFactory, future, replicationFuture)
+    new TimelineStoreService(nameServer, scheduler, Jobs.RedisCopyFactory, redisPool, future, replicationFuture)
   }
 }
-
-/*
-FIXME - wrap jobs with this.
-
-object NuLoggingProxy {
-  var counter = 0
-
-  def apply[T <: AnyRef](stats: StatsProvider, name: String, obj: T)(implicit manifest: Manifest[T]): T = {
-    Proxy(obj) { method =>
-      stats.incr("operation-" + name + ":" + method.name)
-      val (rv, msec) = Stats.duration { method() }
-      stats.addTiming("x-operation-" + shortName + ":" + method.name, msec.toInt)
-      rv
-    }
-  }
-}
-*/

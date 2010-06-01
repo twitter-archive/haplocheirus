@@ -3,6 +3,7 @@ package com.twitter.haplocheirus
 import java.util.concurrent.{LinkedBlockingQueue, TimeoutException, TimeUnit}
 import scala.collection.mutable
 import com.twitter.gizzard.scheduler.ErrorHandlingJobQueue
+import com.twitter.ostrich.Stats
 import com.twitter.xrayspecs.TimeConversions._
 import net.lag.configgy.ConfigMap
 
@@ -48,11 +49,22 @@ class RedisPool(config: ConfigMap, queue: ErrorHandlingJobQueue) {
   }
 
   def withClient[T](hostname: String)(f: PipelinedRedisClient => T): T = {
-    val client = get(hostname)
+    val client = Stats.timeNanos("redis-acquire-ns") { get(hostname) }
     try {
       f(client)
     } finally {
-      giveBack(hostname, client)
+      Stats.timeNanos("redis-release-ns") { giveBack(hostname, client) }
+    }
+  }
+
+  def shutdown() {
+    synchronized {
+      serverMap.foreach { case (hostname, pool) =>
+        while (pool.available.size > 0) {
+          pool.available.take().shutdown()
+        }
+      }
+      serverMap.clear()
     }
   }
 

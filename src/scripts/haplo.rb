@@ -127,6 +127,23 @@ def command_get(timeline_name, offset, length)
   items.each { |i| puts i.inspect }
 end
 
+def command_spam(pushes, timeline_count)
+  timeline = connect_timeline_service("localhost")
+  entry = ("\x00" * 15) + "\x01"
+  current_timeline = 0
+
+  start_time = Time.now
+  i = 0
+  while i < pushes
+    timeline.append(entry, [ "timeline:#{current_timeline}" ])
+    current_timeline = (current_timeline + 1) % timeline_count
+    i += 1
+  end
+  end_time = Time.now
+
+  puts "Pushed #{pushes} items in #{((end_time.to_f - start_time.to_f) * 1000).to_i} msec."
+end
+
 case ARGV[0]
 when "setup-dev"
   command_setup_dev
@@ -136,4 +153,6 @@ when "remove"
   command_remove(ARGV[1], ARGV[2])
 when "get"
   command_get(ARGV[1], ARGV[2].to_i, ARGV[3].to_i)
+when "spam"
+  command_spam(ARGV[1].to_i, 100)
 end

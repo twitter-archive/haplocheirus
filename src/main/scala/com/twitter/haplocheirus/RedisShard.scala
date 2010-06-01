@@ -3,17 +3,15 @@ package com.twitter.haplocheirus
 import scala.collection.mutable
 import com.twitter.gizzard.scheduler.ErrorHandlingJobQueue
 import com.twitter.gizzard.shards._
+import com.twitter.ostrich.Stats
 import com.twitter.xrayspecs.Duration
 import com.twitter.xrayspecs.TimeConversions._
 import net.lag.configgy.ConfigMap
 
 
-class RedisShardFactory(config: ConfigMap, queue: ErrorHandlingJobQueue) extends ShardFactory[HaplocheirusShard] {
+class RedisShardFactory(pool: RedisPool) extends ShardFactory[HaplocheirusShard] {
   def instantiate(shardInfo: ShardInfo, weight: Int, children: Seq[HaplocheirusShard]) = {
-    val pipelineSize = config("pipeline").toInt
-    val timeout = config("timeout_msec").toInt.milliseconds
-    val expiration = config("expiration_hours").toInt.hours
-    new RedisShard(shardInfo, weight, children, pipelineSize, timeout, expiration, queue)
+    new RedisShard(shardInfo, weight, children, pool)
   }
 
   def materialize(shardInfo: ShardInfo) {
@@ -22,27 +20,32 @@ class RedisShardFactory(config: ConfigMap, queue: ErrorHandlingJobQueue) extends
 }
 
 class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[HaplocheirusShard],
-                 val pipelineMaxSize: Int, val timeout: Duration, val expiration: Duration,
-                 val queue: ErrorHandlingJobQueue)
+                 val pool: RedisPool)
       extends HaplocheirusShard {
 
-  // FIXME: this is creating a new client each time!
-  lazy val redisClient =
-    new PipelinedRedisClient(shardInfo.hostname, pipelineMaxSize, timeout, expiration, queue)
-
   def append(entry: Array[Byte], timeline: String) {
-    redisClient.push(timeline, entry, Jobs.Append(entry, List(timeline)))
+    pool.withClient(shardInfo.hostname) { client =>
+      Stats.timeNanos("redis-op-ns") {
+        client.push(timeline, entry, Jobs.Append(entry, List(timeline)))
+      }
+    }
   }
 
   def remove(entry: Array[Byte], timeline: String) {
-    redisClient.pop(timeline, entry, Jobs.Remove(entry, List(timeline)))
+    pool.withClient(shardInfo.hostname) { client =>
+      client.pop(timeline, entry, Jobs.Remove(entry, List(timeline)))
+    }
   }
 
   def get(timeline: String, offset: Int, length: Int): Seq[Array[Byte]] = {
-    redisClient.get(timeline, offset, length)
+    pool.withClient(shardInfo.hostname) { client =>
+      client.get(timeline, offset, length)
+    }
   }
 
   def deleteTimeline(timeline: String) {
-    redisClient.delete(timeline)
+    pool.withClient(shardInfo.hostname) { client =>
+      client.delete(timeline)
+    }
   }
 }

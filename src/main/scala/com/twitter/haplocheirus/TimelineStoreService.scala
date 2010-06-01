@@ -10,12 +10,14 @@ import com.twitter.gizzard.thrift.conversions.Sequences._
 class TimelineStoreService(val nameServer: NameServer[HaplocheirusShard],
                            val scheduler: PrioritizingJobScheduler,
                            val copyFactory: CopyFactory[HaplocheirusShard],
+                           val redisPool: RedisPool,
                            val future: Future,
                            val replicationFuture: Future) {
   def shutdown() {
     scheduler.shutdown()
     future.shutdown()
     replicationFuture.shutdown()
+    redisPool.shutdown()
   }
 
   private def shardFor(timeline: String) = {
