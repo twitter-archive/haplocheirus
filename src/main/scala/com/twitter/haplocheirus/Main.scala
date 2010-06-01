@@ -52,7 +52,7 @@ object Main extends Service {
                                             Priority.Migrate.id)
       gizzardServices.start()
 
-      val processor = new thrift.TimelineStore.Processor(new TimelineStore(service))
+      val processor = new thrift.TimelineStore.Processor(NuLoggingProxy[thrift.TimelineStore.Iface](Stats, "timelines", new TimelineStore(service)))
       thriftServer = TSelectorServer("timelines", config("server_port").toInt,
                                      config.configMap("gizzard_services"), processor)
       thriftServer.serve()
