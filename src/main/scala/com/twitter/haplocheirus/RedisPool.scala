@@ -59,8 +59,10 @@ class RedisPool(config: ConfigMap) {
   }
 
   def giveBack(hostname: String, client: PipelinedRedisClient) {
-    synchronized {
-      serverMap(hostname).available.offer(client)
+    if (client.alive) {
+      synchronized {
+        serverMap(hostname).available.offer(client)
+      }
     }
   }
 

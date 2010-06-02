@@ -28,6 +28,10 @@ object RedisPoolSpec extends ConfiguredSpecification with JMocker with ClassMock
     }
 
     "giveBack" in {
+      expect {
+        one(client).alive willReturn true
+      }
+
       redisPool.get("a") mustEqual client
       redisPool.serverMap.keys.toList mustEqual List("a")
       redisPool.serverMap("a").available.size mustEqual 0
@@ -36,6 +40,10 @@ object RedisPoolSpec extends ConfiguredSpecification with JMocker with ClassMock
     }
 
     "toString" in {
+      expect {
+        one(client).alive willReturn true
+      }
+
       redisPool.toString mustEqual "<RedisPool: >"
       redisPool.get("a") mustEqual client
       redisPool.toString mustEqual "<RedisPool: a=(0 available, 1 total)>"

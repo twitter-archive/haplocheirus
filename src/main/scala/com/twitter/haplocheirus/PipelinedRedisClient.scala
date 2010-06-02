@@ -31,6 +31,7 @@ class PipelinedRedisClient(hostname: String, pipelineMaxSize: Int, timeout: Dura
     DefaultConnectionSpec.newSpec(segments(0), DEFAULT_PORT, 0, null)
   }
   val redisClient = makeRedisClient
+  var alive = true
 
   // allow tests to override.
   def makeRedisClient = new JRedisPipeline(connectionSpec)
@@ -47,6 +48,7 @@ class PipelinedRedisClient(hostname: String, pipelineMaxSize: Int, timeout: Dura
   }
 
   def shutdown() {
+    alive = false
     while (pipeline.size > 0) {
       finishRequest(pipeline.remove(0))
     }
