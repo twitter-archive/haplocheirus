@@ -135,9 +135,10 @@ def command_spam(pushes, timeline_count)
   start_time = Time.now
   i = 0
   while i < pushes
-    timeline.append(entry, [ "timeline:#{current_timeline}" ])
+    names = (0..9).map { |n| "timeline:#{current_timeline + n}" }
+    timeline.append(entry, names)
     current_timeline = (current_timeline + 1) % timeline_count
-    i += 1
+    i += 10
   end
   end_time = Time.now
 
@@ -155,4 +156,6 @@ when "get"
   command_get(ARGV[1], ARGV[2].to_i, ARGV[3].to_i)
 when "spam"
   command_spam(ARGV[1].to_i, 100)
+when "flush"
+  connect_job_service("localhost").retry_errors
 end

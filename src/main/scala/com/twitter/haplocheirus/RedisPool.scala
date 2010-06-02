@@ -6,11 +6,15 @@ import com.twitter.gizzard.scheduler.ErrorHandlingJobQueue
 import com.twitter.ostrich.Stats
 import com.twitter.xrayspecs.TimeConversions._
 import net.lag.configgy.ConfigMap
+import net.lag.logging.Logger
+import org.jredis.ClientRuntimeException
 
 
 // FIXME stats
-class RedisPool(config: ConfigMap, queue: ErrorHandlingJobQueue) {
+class RedisPool(config: ConfigMap) {
   case class ClientPool(available: LinkedBlockingQueue[PipelinedRedisClient], var count: Int)
+
+  val log = Logger(getClass.getName)
 
   val poolSize = config("pool_size").toInt
   val poolTimeout = config("pool_timeout_msec").toInt.milliseconds
@@ -20,7 +24,7 @@ class RedisPool(config: ConfigMap, queue: ErrorHandlingJobQueue) {
     val pipelineSize = config("pipeline").toInt
     val timeout = config("timeout_msec").toInt.milliseconds
     val expiration = config("expiration_hours").toInt.hours
-    new PipelinedRedisClient(hostname, pipelineSize, timeout, expiration, queue)
+    new PipelinedRedisClient(hostname, pipelineSize, timeout, expiration)
   }
 
   def get(hostname: String): PipelinedRedisClient = {
@@ -42,6 +46,18 @@ class RedisPool(config: ConfigMap, queue: ErrorHandlingJobQueue) {
     client
   }
 
+  def throwAway(hostname: String, client: PipelinedRedisClient) {
+    try {
+      client.shutdown()
+    } catch {
+      case e: Throwable =>
+        log.warning(e, "Error discarding dead redis client: %s", e)
+    }
+    synchronized {
+      serverMap.get(hostname).foreach { _.count -= 1 }
+    }
+  }
+
   def giveBack(hostname: String, client: PipelinedRedisClient) {
     synchronized {
       serverMap(hostname).available.offer(client)
@@ -52,6 +68,11 @@ class RedisPool(config: ConfigMap, queue: ErrorHandlingJobQueue) {
     val client = Stats.timeMicros("redis-acquire-usec") { get(hostname) }
     try {
       f(client)
+    } catch {
+      case e: ClientRuntimeException =>
+        log.error(e, "Redis client error: %s", e)
+        throwAway(hostname, client)
+        withClient(hostname)(f)
     } finally {
       Stats.timeMicros("redis-release-usec") { giveBack(hostname, client) }
     }
@@ -61,7 +82,12 @@ class RedisPool(config: ConfigMap, queue: ErrorHandlingJobQueue) {
     synchronized {
       serverMap.foreach { case (hostname, pool) =>
         while (pool.available.size > 0) {
-          pool.available.take().shutdown()
+          try {
+            pool.available.take().shutdown()
+          } catch {
+            case e: Throwable =>
+              log.error(e, "Failed to shutdown client: %s", e)
+          }
         }
       }
       serverMap.clear()

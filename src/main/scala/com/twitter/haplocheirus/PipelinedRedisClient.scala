@@ -1,5 +1,6 @@
 package com.twitter.haplocheirus
 
+import java.io.IOException
 import java.util.concurrent.{ExecutionException, Future, TimeoutException, TimeUnit}
 import scala.collection.mutable
 import com.twitter.gizzard.thrift.conversions.Sequences._
@@ -12,14 +13,14 @@ import org.jredis.ri.alphazero.{JRedisClient, JRedisPipeline}
 import org.jredis.ri.alphazero.connection.DefaultConnectionSpec
 
 
-case class PipelinedRequest(future: Future[ResponseStatus], errorJob: Option[Jobs.RedisJob])
+case class PipelinedRequest(future: Future[ResponseStatus], onError: Option[Throwable => Unit])
 
 /**
- * Thin wrapper around JRedisPipeline that will handle pipelining, and drop failed work into an
- * error queue.
+ * Thin wrapper around JRedisPipeline that will handle pipelining, and call an error handler on
+ * failure.
  */
 class PipelinedRedisClient(hostname: String, pipelineMaxSize: Int, timeout: Duration,
-                           expiration: Duration, queue: ErrorHandlingJobQueue) {
+                           expiration: Duration) {
   val DEFAULT_PORT = 6379
   val log = Logger(getClass.getName)
 
@@ -52,27 +53,23 @@ class PipelinedRedisClient(hostname: String, pipelineMaxSize: Int, timeout: Dura
     redisClient.quit()
   }
 
-  def replay(request: PipelinedRequest) {
-    request.errorJob.map { queue.putError(_) }
-  }
-
   def finishRequest(request: PipelinedRequest) {
     try {
       val response = request.future.get(timeout.inMillis, TimeUnit.MILLISECONDS)
       if (response.isError()) {
         log.error("Error response from %s: %s", hostname, response.message)
-        replay(request)
+        request.onError.foreach(_(new IOException("Redis error: " + response.message)))
       }
     } catch {
       case e: ExecutionException =>
-        log.error(e.getCause(), "Error in jredis request from %s: %s", hostname, request.errorJob)
-        replay(request)
+        log.error(e.getCause(), "Error in jredis request from %s: %s", hostname, e.getCause())
+        request.onError.foreach(_(e))
       case e: TimeoutException =>
-        log.error(e, "Timeout waiting for redis response from %s: %s", hostname, request.errorJob)
-        replay(request)
+        log.error(e, "Timeout waiting for redis response from %s: %s", hostname, e.getCause())
+        request.onError.foreach(_(e))
       case e: Throwable =>
-        log.error(e, "Unknown jredis error from %s: %s", hostname, request.errorJob)
-        replay(request)
+        log.error(e, "Unknown jredis error from %s: %s", hostname, e.getCause())
+        request.onError.foreach(_(e))
     }
   }
 
@@ -82,13 +79,13 @@ class PipelinedRedisClient(hostname: String, pipelineMaxSize: Int, timeout: Dura
     }
   }
 
-  def push(timeline: String, entry: Array[Byte], errorJob: Jobs.RedisJob) {
-    pipeline += PipelinedRequest(redisClient.lpushx(timeline, entry), Some(errorJob))
+  def push(timeline: String, entry: Array[Byte], onError: Option[Throwable => Unit]) {
+    pipeline += PipelinedRequest(redisClient.lpushx(timeline, entry), onError)
     checkPipeline()
   }
 
-  def pop(timeline: String, entry: Array[Byte], errorJob: Jobs.RedisJob) {
-    pipeline += PipelinedRequest(redisClient.ldelete(timeline, entry), Some(errorJob))
+  def pop(timeline: String, entry: Array[Byte], onError: Option[Throwable => Unit]) {
+    pipeline += PipelinedRequest(redisClient.ldelete(timeline, entry), onError)
     checkPipeline()
   }
 

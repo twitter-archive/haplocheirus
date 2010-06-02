@@ -21,10 +21,10 @@ object PipelinedRedisClientSpec extends ConfiguredSpecification with JMocker wit
 
     val timeline = "t1"
     val data = "rus".getBytes
-    val job = Jobs.Append(data, List(timeline))
+    val job = Jobs.Append(data, timeline)
 
     doBefore {
-      client = new PipelinedRedisClient("localhost", 10, 1.second, 1.day, queue) {
+      client = new PipelinedRedisClient("localhost", 10, 1.second, 1.day) {
         override def makeRedisClient = jredis
       }
     }
@@ -34,8 +34,8 @@ object PipelinedRedisClientSpec extends ConfiguredSpecification with JMocker wit
         one(jredis).lpushx(timeline, data) willReturn future
       }
 
-      client.push(timeline, data, job)
-      client.pipeline.toList mustEqual List(PipelinedRequest(future, Some(job)))
+      client.push(timeline, data, None)
+      client.pipeline.toList mustEqual List(PipelinedRequest(future, None))
     }
 
     "pop" in {
@@ -43,8 +43,8 @@ object PipelinedRedisClientSpec extends ConfiguredSpecification with JMocker wit
         one(jredis).ldelete(timeline, data) willReturn future
       }
 
-      client.pop(timeline, data, job)
-      client.pipeline.toList mustEqual List(PipelinedRequest(future, Some(job)))
+      client.pop(timeline, data, None)
+      client.pipeline.toList mustEqual List(PipelinedRequest(future, None))
     }
 
     "get" in {
@@ -69,7 +69,7 @@ object PipelinedRedisClientSpec extends ConfiguredSpecification with JMocker wit
     }
 
     "finishRequest" in {
-      val request = PipelinedRequest(future, Some(job))
+      val request = PipelinedRequest(future, Some(e => queue.putError(job)))
 
       "success" in {
         expect {

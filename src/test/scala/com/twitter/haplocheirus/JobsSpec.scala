@@ -16,44 +16,40 @@ object JobsSpec extends Specification with JMocker with ClassMocker {
 
     "Append" in {
       val data = "hello".getBytes
-      val append = Jobs.Append(data, List("t1", "t2"))
-      val text = "{\"entry\":\"aGVsbG8=\",\"timelines\":[\"t1\",\"t2\"]}"
+      val append = Jobs.Append(data, "t1")
+      val text = "{\"entry\":\"aGVsbG8=\",\"timeline\":\"t1\"}"
 
       expect {
         // yes, these 2 keys map to similar longs, but the byte_swapper in gizzard will fix that.
         one(nameServer).findCurrentForwarding(0, 632754681242344982L) willReturn shard1
-        one(nameServer).findCurrentForwarding(0, 632753581730716771L) willReturn shard2
-        one(shard1).append(data, "t1")
-        one(shard2).append(data, "t2")
+        one(shard1).append(data, "t1", None)
       }
 
-      append.toMap mustEqual Map("entry" -> "aGVsbG8=", "timelines" -> List("t1", "t2"))
+      append.toMap mustEqual Map("entry" -> "aGVsbG8=", "timeline" -> "t1")
       append.apply(nameServer)
 
       Json.build(append.toMap).toString mustEqual text
       // can't compare byte arrays in case classes. suck.
-      new Jobs.Append(Json.parse(text).asInstanceOf[Map[String, Any]]).timelines mustEqual append.timelines
+      new Jobs.Append(Json.parse(text).asInstanceOf[Map[String, Any]]).timeline mustEqual append.timeline
     }
 
     "Remove" in {
       val data = "hello".getBytes
-      val remove = Jobs.Remove(data, List("t1", "t2"))
-      val text = "{\"entry\":\"aGVsbG8=\",\"timelines\":[\"t1\",\"t2\"]}"
+      val remove = Jobs.Remove(data, "t1")
+      val text = "{\"entry\":\"aGVsbG8=\",\"timeline\":\"t1\"}"
 
       expect {
         // yes, these 2 keys map to similar longs, but the byte_swapper in gizzard will fix that.
         one(nameServer).findCurrentForwarding(0, 632754681242344982L) willReturn shard1
-        one(nameServer).findCurrentForwarding(0, 632753581730716771L) willReturn shard2
-        one(shard1).remove(data, "t1")
-        one(shard2).remove(data, "t2")
+        one(shard1).remove(data, "t1", None)
       }
 
-      remove.toMap mustEqual Map("entry" -> "aGVsbG8=", "timelines" -> List("t1", "t2"))
+      remove.toMap mustEqual Map("entry" -> "aGVsbG8=", "timeline" -> "t1")
       remove.apply(nameServer)
 
       Json.build(remove.toMap).toString mustEqual text
       // can't compare byte arrays in case classes. suck.
-      new Jobs.Remove(Json.parse(text).asInstanceOf[Map[String, Any]]).timelines mustEqual remove.timelines
+      new Jobs.Remove(Json.parse(text).asInstanceOf[Map[String, Any]]).timeline mustEqual remove.timeline
     }
 
     "DeleteTimeline" in {

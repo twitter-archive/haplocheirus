@@ -2,7 +2,7 @@ package com.twitter.haplocheirus
 
 import com.twitter.gizzard.Future
 import com.twitter.gizzard.nameserver.NameServer
-import com.twitter.gizzard.scheduler.{JobScheduler, PrioritizingJobScheduler}
+import com.twitter.gizzard.scheduler.{ErrorHandlingJobQueue, JobScheduler, PrioritizingJobScheduler}
 import org.specs.Specification
 import org.specs.mock.{ClassMocker, JMocker}
 
@@ -12,6 +12,7 @@ object TimelineStoreServiceSpec extends Specification with JMocker with ClassMoc
     val nameServer = mock[NameServer[HaplocheirusShard]]
     val scheduler = mock[PrioritizingJobScheduler]
     val jobScheduler = mock[JobScheduler]
+    val queue = mock[ErrorHandlingJobQueue]
     val redisPool = mock[RedisPool]
     val future = mock[Future]
     val replicationFuture = mock[Future]
@@ -20,7 +21,12 @@ object TimelineStoreServiceSpec extends Specification with JMocker with ClassMoc
     var service: TimelineStoreService = null
 
     doBefore {
+      expect {
+        one(scheduler).apply(Priority.Write.id) willReturn jobScheduler
+        one(jobScheduler).queue willReturn queue
+      }
       service = new TimelineStoreService(nameServer, scheduler, Jobs.RedisCopyFactory, redisPool, future, replicationFuture)
+      service.addOnError = false
     }
 
     "append" in {
@@ -30,8 +36,8 @@ object TimelineStoreServiceSpec extends Specification with JMocker with ClassMoc
       expect {
         one(nameServer).findCurrentForwarding(0, 632754681242344982L) willReturn shard1
         one(nameServer).findCurrentForwarding(0, 632753581730716771L) willReturn shard2
-        one(shard1).append(data, "t1")
-        one(shard2).append(data, "t2")
+        one(shard1).append(data, "t1", None)
+        one(shard2).append(data, "t2", None)
       }
 
       service.append(data, timelines)
@@ -44,8 +50,8 @@ object TimelineStoreServiceSpec extends Specification with JMocker with ClassMoc
       expect {
         one(nameServer).findCurrentForwarding(0, 632754681242344982L) willReturn shard1
         one(nameServer).findCurrentForwarding(0, 632753581730716771L) willReturn shard2
-        one(shard1).remove(data, "t1")
-        one(shard2).remove(data, "t2")
+        one(shard1).remove(data, "t1", None)
+        one(shard2).remove(data, "t2", None)
       }
 
       service.remove(data, timelines)

@@ -30,7 +30,7 @@ object Haplocheirus {
     val log = new ThrottledLogger[String](Logger(), config("throttled_log.period_msec").toInt,
                                           config("throttled_log.rate").toInt)
     val replicationFuture = new Future("ReplicationFuture", config.configMap("replication_pool"))
-    val redisPool = new RedisPool(config.configMap("redis"), scheduler(Priority.Write.id).queue)
+    val redisPool = new RedisPool(config.configMap("redis"))
     val shardRepository = new BasicShardRepository[HaplocheirusShard](
       new HaplocheirusShardAdapter(_), log, replicationFuture)
     shardRepository += ("com.twitter.haplocheirus.RedisShard" -> new RedisShardFactory(redisPool))

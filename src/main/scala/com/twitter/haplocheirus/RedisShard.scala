@@ -23,17 +23,19 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
                  val pool: RedisPool)
       extends HaplocheirusShard {
 
-  def append(entry: Array[Byte], timeline: String) {
+  def append(entry: Array[Byte], timeline: String, onError: Option[Throwable => Unit]) {
     pool.withClient(shardInfo.hostname) { client =>
       Stats.timeMicros("redis-op-usec") {
-        client.push(timeline, entry, Jobs.Append(entry, List(timeline)))
+        client.push(timeline, entry, onError)
       }
     }
   }
 
-  def remove(entry: Array[Byte], timeline: String) {
+  def remove(entry: Array[Byte], timeline: String, onError: Option[Throwable => Unit]) {
     pool.withClient(shardInfo.hostname) { client =>
-      client.pop(timeline, entry, Jobs.Remove(entry, List(timeline)))
+      Stats.timeMicros("redis-op-usec") {
+        client.pop(timeline, entry, onError)
+      }
     }
   }
 

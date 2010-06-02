@@ -13,6 +13,12 @@ class JobParser(nameServer: NameServer[HaplocheirusShard]) extends BoundJobParse
 
 object Jobs {
   abstract class RedisJob extends UnboundJob[NameServer[HaplocheirusShard]] {
+    var onErrorCallback: Option[Throwable => Unit] = None
+
+    def onError(f: Throwable => Unit) {
+      onErrorCallback = Some(f)
+    }
+
     override def toString = "<%s: %s>".format(getClass.getName, toMap)
   }
 
@@ -20,37 +26,33 @@ object Jobs {
     Base64.encodeBase64String(data).replaceAll("\r\n", "")
   }
 
-  case class Append(entry: Array[Byte], timelines: Seq[String]) extends RedisJob {
+  case class Append(entry: Array[Byte], timeline: String) extends RedisJob {
     def this(attributes: Map[String, Any]) = {
       this(Base64.decodeBase64(attributes("entry").asInstanceOf[String]),
-           attributes("timelines").asInstanceOf[Seq[String]])
+           attributes("timeline").asInstanceOf[String])
     }
 
     def toMap = {
-      Map("entry" -> encodeBase64(entry), "timelines" -> timelines)
+      Map("entry" -> encodeBase64(entry), "timeline" -> timeline)
     }
 
     def apply(nameServer: NameServer[HaplocheirusShard]) {
-      timelines.foreach { timeline =>
-        nameServer.findCurrentForwarding(0, Hash.FNV1A_64(timeline)).append(entry, timeline)
-      }
+      nameServer.findCurrentForwarding(0, Hash.FNV1A_64(timeline)).append(entry, timeline, onErrorCallback)
     }
   }
 
-  case class Remove(entry: Array[Byte], timelines: Seq[String]) extends RedisJob {
+  case class Remove(entry: Array[Byte], timeline: String) extends RedisJob {
     def this(attributes: Map[String, Any]) = {
       this(Base64.decodeBase64(attributes("entry").asInstanceOf[String]),
-           attributes("timelines").asInstanceOf[Seq[String]])
+           attributes("timeline").asInstanceOf[String])
     }
 
     def toMap = {
-      Map("entry" -> encodeBase64(entry), "timelines" -> timelines)
+      Map("entry" -> encodeBase64(entry), "timeline" -> timeline)
     }
 
     def apply(nameServer: NameServer[HaplocheirusShard]) {
-      timelines.foreach { timeline =>
-        nameServer.findCurrentForwarding(0, Hash.FNV1A_64(timeline)).remove(entry, timeline)
-      }
+      nameServer.findCurrentForwarding(0, Hash.FNV1A_64(timeline)).remove(entry, timeline, onErrorCallback)
     }
   }
 
