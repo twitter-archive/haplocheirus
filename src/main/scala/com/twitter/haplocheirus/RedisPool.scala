@@ -74,7 +74,7 @@ class RedisPool(config: ConfigMap) {
       case e: ClientRuntimeException =>
         log.error(e, "Redis client error: %s", e)
         throwAway(hostname, client)
-        withClient(hostname)(f)
+        throw e
     } finally {
       Stats.timeMicros("redis-release-usec") { giveBack(hostname, client) }
     }

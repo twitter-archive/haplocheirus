@@ -2,6 +2,7 @@ package com.twitter.haplocheirus
 
 import com.twitter.gizzard.scheduler.ErrorHandlingJobQueue
 import net.lag.configgy.Configgy
+import org.jredis.ClientRuntimeException
 import org.specs.Specification
 import org.specs.mock.{ClassMocker, JMocker}
 
@@ -49,6 +50,27 @@ object RedisPoolSpec extends ConfiguredSpecification with JMocker with ClassMock
       redisPool.toString mustEqual "<RedisPool: a=(0 available, 1 total)>"
       redisPool.giveBack("a", client)
       redisPool.toString mustEqual "<RedisPool: a=(1 available, 1 total)>"
+    }
+
+    "withClient" in {
+      "in good times" in {
+        expect {
+          one(client).alive willReturn true
+        }
+
+        redisPool.withClient("host1") { client => 3 } mustEqual 3
+        redisPool.toString mustEqual "<RedisPool: host1=(1 available, 1 total)>"
+      }
+
+      "in bad times" in {
+        expect {
+          one(client).shutdown()
+          one(client).alive willReturn false
+        }
+
+        redisPool.withClient("host1") { client => throw new ClientRuntimeException("rats."); 3 } must throwA[ClientRuntimeException]
+        redisPool.toString mustEqual "<RedisPool: host1=(0 available, 0 total)>"
+      }
     }
   }
 }
