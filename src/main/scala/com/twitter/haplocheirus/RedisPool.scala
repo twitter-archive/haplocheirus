@@ -20,6 +20,12 @@ class RedisPool(config: ConfigMap) {
   val poolTimeout = config("pool_timeout_msec").toInt.milliseconds
   val serverMap = new mutable.HashMap[String, ClientPool]
 
+  Stats.makeGauge("redis-pool") {
+    synchronized {
+      serverMap.foldLeft(0) { _ + _.size }
+    }
+  }
+
   def makeClient(hostname: String) = {
     val pipelineSize = config("pipeline").toInt
     val timeout = config("timeout_msec").toInt.milliseconds
