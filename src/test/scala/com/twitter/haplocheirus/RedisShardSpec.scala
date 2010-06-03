@@ -1,7 +1,7 @@
 package com.twitter.haplocheirus
 
 import com.twitter.gizzard.scheduler.ErrorHandlingJobQueue
-import com.twitter.gizzard.shards.ShardInfo
+import com.twitter.gizzard.shards.{ShardException, ShardInfo}
 import com.twitter.gizzard.thrift.conversions.Sequences._
 import net.lag.configgy.Configgy
 import org.jredis.ClientRuntimeException
@@ -200,6 +200,16 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
       }
 
       redisShard.deleteTimeline(timeline)
+    }
+
+    "exceptions are wrapped" in {
+      expect {
+        one(shardInfo).hostname willReturn "host1"
+        one(client).push(timeline, data, None) willThrow new IllegalStateException("aiee")
+      }
+
+      val shard = new RedisShardFactory(redisPool).instantiate(shardInfo, 1, Nil)
+      shard.append(data, timeline, None) must throwA[ShardException]
     }
   }
 }
