@@ -22,7 +22,7 @@ class RedisPool(config: ConfigMap) {
 
   Stats.makeGauge("redis-pool") {
     synchronized {
-      serverMap.foldLeft(0) { _ + _.size }
+      serverMap.values.foldLeft(0) { _ + _.available.size }
     }
   }
 

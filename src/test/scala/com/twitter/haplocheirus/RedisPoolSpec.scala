@@ -9,7 +9,6 @@ import org.specs.mock.{ClassMocker, JMocker}
 
 object RedisPoolSpec extends ConfiguredSpecification with JMocker with ClassMocker {
   "RedisPool" should {
-    val queue = mock[ErrorHandlingJobQueue]
     val client = mock[PipelinedRedisClient]
     var redisPool: RedisPool = null
     val config = Configgy.config.configMap("redis")
