@@ -26,6 +26,7 @@ object PipelinedRedisClientSpec extends ConfiguredSpecification with JMocker wit
     doBefore {
       client = new PipelinedRedisClient("localhost", 10, 1.second, 1.day) {
         override def makeRedisClient = jredis
+        override protected def uniqueTimelineName(name: String) = name + "~1"
       }
     }
 
@@ -57,6 +58,29 @@ object PipelinedRedisClientSpec extends ConfiguredSpecification with JMocker wit
       }
 
       client.get(timeline, 5, 10).toList mustEqual result
+    }
+
+    "set" in {
+      val entry1 = List(23L).pack
+      val entry2 = List(20L).pack
+      val entry3 = List(19L).pack
+
+      expect {
+        one(jredis).rpush(timeline + "~1", entry1) willReturn future
+        one(future).get(1000, TimeUnit.MILLISECONDS) willReturn ResponseStatus.STATUS_OK
+        one(jredis).expire(timeline + "~1", 15) willReturn future
+        one(future).get(1000, TimeUnit.MILLISECONDS) willReturn ResponseStatus.STATUS_OK
+        one(jredis).rpush(timeline + "~1", entry2) willReturn future
+        one(future).get(1000, TimeUnit.MILLISECONDS) willReturn ResponseStatus.STATUS_OK
+        one(jredis).rpush(timeline + "~1", entry3) willReturn future
+        one(future).get(1000, TimeUnit.MILLISECONDS) willReturn ResponseStatus.STATUS_OK
+        one(jredis).rename(timeline + "~1", timeline) willReturn future
+        one(future).get(1000, TimeUnit.MILLISECONDS) willReturn ResponseStatus.STATUS_OK
+        one(jredis).expire(timeline, 86400) willReturn future
+        one(future).get(1000, TimeUnit.MILLISECONDS) willReturn ResponseStatus.STATUS_OK
+      }
+
+      client.set(timeline, List(entry1, entry2, entry3))
     }
 
     "delete" in {

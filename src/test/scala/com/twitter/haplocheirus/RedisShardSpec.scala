@@ -167,6 +167,19 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
       }
     }
 
+    "store" in {
+      val entry1 = List(23L).pack
+      val entry2 = List(20L).pack
+      val entry3 = List(19L).pack
+
+      expect {
+        one(shardInfo).hostname willReturn "host1"
+        one(client).set(timeline, List(entry1, entry2, entry3))
+      }
+
+      redisShard.store(timeline, List(entry1, entry2, entry3))
+    }
+
     "deleteTimeline" in {
       expect {
         one(shardInfo).hostname willReturn "host1"

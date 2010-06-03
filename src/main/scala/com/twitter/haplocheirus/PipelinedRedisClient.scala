@@ -1,6 +1,7 @@
 package com.twitter.haplocheirus
 
 import java.io.IOException
+import java.util.Random
 import java.util.concurrent.{ExecutionException, Future, TimeoutException, TimeUnit}
 import scala.collection.mutable
 import com.twitter.gizzard.thrift.conversions.Sequences._
@@ -38,7 +39,16 @@ class PipelinedRedisClient(hostname: String, pipelineMaxSize: Int, timeout: Dura
 
   val pipeline = new mutable.ListBuffer[PipelinedRequest]
 
-  implicit def convertFuture(future: Future[java.lang.Boolean]) = new Future[ResponseStatus] {
+  protected def uniqueTimelineName(name: String): String = {
+    val newName = name + "~" + System.currentTimeMillis + "~" + (new Random().nextInt & 0x7fffffff)
+    if (redisClient.exists(newName).get(timeout.inMillis, TimeUnit.MILLISECONDS).asInstanceOf[Boolean]) {
+      uniqueTimelineName(name)
+    } else {
+      newName
+    }
+  }
+
+  def convertFuture(future: Future[java.lang.Boolean]) = new Future[ResponseStatus] {
     private def convert(rv: java.lang.Boolean) = ResponseStatus.STATUS_OK
     def get() = convert(future.get())
     def get(timeout: Long, units: TimeUnit) = convert(future.get(timeout, units))
@@ -98,6 +108,22 @@ class PipelinedRedisClient(hostname: String, pipelineMaxSize: Int, timeout: Dura
       checkPipeline()
     }
     rv
+  }
+
+  def set(timeline: String, entries: Seq[Array[Byte]]) {
+    val tempName = uniqueTimelineName(timeline)
+    var didExpire = false
+    entries.foreach { entry =>
+      redisClient.rpush(tempName, entry).get(timeout.inMillis, TimeUnit.MILLISECONDS)
+      if (!didExpire) {
+        redisClient.expire(tempName, 15).get(timeout.inMillis, TimeUnit.MILLISECONDS)
+        didExpire = true
+      }
+    }
+    if (entries.size > 0) {
+      redisClient.rename(tempName, timeline).get(timeout.inMillis, TimeUnit.MILLISECONDS)
+      redisClient.expire(timeline, expiration.inSeconds).get(timeout.inMillis, TimeUnit.MILLISECONDS)
+    }
   }
 
   def delete(timeline: String) {
