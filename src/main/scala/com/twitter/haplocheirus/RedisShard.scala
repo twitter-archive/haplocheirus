@@ -1,5 +1,6 @@
 package com.twitter.haplocheirus
 
+import java.nio.{ByteBuffer, ByteOrder}
 import scala.collection.mutable
 import com.twitter.gizzard.scheduler.ErrorHandlingJobQueue
 import com.twitter.gizzard.shards._
@@ -23,6 +24,18 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
                  val pool: RedisPool)
       extends HaplocheirusShard {
 
+  private def dedupeBy(entries: Seq[Array[Byte]], byteOffset: Int): Seq[Array[Byte]] = {
+    val seen = new mutable.HashSet[Long]()
+    entries.reverse.filter { entry =>
+      if (byteOffset < entry.length) {
+        val id = ByteBuffer.wrap(entry).order(ByteOrder.LITTLE_ENDIAN).getLong(byteOffset)
+        !(seen contains id) && { seen += id; true }
+      } else {
+        true
+      }
+    }.reverse
+  }
+
   def append(entry: Array[Byte], timeline: String, onError: Option[Throwable => Unit]) {
     pool.withClient(shardInfo.hostname) { client =>
       Stats.timeMicros("redis-op-usec") {
@@ -40,8 +53,13 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
   }
 
   def get(timeline: String, offset: Int, length: Int, dedupe: Boolean): Seq[Array[Byte]] = {
-    pool.withClient(shardInfo.hostname) { client =>
+    val entries = pool.withClient(shardInfo.hostname) { client =>
       client.get(timeline, offset, length)
+    }
+    if (dedupe) {
+      dedupeBy(dedupeBy(entries, 0), 8)
+    } else {
+      dedupeBy(entries, 0)
     }
   }
 

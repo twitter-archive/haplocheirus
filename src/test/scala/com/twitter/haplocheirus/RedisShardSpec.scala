@@ -60,11 +60,43 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
       }
 
       "with duplicates in the sort key" in {
+        val entry1 = List(23L, 1L).pack
+        val entry2 = List(23L, 2L).pack
+        val entry3 = List(19L, 3L).pack
 
+        expect {
+          one(shardInfo).hostname willReturn "host1"
+          one(client).get(timeline, 0, 10) willReturn List(entry1, entry2, entry3)
+        }
+
+        redisShard.get(timeline, 0, 10, false) mustEqual List(entry2, entry3)
       }
 
       "with duplicates in the dedupe key" in {
+        val entry1 = List(23L, 1L).pack
+        val entry2 = List(21L, 2L).pack
+        val entry3 = List(19L, 1L).pack
 
+        expect {
+          allowing(shardInfo).hostname willReturn "host1"
+          allowing(client).get(timeline, 0, 10) willReturn List(entry1, entry2, entry3)
+        }
+
+        redisShard.get(timeline, 0, 10, false) mustEqual List(entry1, entry2, entry3)
+        redisShard.get(timeline, 0, 10, true) mustEqual List(entry2, entry3)
+      }
+
+      "with missing dedupe key" in {
+        val entry1 = List(23L, 1L).pack
+        val entry2 = List(21L).pack
+        val entry3 = List(19L).pack
+
+        expect {
+          one(shardInfo).hostname willReturn "host1"
+          allowing(client).get(timeline, 0, 10) willReturn List(entry1, entry2, entry3)
+        }
+
+        redisShard.get(timeline, 0, 10, true) mustEqual List(entry1, entry2, entry3)
       }
     }
 
