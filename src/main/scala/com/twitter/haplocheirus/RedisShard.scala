@@ -39,7 +39,7 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
     }
   }
 
-  def get(timeline: String, offset: Int, length: Int): Seq[Array[Byte]] = {
+  def get(timeline: String, offset: Int, length: Int, dedupe: Boolean): Seq[Array[Byte]] = {
     pool.withClient(shardInfo.hostname) { client =>
       client.get(timeline, offset, length)
     }

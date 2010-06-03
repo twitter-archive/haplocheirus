@@ -56,8 +56,8 @@ class TimelineStoreService(val nameServer: NameServer[HaplocheirusShard],
     }
   }
 
-  def get(timeline: String, offset: Int, length: Int) = {
-    shardFor(timeline).get(timeline, offset, length)
+  def get(timeline: String, offset: Int, length: Int, dedupe: Boolean) = {
+    shardFor(timeline).get(timeline, offset, length, dedupe)
   }
 
   def deleteTimeline(timeline: String) {
