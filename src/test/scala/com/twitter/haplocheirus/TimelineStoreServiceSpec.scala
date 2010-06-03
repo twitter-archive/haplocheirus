@@ -70,6 +70,18 @@ object TimelineStoreServiceSpec extends Specification with JMocker with ClassMoc
       service.get("t1", offset, length, false) mustEqual data
     }
 
+    "getSince" in {
+      val fromId = 10L
+      val data = List("a".getBytes, "z".getBytes)
+
+      expect {
+        one(nameServer).findCurrentForwarding(0, 632754681242344982L) willReturn shard1
+        one(shard1).getSince("t1", fromId, false) willReturn data
+      }
+
+      service.getSince("t1", fromId, false) mustEqual data
+    }
+
     "deleteTimeline" in {
       expect {
         one(nameServer).findCurrentForwarding(0, 632754681242344982L) willReturn shard1
