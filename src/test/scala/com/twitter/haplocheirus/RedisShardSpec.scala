@@ -100,6 +100,19 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
 
         redisShard.get(timeline, 0, 10, true) mustEqual List(entry1, entry2, entry3)
       }
+
+      "doesn't spaz when there aren't enough bytes to uniqify" in {
+        val entry1 = "a".getBytes
+        val entry2 = "lots-o-bytes".getBytes
+        val entry3 = "almost!".getBytes
+
+        expect {
+          one(shardInfo).hostname willReturn "host1"
+          allowing(client).get(timeline, 0, 10) willReturn List(entry1, entry2, entry3)
+        }
+
+        redisShard.get(timeline, 0, 10, true) mustEqual List(entry1, entry2, entry3)
+      }
     }
 
     "getRange" in {

@@ -31,7 +31,7 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
   private def dedupeBy(entries: Seq[Array[Byte]], byteOffset: Int): Seq[Array[Byte]] = {
     val seen = new mutable.HashSet[Long]()
     entries.reverse.filter { entry =>
-      if (byteOffset < entry.length) {
+      if (byteOffset + 8 <= entry.length) {
         val id = ByteBuffer.wrap(entry).order(ByteOrder.LITTLE_ENDIAN).getLong(byteOffset)
         !(seen contains id) && { seen += id; true }
       } else {
