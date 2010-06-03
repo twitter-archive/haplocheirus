@@ -72,8 +72,8 @@ object TimelineStoreServiceSpec extends Specification with JMocker with ClassMoc
 
     "deleteTimeline" in {
       expect {
-        one(scheduler).apply(Priority.Write.id) willReturn jobScheduler
-        one(jobScheduler).apply(Jobs.DeleteTimeline("t1"))
+        one(nameServer).findCurrentForwarding(0, 632754681242344982L) willReturn shard1
+        one(shard1).deleteTimeline("t1")
       }
 
       service.deleteTimeline("t1")

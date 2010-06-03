@@ -61,6 +61,6 @@ class TimelineStoreService(val nameServer: NameServer[HaplocheirusShard],
   }
 
   def deleteTimeline(timeline: String) {
-    scheduler(Priority.Write.id)(Jobs.DeleteTimeline(timeline))
+    injectJob(Jobs.DeleteTimeline(timeline))
   }
 }
