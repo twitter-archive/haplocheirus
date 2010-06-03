@@ -56,6 +56,21 @@ object Jobs {
     }
   }
 
+  case class Merge(timeline: String, entries: Seq[Array[Byte]]) extends RedisJob {
+    def this(attributes: Map[String, Any]) = {
+      this(attributes("timeline").asInstanceOf[String],
+           attributes("entries").asInstanceOf[Seq[String]].map(Base64.decodeBase64(_)))
+    }
+
+    def toMap = {
+      Map("timeline" -> timeline, "entries" -> entries.map(encodeBase64(_)))
+    }
+
+    def apply(nameServer: NameServer[HaplocheirusShard]) {
+      nameServer.findCurrentForwarding(0, Hash.FNV1A_64(timeline)).merge(timeline, entries)
+    }
+  }
+
   case class DeleteTimeline(timeline: String) extends RedisJob {
     def this(attributes: Map[String, Any]) = {
       this(attributes("timeline").asInstanceOf[String])

@@ -109,6 +109,10 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
     }
   }
 
+  def merge(timeline: String, entries: Seq[Array[Byte]]) {
+    
+  }
+
   def store(timeline: String, entries: Seq[Array[Byte]]) {
     pool.withClient(shardInfo.hostname) { client =>
       client.set(timeline, entries)

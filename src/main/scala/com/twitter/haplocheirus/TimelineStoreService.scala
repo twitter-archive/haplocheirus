@@ -68,6 +68,10 @@ class TimelineStoreService(val nameServer: NameServer[HaplocheirusShard],
     shardFor(timeline).store(timeline, entries)
   }
 
+  def merge(timeline: String, entries: Seq[Array[Byte]]) {
+    injectJob(Jobs.Merge(timeline, entries))
+  }
+
   def unmerge(timeline: String, entries: Seq[Array[Byte]]) {
     entries.foreach { entry =>
       injectJob(Jobs.Remove(entry, timeline))

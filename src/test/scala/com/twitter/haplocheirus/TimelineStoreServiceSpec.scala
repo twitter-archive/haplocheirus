@@ -57,19 +57,6 @@ object TimelineStoreServiceSpec extends Specification with JMocker with ClassMoc
       service.remove(data, timelines)
     }
 
-    "unmerge" in {
-      val data = List("a".getBytes, "z".getBytes)
-      val timeline = "t1"
-
-      expect {
-        exactly(2).of(nameServer).findCurrentForwarding(0, 632754681242344982L) willReturn shard1
-        one(shard1).remove("a".getBytes, "t1", None)
-        one(shard1).remove("z".getBytes, "t1", None)
-      }
-
-      service.unmerge(timeline, data)
-    }
-
     "get" in {
       val offset = 10
       val length = 5
@@ -104,6 +91,31 @@ object TimelineStoreServiceSpec extends Specification with JMocker with ClassMoc
       }
 
       service.store("t1", data)
+    }
+
+    "merge" in {
+      val data = List("a".getBytes, "z".getBytes)
+      val timeline = "t1"
+
+      expect {
+        one(nameServer).findCurrentForwarding(0, 632754681242344982L) willReturn shard1
+        one(shard1).merge("t1", data)
+      }
+
+      service.merge(timeline, data)
+    }
+
+    "unmerge" in {
+      val data = List("a".getBytes, "z".getBytes)
+      val timeline = "t1"
+
+      expect {
+        exactly(2).of(nameServer).findCurrentForwarding(0, 632754681242344982L) willReturn shard1
+        one(shard1).remove("a".getBytes, "t1", None)
+        one(shard1).remove("z".getBytes, "t1", None)
+      }
+
+      service.unmerge(timeline, data)
     }
 
     "deleteTimeline" in {

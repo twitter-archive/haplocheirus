@@ -9,6 +9,7 @@ trait HaplocheirusShard extends Shard {
   @throws(classOf[ShardException]) def get(timeline: String, offset: Int, length: Int, dedupe: Boolean): Seq[Array[Byte]]
   @throws(classOf[ShardException]) def getSince(timeline: String, fromId: Long, dedupe: Boolean): Seq[Array[Byte]]
   @throws(classOf[ShardException]) def store(timeline: String, entries: Seq[Array[Byte]])
+  @throws(classOf[ShardException]) def merge(timeline: String, entries: Seq[Array[Byte]])
   @throws(classOf[ShardException]) def deleteTimeline(timeline: String)
 }
 
@@ -19,5 +20,6 @@ class HaplocheirusShardAdapter(shard: ReadWriteShard[HaplocheirusShard])
   def get(timeline: String, offset: Int, length: Int, dedupe: Boolean) = shard.readOperation(_.get(timeline, offset, length, dedupe))
   def getSince(timeline: String, fromId: Long, dedupe: Boolean) = shard.readOperation(_.getSince(timeline, fromId, dedupe))
   def store(timeline: String, entries: Seq[Array[Byte]]) = shard.writeOperation(_.store(timeline, entries))
+  def merge(timeline: String, entries: Seq[Array[Byte]]) = shard.writeOperation(_.merge(timeline, entries))
   def deleteTimeline(timeline: String) = shard.writeOperation(_.deleteTimeline(timeline))
 }
