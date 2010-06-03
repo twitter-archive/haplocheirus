@@ -64,6 +64,10 @@ class TimelineStoreService(val nameServer: NameServer[HaplocheirusShard],
     shardFor(timeline).getSince(timeline, fromId, dedupe)
   }
 
+  def store(timeline: String, entries: Seq[Array[Byte]]) {
+    shardFor(timeline).store(timeline, entries)
+  }
+
   def deleteTimeline(timeline: String) {
     injectJob(Jobs.DeleteTimeline(timeline))
   }

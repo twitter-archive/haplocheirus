@@ -21,7 +21,10 @@ class TimelineStore(service: TimelineStoreService) extends thrift.TimelineStore.
     service.getSince(timeline_id, from_id, dedupe).toJavaList
   }
 
-  def store(timeline_id: String, entries: JList[Array[Byte]]) { }
+  def store(timeline_id: String, entries: JList[Array[Byte]]) {
+    service.store(timeline_id, entries.toSeq)
+  }
+
   def merge(timeline_id: String, entries: JList[Array[Byte]]) { }
   def unmerge(timeline_id: String, entries: JList[Array[Byte]]) { }
 
