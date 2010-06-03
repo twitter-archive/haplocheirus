@@ -24,6 +24,10 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
                  val pool: RedisPool)
       extends HaplocheirusShard {
 
+  // FIXME should be in config
+  val RANGE_QUERY_PAGE_SIZE = 20
+
+  // FIXME count dupes for stats collecting
   private def dedupeBy(entries: Seq[Array[Byte]], byteOffset: Int): Seq[Array[Byte]] = {
     val seen = new mutable.HashSet[Long]()
     entries.reverse.filter { entry =>
@@ -34,6 +38,12 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
         true
       }
     }.reverse
+  }
+
+  private def timelineIndexOf(entries: Seq[Array[Byte]], entryId: Long): Int = {
+    entries.findIndexOf { entry =>
+      ByteBuffer.wrap(entry).order(ByteOrder.LITTLE_ENDIAN).getLong(0) == entryId
+    }
   }
 
   def append(entry: Array[Byte], timeline: String, onError: Option[Throwable => Unit]) {
@@ -60,6 +70,32 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
       dedupeBy(dedupeBy(entries, 0), 8)
     } else {
       dedupeBy(entries, 0)
+    }
+  }
+
+  // FIXME count how many times we had to get another page.
+  def getSince(timeline: String, fromId: Long, dedupe: Boolean): Seq[Array[Byte]] = {
+    val entriesSince = pool.withClient(shardInfo.hostname) { client =>
+      val entries = new mutable.ArrayBuffer[Array[Byte]]()
+      var cursor = 0
+      var fromIdIndex = -1
+      while (fromIdIndex < 0) {
+        val newEntries = client.get(timeline, cursor, RANGE_QUERY_PAGE_SIZE)
+        cursor += newEntries.size
+        if (newEntries.size == 0) {
+          // never found the requested id, so return the entire timeline.
+          fromIdIndex = entries.size
+        } else {
+          entries ++= newEntries
+          fromIdIndex = timelineIndexOf(entries, fromId)
+        }
+      }
+      entries.take(fromIdIndex)
+    }
+    if (dedupe) {
+      dedupeBy(dedupeBy(entriesSince, 0), 8)
+    } else {
+      dedupeBy(entriesSince, 0)
     }
   }
 

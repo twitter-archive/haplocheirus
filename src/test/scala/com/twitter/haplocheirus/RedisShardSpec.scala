@@ -24,7 +24,9 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
       redisPool = new RedisPool(config) {
         override def withClient[T](hostname: String)(f: PipelinedRedisClient => T): T = f(client)
       }
-      redisShard = new RedisShard(shardInfo, 1, Nil, redisPool)
+      redisShard = new RedisShard(shardInfo, 1, Nil, redisPool) {
+        override val RANGE_QUERY_PAGE_SIZE = 3
+      }
     }
 
     "append" in {
@@ -97,6 +99,71 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
         }
 
         redisShard.get(timeline, 0, 10, true) mustEqual List(entry1, entry2, entry3)
+      }
+    }
+
+    "getRange" in {
+      "with missing fromId" in {
+        val entry1 = List(23L).pack
+        val entry2 = List(20L).pack
+        val entry3 = List(19L).pack
+
+        expect {
+          one(shardInfo).hostname willReturn "host1"
+          allowing(client).get(timeline, 0, 3) willReturn List(entry1, entry2, entry3)
+          allowing(client).get(timeline, 3, 3) willReturn List[Array[Byte]]()
+        }
+
+        redisShard.getSince(timeline, 10L, false) mustEqual List(entry1, entry2, entry3)
+      }
+
+      "with fromId" in {
+        "in the first page" in {
+          val entry1 = List(23L).pack
+          val entry2 = List(20L).pack
+          val entry3 = List(19L).pack
+
+          expect {
+            one(shardInfo).hostname willReturn "host1"
+            allowing(client).get(timeline, 0, 3) willReturn List(entry1, entry2, entry3)
+          }
+
+          redisShard.getSince(timeline, 19L, false) mustEqual List(entry1, entry2)
+        }
+
+        "in a later page" in {
+          val entry1 = List(23L).pack
+          val entry2 = List(20L).pack
+          val entry3 = List(19L).pack
+          val entry4 = List(17L).pack
+          val entry5 = List(13L).pack
+          val entry6 = List(10L).pack
+
+          expect {
+            one(shardInfo).hostname willReturn "host1"
+            allowing(client).get(timeline, 0, 3) willReturn List(entry1, entry2, entry3)
+            allowing(client).get(timeline, 3, 3) willReturn List(entry3, entry4, entry5)
+          }
+
+          redisShard.getSince(timeline, 13L, false) mustEqual List(entry1, entry2, entry3, entry4)
+        }
+      }
+
+      "with dupes" in {
+        val entry1 = List(23L).pack
+        val entry2 = List(20L).pack
+        val entry3 = List(20L).pack
+        val entry4 = List(17L).pack
+        val entry5 = List(13L).pack
+        val entry6 = List(10L).pack
+
+        expect {
+          one(shardInfo).hostname willReturn "host1"
+          allowing(client).get(timeline, 0, 3) willReturn List(entry1, entry2, entry3)
+          allowing(client).get(timeline, 3, 3) willReturn List(entry3, entry4, entry5)
+        }
+
+        redisShard.getSince(timeline, 13L, false) mustEqual List(entry1, entry3, entry4)
       }
     }
 
