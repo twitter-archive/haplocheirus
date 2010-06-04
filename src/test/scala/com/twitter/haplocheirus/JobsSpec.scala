@@ -57,7 +57,7 @@ object JobsSpec extends Specification with JMocker with ClassMocker {
 
       expect {
         one(nameServer).findCurrentForwarding(0, 632754681242344982L) willReturn shard1
-        one(shard1).merge("t1", data)
+        one(shard1).merge("t1", data, None)
       }
 
       merge.toMap mustEqual Map("timeline" -> "t1", "entries" -> List("Y29rZQ==", "emVybw=="))

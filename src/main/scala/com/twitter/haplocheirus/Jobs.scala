@@ -67,7 +67,7 @@ object Jobs {
     }
 
     def apply(nameServer: NameServer[HaplocheirusShard]) {
-      nameServer.findCurrentForwarding(0, Hash.FNV1A_64(timeline)).merge(timeline, entries)
+      nameServer.findCurrentForwarding(0, Hash.FNV1A_64(timeline)).merge(timeline, entries, onErrorCallback)
     }
   }
 
