@@ -11,7 +11,7 @@ import com.twitter.xrayspecs.TimeConversions._
 import net.lag.configgy.ConfigMap
 
 
-class RedisShardFactory(pool: RedisPool) extends ShardFactory[HaplocheirusShard] {
+class RedisShardFactory(pool: RedisPool, rangeQueryPageSize: Int) extends ShardFactory[HaplocheirusShard] {
   object RedisExceptionWrappingProxy extends ExceptionHandlingProxy({ e =>
     e match {
       case e: ShardException =>
@@ -22,7 +22,8 @@ class RedisShardFactory(pool: RedisPool) extends ShardFactory[HaplocheirusShard]
   })
 
   def instantiate(shardInfo: ShardInfo, weight: Int, children: Seq[HaplocheirusShard]) = {
-    RedisExceptionWrappingProxy[HaplocheirusShard](new RedisShard(shardInfo, weight, children, pool))
+    RedisExceptionWrappingProxy[HaplocheirusShard](
+      new RedisShard(shardInfo, weight, children, pool, rangeQueryPageSize))
   }
 
   def materialize(shardInfo: ShardInfo) {
@@ -31,11 +32,8 @@ class RedisShardFactory(pool: RedisPool) extends ShardFactory[HaplocheirusShard]
 }
 
 class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[HaplocheirusShard],
-                 val pool: RedisPool)
+                 val pool: RedisPool, val rangeQueryPageSize: Int)
       extends HaplocheirusShard {
-
-  // FIXME should be in config
-  val RANGE_QUERY_PAGE_SIZE = 20
 
   case class EntryWithKey(key: Long, entry: Array[Byte])
 
@@ -100,7 +98,7 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
       var cursor = 0
       var fromIdIndex = -1
       while (fromIdIndex < 0) {
-        val newEntries = client.get(timeline, cursor, RANGE_QUERY_PAGE_SIZE)
+        val newEntries = client.get(timeline, cursor, rangeQueryPageSize)
         cursor += newEntries.size
         if (newEntries.size == 0) {
           // never found the requested id, so return the entire timeline.

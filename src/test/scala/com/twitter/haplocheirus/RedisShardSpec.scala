@@ -14,7 +14,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
     val client = mock[PipelinedRedisClient]
     val shardInfo = mock[ShardInfo]
     var redisPool: RedisPool = null
-    var redisShard: RedisShard = null
+    var redisShard: HaplocheirusShard = null
 
     val config = Configgy.config.configMap("redis")
     val data = "hello".getBytes
@@ -24,9 +24,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
       redisPool = new RedisPool(config) {
         override def withClient[T](hostname: String)(f: PipelinedRedisClient => T): T = f(client)
       }
-      redisShard = new RedisShard(shardInfo, 1, Nil, redisPool) {
-        override val RANGE_QUERY_PAGE_SIZE = 3
-      }
+      redisShard = new RedisShardFactory(redisPool, 3).instantiate(shardInfo, 1, Nil)
     }
 
     "append" in {
@@ -283,8 +281,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
         one(client).push(timeline, data, None) willThrow new IllegalStateException("aiee")
       }
 
-      val shard = new RedisShardFactory(redisPool).instantiate(shardInfo, 1, Nil)
-      shard.append(data, timeline, None) must throwA[ShardException]
+      redisShard.append(data, timeline, None) must throwA[ShardException]
     }
   }
 }
