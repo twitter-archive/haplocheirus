@@ -5,6 +5,7 @@ namespace ruby Haplocheirus
 service TimelineStore {
   void append(1: binary entry, 2: list<string> timeline_ids);
   void remove(1: binary entry, 2: list<string> timeline_ids);
+  bool contains(1: binary entry, 2: string timeline_id);
   list<binary> get(1: string timeline_id, 2: i32 offset, 3: i32 length, 4: bool dedupe);
   list<binary> get_since(1: string timeline_id, 2: i64 from_id, 3: bool dedupe);
   void store(1: string timeline_id, 2: list<binary> entries);

@@ -45,6 +45,19 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
       redisShard.remove(data, timeline, None)
     }
 
+    "contains" in {
+      val entry1 = List(20L).pack
+      val entry2 = List(21L).pack
+
+      expect {
+        exactly(2).of(shardInfo).hostname willReturn "host1"
+        exactly(2).of(client).get(timeline, 0, -1) willReturn List(entry2)
+      }
+
+      redisShard.contains(timeline, entry1) must beFalse
+      redisShard.contains(timeline, entry2) must beTrue
+    }
+
     "get" in {
       "unique entries" in {
         val entry1 = List(23L).pack
