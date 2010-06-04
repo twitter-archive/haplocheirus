@@ -47,13 +47,18 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
     entries.map { entry => EntryWithKey(sortKeyFromEntry(entry), entry) }
   }
 
-  // FIXME count dupes for stats collecting
   private def dedupeBy(entries: Seq[Array[Byte]], byteOffset: Int): Seq[Array[Byte]] = {
     val seen = new mutable.HashSet[Long]()
     entries.reverse.filter { entry =>
       if (byteOffset + 8 <= entry.length) {
         val id = sortKeyFromEntry(entry, byteOffset)
-        !(seen contains id) && { seen += id; true }
+        if (seen contains id) {
+          Stats.incr("timeline-dupes")
+          false
+        } else {
+          seen += id
+          true
+        }
       } else {
         true
       }
@@ -91,7 +96,6 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
     }
   }
 
-  // FIXME count how many times we had to get another page.
   def getSince(timeline: String, fromId: Long, dedupe: Boolean): Seq[Array[Byte]] = {
     val entriesSince = pool.withClient(shardInfo.hostname) { client =>
       val entries = new mutable.ArrayBuffer[Array[Byte]]()
@@ -107,6 +111,11 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
           entries ++= newEntries
           fromIdIndex = timelineIndexOf(entries, fromId)
         }
+      }
+      if (entries.size > rangeQueryPageSize) {
+        Stats.incr("timeline-range-page-miss")
+      } else {
+        Stats.incr("timeline-range-page-hit")
       }
       entries.take(fromIdIndex)
     }
