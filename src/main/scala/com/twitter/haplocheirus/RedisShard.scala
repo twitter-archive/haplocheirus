@@ -37,12 +37,24 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
   // FIXME should be in config
   val RANGE_QUERY_PAGE_SIZE = 20
 
+  case class EntryWithKey(key: Long, entry: Array[Byte])
+
+  private def sortKeyFromEntry(entry: Array[Byte], offset: Int): Long = {
+    ByteBuffer.wrap(entry).order(ByteOrder.LITTLE_ENDIAN).getLong(offset)
+  }
+
+  private def sortKeyFromEntry(entry: Array[Byte]): Long = sortKeyFromEntry(entry, 0)
+
+  def sortKeysFromEntries(entries: Seq[Array[Byte]]): Seq[EntryWithKey] = {
+    entries.map { entry => EntryWithKey(sortKeyFromEntry(entry), entry) }
+  }
+
   // FIXME count dupes for stats collecting
   private def dedupeBy(entries: Seq[Array[Byte]], byteOffset: Int): Seq[Array[Byte]] = {
     val seen = new mutable.HashSet[Long]()
     entries.reverse.filter { entry =>
       if (byteOffset + 8 <= entry.length) {
-        val id = ByteBuffer.wrap(entry).order(ByteOrder.LITTLE_ENDIAN).getLong(byteOffset)
+        val id = sortKeyFromEntry(entry, byteOffset)
         !(seen contains id) && { seen += id; true }
       } else {
         true
@@ -51,9 +63,7 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
   }
 
   private def timelineIndexOf(entries: Seq[Array[Byte]], entryId: Long): Int = {
-    entries.findIndexOf { entry =>
-      ByteBuffer.wrap(entry).order(ByteOrder.LITTLE_ENDIAN).getLong(0) == entryId
-    }
+    entries.findIndexOf { sortKeyFromEntry(_) == entryId }
   }
 
   def append(entry: Array[Byte], timeline: String, onError: Option[Throwable => Unit]) {
@@ -109,8 +119,27 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
     }
   }
 
-  def merge(timeline: String, entries: Seq[Array[Byte]]) {
-    
+  def merge(timeline: String, entries: Seq[Array[Byte]], onError: Option[Throwable => Unit]) {
+    pool.withClient(shardInfo.hostname) { client =>
+      val existing = sortKeysFromEntries(client.get(timeline, 0, -1))
+      if (existing.size > 0) {
+        var i = 0
+        var previous: EntryWithKey = null
+        sortKeysFromEntries(entries).foreach { insert =>
+          while (i < existing.size && existing(i).key > insert.key) {
+            previous = existing(i)
+            i += 1
+          }
+          if (i == 0) {
+            client.push(timeline, insert.entry, onError)
+          } else if (i == existing.size ||
+                     (existing(i).key != insert.key && previous.key != insert.key)) {
+            client.pushAfter(timeline, previous.entry, insert.entry, onError)
+            previous = insert
+          }
+        }
+      }
+    }
   }
 
   def store(timeline: String, entries: Seq[Array[Byte]]) {

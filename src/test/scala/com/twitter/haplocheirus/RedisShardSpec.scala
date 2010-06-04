@@ -180,6 +180,81 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
       }
     }
 
+    "merge" in {
+      val existing = List(20L, 18L, 16L, 12L, 7L)
+
+      "no existing timeline" in {
+        expect {
+          one(shardInfo).hostname willReturn "host1"
+          one(client).get(timeline, 0, -1) willReturn List[Array[Byte]]()
+        }
+
+        redisShard.merge(timeline, List(List(21L).pack), None)
+      }
+
+      "nothing to merge" in {
+        expect {
+          one(shardInfo).hostname willReturn "host1"
+          one(client).get(timeline, 0, -1) willReturn existing.map { List(_).pack }
+        }
+
+        redisShard.merge(timeline, List[Array[Byte]](), None)
+      }
+
+      "all prefix" in {
+        val insert = List(29L, 28L, 21L)
+
+        expect {
+          one(shardInfo).hostname willReturn "host1"
+          one(client).get(timeline, 0, -1) willReturn existing.map { List(_).pack }
+          one(client).push(timeline, List(29L).pack, None)
+          one(client).push(timeline, List(28L).pack, None)
+          one(client).push(timeline, List(21L).pack, None)
+        }
+
+        redisShard.merge(timeline, insert.map { List(_).pack }, None)
+      }
+
+      "all postfix" in {
+        val insert = List(5L, 2L)
+
+        expect {
+          one(shardInfo).hostname willReturn "host1"
+          one(client).get(timeline, 0, -1) willReturn existing.map { List(_).pack }
+          one(client).pushAfter(timeline, List(7L).pack, List(5L).pack, None)
+          one(client).pushAfter(timeline, List(5L).pack, List(2L).pack, None)
+        }
+
+        redisShard.merge(timeline, insert.map { List(_).pack }, None)
+      }
+
+      "all infix" in {
+        val insert = List(19L, 14L, 13L)
+
+        expect {
+          one(shardInfo).hostname willReturn "host1"
+          one(client).get(timeline, 0, -1) willReturn existing.map { List(_).pack }
+          one(client).pushAfter(timeline, List(20L).pack, List(19L).pack, None)
+          one(client).pushAfter(timeline, List(16L).pack, List(14L).pack, None)
+          one(client).pushAfter(timeline, List(14L).pack, List(13L).pack, None)
+        }
+
+        redisShard.merge(timeline, insert.map { List(_).pack }, None)
+      }
+
+      "dupes" in {
+        val insert = List(16L, 15L, 15L, 12L)
+
+        expect {
+          one(shardInfo).hostname willReturn "host1"
+          one(client).get(timeline, 0, -1) willReturn existing.map { List(_).pack }
+          one(client).pushAfter(timeline, List(16L).pack, List(15L).pack, None)
+        }
+
+        redisShard.merge(timeline, insert.map { List(_).pack }, None)
+      }
+    }
+
     "store" in {
       val entry1 = List(23L).pack
       val entry2 = List(20L).pack
