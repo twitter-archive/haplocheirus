@@ -21,6 +21,7 @@ object PipelinedRedisClientSpec extends ConfiguredSpecification with JMocker wit
 
     val timeline = "t1"
     val data = "rus".getBytes
+    val data2 = "zim".getBytes
     val job = Jobs.Append(data, timeline)
 
     doBefore {
@@ -45,6 +46,15 @@ object PipelinedRedisClientSpec extends ConfiguredSpecification with JMocker wit
       }
 
       client.pop(timeline, data, None)
+      client.pipeline.toList mustEqual List(PipelinedRequest(future, None))
+    }
+
+    "pushAfter" in {
+      expect {
+        one(jredis).lpushxafter(timeline, data, data2) willReturn future
+      }
+
+      client.pushAfter(timeline, data, data2, None)
       client.pipeline.toList mustEqual List(PipelinedRequest(future, None))
     }
 

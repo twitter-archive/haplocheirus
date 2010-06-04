@@ -101,6 +101,12 @@ class PipelinedRedisClient(hostname: String, pipelineMaxSize: Int, timeout: Dura
     checkPipeline()
   }
 
+  def pushAfter(timeline: String, oldEntry: Array[Byte], newEntry: Array[Byte],
+                onError: Option[Throwable => Unit]) {
+    pipeline += PipelinedRequest(redisClient.lpushxafter(timeline, oldEntry, newEntry), onError)
+    checkPipeline()
+  }
+
   def get(timeline: String, offset: Int, length: Int): Seq[Array[Byte]] = {
     val rv = redisClient.lrange(timeline, offset, offset + length - 1).get(timeout.inMillis, TimeUnit.MILLISECONDS).toSeq
     if (rv.size > 0) {
