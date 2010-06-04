@@ -14,7 +14,7 @@ DAEMON="/usr/local/bin/daemon"
 
 HEAP_OPTS="-Xmx4096m -Xms4096m -XX:NewSize=768m"
 JMX_OPTS="-Dcom.sun.management.jmxremote -Dcom.sun.management.jmxremote.port=9999 -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.ssl=false"
-GC_OPTS="-verbosegc -XX:+PrintGCDetails -XX:+PrintGCTimeStamps -XX:+PrintGCDateStamps -XX:+UseConcMarkSweepGC -XX:+UseParNewGC"
+GC_OPTS="-verbosegc -XX:+PrintGCDetails -XX:+PrintGCTimeStamps -XX:+PrintGCDateStamps -XX:+PrintTenuringDistribution -XX:+UseConcMarkSweepGC -XX:+UseParNewGC"
 GC_LOG="-Xloggc:/var/log/$APP_NAME/gc.log"
 DEBUG_OPTS="-XX:ErrorFile=/var/log/$APP_NAME/java_error%p.log"
 JAVA_OPTS="-server $GC_OPTS $GC_LOG $HEAP_OPTS $JMX_OPTS $DEBUG_OPTS"
