@@ -71,17 +71,13 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
 
   def append(entry: Array[Byte], timeline: String, onError: Option[Throwable => Unit]) {
     pool.withClient(shardInfo.hostname) { client =>
-      Stats.timeMicros("redis-op-usec") {
-        client.push(timeline, entry, onError)
-      }
+      client.push(timeline, entry, onError)
     }
   }
 
   def remove(entry: Array[Byte], timeline: String, onError: Option[Throwable => Unit]) {
     pool.withClient(shardInfo.hostname) { client =>
-      Stats.timeMicros("redis-op-usec") {
-        client.pop(timeline, entry, onError)
-      }
+      client.pop(timeline, entry, onError)
     }
   }
 

@@ -10,7 +10,6 @@ import net.lag.logging.Logger
 import org.jredis.ClientRuntimeException
 
 
-// FIXME stats
 class RedisPool(config: ConfigMap) {
   case class ClientPool(available: LinkedBlockingQueue[PipelinedRedisClient], var count: Int)
 

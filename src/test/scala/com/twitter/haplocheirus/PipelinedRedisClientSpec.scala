@@ -94,9 +94,11 @@ object PipelinedRedisClientSpec extends ConfiguredSpecification with JMocker wit
     }
 
     "delete" in {
+      val futureLong = mock[Future[Long]]
+
       expect {
-        one(jredis).del(timeline) willReturn future
-        one(future).get(1000, TimeUnit.MILLISECONDS) willReturn ResponseStatus.STATUS_OK
+        one(jredis).del(timeline) willReturn futureLong
+        one(futureLong).get(1000, TimeUnit.MILLISECONDS) willReturn 0L
       }
 
       client.delete(timeline)

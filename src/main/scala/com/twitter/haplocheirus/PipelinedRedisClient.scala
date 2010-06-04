@@ -6,6 +6,7 @@ import java.util.concurrent.{ExecutionException, Future, TimeoutException, TimeU
 import scala.collection.mutable
 import com.twitter.gizzard.thrift.conversions.Sequences._
 import com.twitter.gizzard.scheduler.ErrorHandlingJobQueue
+import com.twitter.ostrich.Stats
 import com.twitter.xrayspecs.Duration
 import net.lag.logging.Logger
 import org.jredis._
@@ -92,47 +93,59 @@ class PipelinedRedisClient(hostname: String, pipelineMaxSize: Int, timeout: Dura
   }
 
   def push(timeline: String, entry: Array[Byte], onError: Option[Throwable => Unit]) {
-    pipeline += PipelinedRequest(redisClient.lpushx(timeline, entry), onError)
-    checkPipeline()
+    Stats.timeMicros("redis-push-usec") {
+      pipeline += PipelinedRequest(redisClient.lpushx(timeline, entry), onError)
+      checkPipeline()
+    }
   }
 
   def pop(timeline: String, entry: Array[Byte], onError: Option[Throwable => Unit]) {
-    pipeline += PipelinedRequest(redisClient.ldelete(timeline, entry), onError)
-    checkPipeline()
+    Stats.timeMicros("redis-pop-usec") {
+      pipeline += PipelinedRequest(redisClient.ldelete(timeline, entry), onError)
+      checkPipeline()
+    }
   }
 
   def pushAfter(timeline: String, oldEntry: Array[Byte], newEntry: Array[Byte],
                 onError: Option[Throwable => Unit]) {
-    pipeline += PipelinedRequest(redisClient.lpushxafter(timeline, oldEntry, newEntry), onError)
-    checkPipeline()
+    Stats.timeMicros("redis-pushafter-usec") {
+      pipeline += PipelinedRequest(redisClient.lpushxafter(timeline, oldEntry, newEntry), onError)
+      checkPipeline()
+    }
   }
 
   def get(timeline: String, offset: Int, length: Int): Seq[Array[Byte]] = {
-    val rv = redisClient.lrange(timeline, offset, offset + length - 1).get(timeout.inMillis, TimeUnit.MILLISECONDS).toSeq
-    if (rv.size > 0) {
-      pipeline += PipelinedRequest(convertFuture(redisClient.expire(timeline, expiration.inSeconds)), None)
-      checkPipeline()
+    Stats.timeMicros("redis-get-usec") {
+      val rv = redisClient.lrange(timeline, offset, offset + length - 1).get(timeout.inMillis, TimeUnit.MILLISECONDS).toSeq
+      if (rv.size > 0) {
+        pipeline += PipelinedRequest(convertFuture(redisClient.expire(timeline, expiration.inSeconds)), None)
+        checkPipeline()
+      }
+      rv
     }
-    rv
   }
 
   def set(timeline: String, entries: Seq[Array[Byte]]) {
-    val tempName = uniqueTimelineName(timeline)
-    var didExpire = false
-    entries.foreach { entry =>
-      redisClient.rpush(tempName, entry).get(timeout.inMillis, TimeUnit.MILLISECONDS)
-      if (!didExpire) {
-        redisClient.expire(tempName, 15).get(timeout.inMillis, TimeUnit.MILLISECONDS)
-        didExpire = true
+    Stats.timeMicros("redis-set-usec") {
+      val tempName = uniqueTimelineName(timeline)
+      var didExpire = false
+      entries.foreach { entry =>
+        redisClient.rpush(tempName, entry).get(timeout.inMillis, TimeUnit.MILLISECONDS)
+        if (!didExpire) {
+          redisClient.expire(tempName, 15).get(timeout.inMillis, TimeUnit.MILLISECONDS)
+          didExpire = true
+        }
       }
-    }
-    if (entries.size > 0) {
-      redisClient.rename(tempName, timeline).get(timeout.inMillis, TimeUnit.MILLISECONDS)
-      redisClient.expire(timeline, expiration.inSeconds).get(timeout.inMillis, TimeUnit.MILLISECONDS)
+      if (entries.size > 0) {
+        redisClient.rename(tempName, timeline).get(timeout.inMillis, TimeUnit.MILLISECONDS)
+        redisClient.expire(timeline, expiration.inSeconds).get(timeout.inMillis, TimeUnit.MILLISECONDS)
+      }
     }
   }
 
   def delete(timeline: String) {
-    redisClient.del(timeline).get(timeout.inMillis, TimeUnit.MILLISECONDS)
+    Stats.timeMicros("redis-delete-usec") {
+      redisClient.del(timeline).get(timeout.inMillis, TimeUnit.MILLISECONDS)
+    }
   }
 }
