@@ -17,6 +17,10 @@ import org.jredis.ri.alphazero.connection.DefaultConnectionSpec
 
 case class PipelinedRequest(future: Future[ResponseStatus], onError: Option[Throwable => Unit])
 
+object PipelinedRedisClient {
+  var mockedOutJRedisClient: Option[JRedisPipeline] = None
+}
+
 /**
  * Thin wrapper around JRedisPipeline that will handle pipelining, and call an error handler on
  * failure.
@@ -36,7 +40,9 @@ class PipelinedRedisClient(hostname: String, pipelineMaxSize: Int, timeout: Dura
   var alive = true
 
   // allow tests to override.
-  def makeRedisClient = new JRedisPipeline(connectionSpec)
+  def makeRedisClient = {
+    PipelinedRedisClient.mockedOutJRedisClient.getOrElse(new JRedisPipeline(connectionSpec))
+  }
 
   val pipeline = new mutable.ListBuffer[PipelinedRequest]
 
