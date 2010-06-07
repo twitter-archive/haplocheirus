@@ -8,7 +8,6 @@ import net.lag.configgy.{Configgy, ConfigMap, RuntimeEnvironment}
 import net.lag.logging.Logger
 
 
-
 object Main extends Service {
   val log = Logger.get(getClass.getName)
   var thriftServer: TSelectorServer = null

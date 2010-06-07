@@ -82,11 +82,12 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
   }
 
   // this is really inefficient. we should discourage its use.
-  def contains(timeline: String, entry: Array[Byte]) = {
-    val searchKey = sortKeyFromEntry(entry)
-    pool.withClient(shardInfo.hostname) { client =>
-      sortKeysFromEntries(client.get(timeline, 0, -1))
-    }.find { _.key == searchKey }.isDefined
+  def filter(timeline: String, entries: Seq[Array[Byte]]) = {
+    val searchKeys = sortKeysFromEntries(entries)
+    val timelineEntries = Set(sortKeysFromEntries(pool.withClient(shardInfo.hostname) { client =>
+      client.get(timeline, 0, -1)
+    }).map { _.key }: _*)
+    searchKeys.filter { timelineEntries contains _.key }.map { _.entry }
   }
 
   def get(timeline: String, offset: Int, length: Int, dedupe: Boolean): Seq[Array[Byte]] = {

@@ -57,16 +57,16 @@ object TimelineStoreServiceSpec extends Specification with JMocker with ClassMoc
       service.remove(data, timelines)
     }
 
-    "contains" in {
+    "filter" in {
       val data = "hello".getBytes
       val timeline = "t1"
 
       expect {
         one(nameServer).findCurrentForwarding(0, 632754681242344982L) willReturn shard1
-        one(shard1).contains(timeline, data) willReturn true
+        one(shard1).filter(timeline, List(data)) willReturn List(data)
       }
 
-      service.contains(data, timeline) mustEqual true
+      service.filter(timeline, List(data)) mustEqual List(data)
     }
 
     "get" in {

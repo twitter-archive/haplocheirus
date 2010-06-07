@@ -56,8 +56,8 @@ class TimelineStoreService(val nameServer: NameServer[HaplocheirusShard],
     }
   }
 
-  def contains(entry: Array[Byte], timeline: String) = {
-    shardFor(timeline).contains(timeline, entry)
+  def filter(timeline: String, entries: Seq[Array[Byte]]) = {
+    shardFor(timeline).filter(timeline, entries)
   }
 
   def get(timeline: String, offset: Int, length: Int, dedupe: Boolean) = {
