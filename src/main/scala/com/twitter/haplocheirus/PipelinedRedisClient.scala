@@ -55,13 +55,27 @@ class PipelinedRedisClient(hostname: String, pipelineMaxSize: Int, timeout: Dura
     }
   }
 
-  def convertFuture(future: Future[java.lang.Boolean]) = new Future[ResponseStatus] {
-    private def convert(rv: java.lang.Boolean) = ResponseStatus.STATUS_OK
+  abstract class WrappedFuture[T](future: Future[T]) extends Future[ResponseStatus] {
+    protected def convert(rv: T): ResponseStatus
+
     def get() = convert(future.get())
     def get(timeout: Long, units: TimeUnit) = convert(future.get(timeout, units))
     def isDone() = future.isDone()
     def isCancelled() = future.isCancelled()
     def cancel(x: Boolean) = future.cancel(x)
+    override def equals(x: Any) = future.equals(x)
+  }
+
+  def convertBoolFuture(future: Future[java.lang.Boolean]) = new WrappedFuture[java.lang.Boolean](future) {
+    protected def convert(rv: java.lang.Boolean) = {
+      if (rv == true) ResponseStatus.STATUS_OK else new ResponseStatus(ResponseStatus.Code.ERROR, "failed")
+    }
+  }
+
+  def convertLongFuture(future: Future[java.lang.Long]) = new WrappedFuture[java.lang.Long](future) {
+    protected def convert(rv: java.lang.Long) = {
+      if (rv == 1) ResponseStatus.STATUS_OK else new ResponseStatus(ResponseStatus.Code.ERROR, "zero")
+    }
   }
 
   def shutdown() {
@@ -107,7 +121,7 @@ class PipelinedRedisClient(hostname: String, pipelineMaxSize: Int, timeout: Dura
 
   def pop(timeline: String, entry: Array[Byte], onError: Option[Throwable => Unit]) {
     Stats.timeMicros("redis-pop-usec") {
-      pipeline += PipelinedRequest(redisClient.ldelete(timeline, entry), onError)
+      pipeline += PipelinedRequest(convertLongFuture(redisClient.lrem(timeline, entry, 1)), onError)
       checkPipeline()
     }
   }
@@ -124,7 +138,7 @@ class PipelinedRedisClient(hostname: String, pipelineMaxSize: Int, timeout: Dura
     Stats.timeMicros("redis-get-usec") {
       val rv = redisClient.lrange(timeline, offset, offset + length - 1).get(timeout.inMillis, TimeUnit.MILLISECONDS).toSeq
       if (rv.size > 0) {
-        pipeline += PipelinedRequest(convertFuture(redisClient.expire(timeline, expiration.inSeconds)), None)
+        pipeline += PipelinedRequest(convertBoolFuture(redisClient.expire(timeline, expiration.inSeconds)), None)
         checkPipeline()
       }
       rv

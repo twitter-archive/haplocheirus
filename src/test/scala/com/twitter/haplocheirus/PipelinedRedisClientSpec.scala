@@ -17,6 +17,7 @@ object PipelinedRedisClientSpec extends ConfiguredSpecification with JMocker wit
     val queue = mock[ErrorHandlingJobQueue]
     val future = mock[JRedisFutureSupport.FutureStatus]
     val future2 = mock[Future[JList[Array[Byte]]]]
+    val future3 = mock[Future[java.lang.Long]]
     var client: PipelinedRedisClient = null
 
     val timeline = "t1"
@@ -42,11 +43,12 @@ object PipelinedRedisClientSpec extends ConfiguredSpecification with JMocker wit
 
     "pop" in {
       expect {
-        one(jredis).ldelete(timeline, data) willReturn future
+        one(jredis).lrem(timeline, data, 1) willReturn future3
+        one(future3).get() willReturn 1L
       }
 
       client.pop(timeline, data, None)
-      client.pipeline.toList mustEqual List(PipelinedRequest(future, None))
+      client.pipeline.toList.map { _.future.get() } mustEqual List(ResponseStatus.STATUS_OK)
     }
 
     "pushAfter" in {
