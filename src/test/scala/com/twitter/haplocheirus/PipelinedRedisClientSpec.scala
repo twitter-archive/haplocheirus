@@ -43,7 +43,7 @@ object PipelinedRedisClientSpec extends ConfiguredSpecification with JMocker wit
 
     "pop" in {
       expect {
-        one(jredis).lrem(timeline, data, 1) willReturn future3
+        one(jredis).lrem(timeline, data, 0) willReturn future3
         one(future3).get() willReturn 1L
       }
 

@@ -121,7 +121,7 @@ class PipelinedRedisClient(hostname: String, pipelineMaxSize: Int, timeout: Dura
 
   def pop(timeline: String, entry: Array[Byte], onError: Option[Throwable => Unit]) {
     Stats.timeMicros("redis-pop-usec") {
-      pipeline += PipelinedRequest(convertLongFuture(redisClient.lrem(timeline, entry, 1)), onError)
+      pipeline += PipelinedRequest(convertLongFuture(redisClient.lrem(timeline, entry, 0)), onError)
       checkPipeline()
     }
   }
