@@ -48,21 +48,33 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
   }
 
   private def dedupeBy(entries: Seq[Array[Byte]], byteOffset: Int): Seq[Array[Byte]] = {
-    val seen = new mutable.HashSet[Long]()
-    entries.reverse.filter { entry =>
+    // optimization: usually there are no dupes.
+    val uniqs = new mutable.HashSet[Long]()
+    entries.foreach { entry =>
       if (byteOffset + 8 <= entry.length) {
-        val id = sortKeyFromEntry(entry, byteOffset)
-        if (seen contains id) {
-          Stats.incr("timeline-dupes")
-          false
-        } else {
-          seen += id
-          true
-        }
-      } else {
-        true
+        uniqs += sortKeyFromEntry(entry, byteOffset)
       }
-    }.reverse
+    }
+
+    if (uniqs.size == entries.size) {
+      entries
+    } else {
+      val seen = new mutable.HashSet[Long]()
+      entries.foldRight(List[Array[Byte]]()) { (entry, newList) =>
+        if (byteOffset + 8 <= entry.length) {
+          val id = sortKeyFromEntry(entry, byteOffset)
+          if (seen contains id) {
+            Stats.incr("timeline-dupes")
+            newList
+          } else {
+            seen += id
+            entry :: newList
+          }
+        } else {
+          entry :: newList
+        }
+      }
+    }
   }
 
   private def timelineIndexOf(entries: Seq[Array[Byte]], entryId: Long): Int = {
