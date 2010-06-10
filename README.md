@@ -1,7 +1,16 @@
 
-Haplocheirus, a home timeline storage engine.
+# Haplocheirus
 
-# Goals
+Haplocheirus is a redis-backed storage engine for timelines.
+
+**Disclaimer**: This project is an experiment, and is not complete or deployed anywhere yet.
+
+Timelines are lists of 64-bit ids, possibly with a small bit of attached metadata, in preserved
+order. New entries are always added at the "front". Old entries may be dropped off the "back" if the
+timeline exceeds a maximum size. Two timelines can be merged by assuming they're roughly sorted by
+id. A timeline query returns a slice of the timeline, newest first.
+
+## Goals
 
 - Highly available, partitioned
 - Structured vectors (each timeline entry is an atomic blob, not necessarily all alike)
@@ -11,111 +20,45 @@ Haplocheirus, a home timeline storage engine.
 - Durable snapshots
 - Idempotent/commutative
 
-Roughly, the goals revolve around storing only as many timelines and tweets as the current memcache
-solution (and allowing for growth), but reducing the expense/impact of hardware failure by having
-redundant copies of the data and having snapshots on disk to speed recovery. Additionally, the
-"storage format logic" will be moved to the timeline storage engine, and out of our rails stack.
+## Non-goals
 
-Timelines can be updated out of order, and will be corrected on read. The same entry can be inserted
-multiple times into the same timeline, and duplicates will be discarded.
-
-# Non-goals
-
-- Contain business logic for rebuilding timelines
+- Contain business logic for building timelines from scratch
 - Transactionally durable timelines
 
-An API will be provided for installing a pre-built timeline, but the logic for rebuilding a timeline
-will remain external. Snapshots will guarantee a cold-start recovery from some recent time (probably
-a few minutes ago), but incoming tweets will need to be replayed through the system to restore the
-updates that have happened since the last snapshot.
+## Structure
 
-# API
+[Gizzard](http://github.com/twitter/gizzard) is used to handle partitioning and job queueing, and
+[Redis](http://code.google.com/p/redis/) is used as the backend storage for each shard.
 
-Timeline entries are an i64 (for ordering & duplication detection) and optional metadata.
+Redis has been patched to have a few extra features. Currently this lives as a branch on github
+here: <http://github.com/robey/redis/commits/twitter2>. Eventually we hope to have these patches
+merged back into redis in some form.
 
-    struct TimelineEntry {
-      i64 id;
-      optional binary metadata;
-    }
+## Building
 
-Clients should assume the metadata is encoded in avro, though this may vary by timeline type. The
-server uses only the initial i64 and treats the rest as a blob (byte array).
+You need:
+- java 1.6
+- thrift 0.2.0
+- sbt 0.7.4
+- redis-server (twitter2 branch; see above)
 
-- `append(entry: TimelineEntry, timelines: list<string>)`
+You might want:
+- haplocheirus-client <http://github.com/bitbckt/haplocheirus-client>
 
-  Write an entry into the timeline names given. Appends will silently do nothing if a timeline has
-  not been created using `set`.
+A special build of jredis is used, too, but currently the jar is included in the repo.
 
-- `delete(entry: TimelineEntry, timelines: list<string>)`
+Then:
 
-  Delete an entry from timelines. This corresponds to a deleted tweet.
+    $ sbt clean update package-dist
 
-- `get(timeline: string, offset: i32, length: i32): list<TimelineEntry>`
+## Running
 
-  Fetch a span of entries from a timeline. The offset & length are counted from most recent to
-  oldest, so an offset of 0 is the newest entry.
+Start up your local redis server, then:
 
-- `getRange(timeline: string, fromId: option<i64>, toId: option<i64>): list<TimelineEntry>`
+    $ ./src/scripts/setup-env.sh
 
-  Fetch any entries that have been added after fromId, until toId.
-  *This may include entries with a lower or higher id that were inserted out of order.*
+## Community
 
-- `set(timeline: string, entries: list<TimelineEntry>)`
+License: Apache 2 (see included LICENSE file)
 
-  Atomically set a timeline's contents.
-
-- `merge(timeline: string, entries: list<TimelineEntry>)`
-
-  Merge a list of timeline entries into an existing timeline. If the timeline hasn't been created,
-  silently do nothing. This is meant to be used when adding a new following, for example.
-
-- `unmerge(timeline: string, entryies: list<TimelineEntry>)`
-
-  Remove a list of timeline entries from an existing timeline. If the timeline hasn't been created,
-  silently do nothing. This is an unfollow.
-
-# Design
-
-Homogenous scala servers will implement the API and use gizzard for sharding and writes. This means
-the timeline namespace will be split across horizontal partitions, with each partition handling its
-own replication. Write operations will be handled by a pool of worker threads.
-
-Timelines will be append-only for adds, even if the ids are added out of order. Results may be
-sorted by id before being returned to the client (although it sounds like nobody really cares if
-they are, so we may punt on that), but the stored order is used for `getSince` queries.
-
-Pending some horrific new discovery, redis will be the backend storage engine. Timelines will be
-"lists" in redis terminology. Periodically, `BGSAVE` will be used to create a snapshot of each redis
-server's memory contents. Write operations will be pipelined to each redis server for performance
-reasons. (See the performance doc.)
-
-Deleted entries will be marked with a tombstone so that out-of-order operations always honor a
-deletion as the final state. Deleted entries can't be reinstated.
-
-## List modifications
-
-A few new features will be added to redis to match our hopes and dreams about timeline storage. We
-think these all have a good chance of being accepted by the redis maintainer.
-
-- `RPUSHX <key> <value>`
-
-  Like `RPUSH`, but only adds an item if the key already exists. Does not delete the contents of
-  keys that have an expiration time.
-
-- `LINSERT <key> <newvalue> <oldvalue>`
-
-  Insert the new value before the old value in a list.
-
-- `LDELETE <key> <value>`
-
-  Delete a value from a list, if it exists.
-
-- Configurable maximum size for lists
-
-  If a maximum size is configured for lists, whenever a list is the maximum size and a new item is
-  pushed to it, an item from the other end is dropped. This will always be O(1).
-
-## Nice to have
-
-We might like to optimize list storage in redis, because the in-memory structures have low-hanging
-fruit for space savings. This is not a launch requirement, though.
+- IRC: #twinfra on freenode (irc.freenode.net)
