@@ -1,6 +1,7 @@
 package com.twitter.haplocheirus
 
 import java.util.concurrent.CountDownLatch
+import com.twitter.gizzard.proxy.ExceptionHandlingProxy
 import com.twitter.gizzard.thrift.{GizzardServices, TSelectorServer}
 import com.twitter.ostrich.{BackgroundProcess, Service, ServiceTracker, Stats}
 import com.twitter.xrayspecs.TimeConversions._
@@ -15,6 +16,10 @@ object Main extends Service {
   var service: TimelineStoreService = null
 
   private val deathSwitch = new CountDownLatch(1)
+
+  object TimelineStoreExceptionWrappingProxy extends ExceptionHandlingProxy({ e =>
+    throw new thrift.TimelineStoreException(e.toString)
+  })
 
   def main(args: Array[String]) {
     val runtime = new RuntimeEnvironment(getClass)
@@ -51,7 +56,11 @@ object Main extends Service {
                                             Priority.Migrate.id)
       gizzardServices.start()
 
-      val processor = new thrift.TimelineStore.Processor(NuLoggingProxy[thrift.TimelineStore.Iface](Stats, "timelines", new TimelineStore(service)))
+      val processor = new thrift.TimelineStore.Processor(
+        TimelineStoreExceptionWrappingProxy(
+          NuLoggingProxy[thrift.TimelineStore.Iface](Stats, "timelines", new TimelineStore(service))
+        )
+      )
       thriftServer = TSelectorServer("timelines", config("server_port").toInt,
                                      config.configMap("gizzard_services"), processor)
       thriftServer.serve()
