@@ -137,7 +137,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
           allowing(client).get(timeline, 3, 3) willReturn List[Array[Byte]]()
         }
 
-        redisShard.getSince(timeline, 10L, false).toList mustEqual List(entry1, entry2, entry3)
+        redisShard.getRange(timeline, 10L, 0L, false).toList mustEqual List(entry1, entry2, entry3)
       }
 
       "with fromId" in {
@@ -151,7 +151,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
             allowing(client).get(timeline, 0, 3) willReturn List(entry1, entry2, entry3)
           }
 
-          redisShard.getSince(timeline, 19L, false).toList mustEqual List(entry1, entry2)
+          redisShard.getRange(timeline, 19L, 0L, false).toList mustEqual List(entry1, entry2)
         }
 
         "in a later page" in {
@@ -168,7 +168,43 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
             allowing(client).get(timeline, 3, 3) willReturn List(entry3, entry4, entry5)
           }
 
-          redisShard.getSince(timeline, 13L, false).toList mustEqual List(entry1, entry2, entry3, entry4)
+          redisShard.getRange(timeline, 13L, 0L, false).toList mustEqual List(entry1, entry2, entry3, entry4)
+        }
+      }
+
+      "with toId" in {
+        "in the first page" in {
+          val entry1 = List(23L).pack
+          val entry2 = List(20L).pack
+          val entry3 = List(19L).pack
+
+          expect {
+            allowing(shardInfo).hostname willReturn "host1"
+            allowing(client).get(timeline, 0, 3) willReturn List(entry1, entry2, entry3)
+          }
+
+          redisShard.getRange(timeline, 19L, 30L, false).toList mustEqual List(entry1, entry2)
+          redisShard.getRange(timeline, 19L, 23L, false).toList mustEqual List(entry1, entry2)
+          redisShard.getRange(timeline, 19L, 20L, false).toList mustEqual List(entry2)
+        }
+
+        "in a later page" in {
+          val entry1 = List(23L).pack
+          val entry2 = List(20L).pack
+          val entry3 = List(19L).pack
+          val entry4 = List(17L).pack
+          val entry5 = List(13L).pack
+          val entry6 = List(10L).pack
+
+          expect {
+            allowing(shardInfo).hostname willReturn "host1"
+            allowing(client).get(timeline, 0, 3) willReturn List(entry1, entry2, entry3)
+            allowing(client).get(timeline, 3, 3) willReturn List(entry3, entry4, entry5)
+          }
+
+          redisShard.getRange(timeline, 13L, 30L, false).toList mustEqual List(entry1, entry2, entry3, entry4)
+          redisShard.getRange(timeline, 13L, 20L, false).toList mustEqual List(entry2, entry3, entry4)
+          redisShard.getRange(timeline, 13L, 17L, false).toList mustEqual List(entry4)
         }
       }
 
@@ -186,7 +222,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
           allowing(client).get(timeline, 3, 3) willReturn List(entry3, entry4, entry5)
         }
 
-        redisShard.getSince(timeline, 13L, false).toList mustEqual List(entry1, entry3, entry4)
+        redisShard.getRange(timeline, 13L, 0L, false).toList mustEqual List(entry1, entry3, entry4)
       }
     }
 

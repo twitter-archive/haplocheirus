@@ -64,8 +64,8 @@ class TimelineStoreService(val nameServer: NameServer[HaplocheirusShard],
     shardFor(timeline).get(timeline, offset, length, dedupe)
   }
 
-  def getSince(timeline: String, fromId: Long, dedupe: Boolean) = {
-    shardFor(timeline).getSince(timeline, fromId, dedupe)
+  def getRange(timeline: String, fromId: Long, toId: Long, dedupe: Boolean) = {
+    shardFor(timeline).getRange(timeline, fromId, toId, dedupe)
   }
 
   def store(timeline: String, entries: Seq[Array[Byte]]) {

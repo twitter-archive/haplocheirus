@@ -113,7 +113,7 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
     }
   }
 
-  def getSince(timeline: String, fromId: Long, dedupe: Boolean): Seq[Array[Byte]] = {
+  def getRange(timeline: String, fromId: Long, toId: Long, dedupe: Boolean): Seq[Array[Byte]] = {
     val entriesSince = pool.withClient(shardInfo.hostname) { client =>
       val entries = new mutable.ArrayBuffer[Array[Byte]]()
       var cursor = 0
@@ -134,7 +134,11 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
       } else {
         Stats.incr("timeline-range-page-hit")
       }
-      entries.take(fromIdIndex)
+      val toIdIndex = if (toId > 0) {
+        val i = timelineIndexOf(entries, toId)
+        if (i >= 0) i else 0
+      } else 0
+      entries.take(fromIdIndex).drop(toIdIndex)
     }
     if (dedupe) {
       dedupeBy(dedupeBy(entriesSince, 0), 8)
