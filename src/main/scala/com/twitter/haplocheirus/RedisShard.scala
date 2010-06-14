@@ -81,9 +81,13 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
     entries.findIndexOf { sortKeyFromEntry(_) == entryId }
   }
 
+  private def checkTrim(timeline: String, size: Long) {
+    // FIXME
+  }
+
   def append(entry: Array[Byte], timeline: String, onError: Option[Throwable => Unit]) {
     pool.withClient(shardInfo.hostname) { client =>
-      client.push(timeline, entry, onError)
+      client.push(timeline, entry, onError) { checkTrim(timeline, _) }
     }
   }
 
@@ -159,10 +163,10 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
             i += 1
           }
           if (i == 0) {
-            client.push(timeline, insert.entry, onError)
+            client.push(timeline, insert.entry, onError) { checkTrim(timeline, _) }
           } else if (i == existing.size ||
                      (existing(i).key != insert.key && previous.key != insert.key)) {
-            client.pushAfter(timeline, previous.entry, insert.entry, onError)
+            client.pushAfter(timeline, previous.entry, insert.entry, onError) { checkTrim(timeline, _) }
             previous = insert
           }
         }

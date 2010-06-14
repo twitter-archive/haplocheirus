@@ -14,7 +14,7 @@ import org.specs.mock.{ClassMocker, JMocker}
 object IntegrationSpec extends ConfiguredSpecification with JMocker with ClassMocker {
   "Haplocheirus" should {
     val jredisClient = mock[JRedisPipeline]
-    val future = mock[JRedisFutureSupport.FutureStatus]
+    val future = mock[JRedisFutureSupport.FutureLong]
     var service: TimelineStoreService = null
 
     def errorQueue = {
@@ -51,8 +51,8 @@ object IntegrationSpec extends ConfiguredSpecification with JMocker with ClassMo
       expect {
         one(jredisClient).lpushx(timeline1, data) willReturn future
         one(jredisClient).lpushx(timeline2, data) willReturn future
-        one(future).get(200L, TimeUnit.MILLISECONDS) willReturn ResponseStatus.STATUS_OK
-        one(future).get(200L, TimeUnit.MILLISECONDS) willReturn { done = true; ResponseStatus.STATUS_OK }
+        one(future).get(200L, TimeUnit.MILLISECONDS) willReturn 1L
+        one(future).get(200L, TimeUnit.MILLISECONDS) willReturn { done = true; 2L }
       }
 
       service.append(data, List(timeline1, timeline2))
@@ -65,20 +65,17 @@ object IntegrationSpec extends ConfiguredSpecification with JMocker with ClassMo
       expect {
         one(jredisClient).lpushx(timeline1, data) willReturn future
         one(jredisClient).lpushx(timeline2, data) willReturn future
-        one(future).get(200L, TimeUnit.MILLISECONDS) willReturn ResponseStatus.STATUS_OK
-        one(future).get(200L, TimeUnit.MILLISECONDS) willReturn { done = true; new ResponseStatus(ResponseStatus.Code.ERROR, "Oups!") }
+        one(future).get(200L, TimeUnit.MILLISECONDS) willReturn 1L
+        one(future).get(200L, TimeUnit.MILLISECONDS) will throwA(new Exception("Oups!"))
       }
 
       errorQueue.size mustEqual 0
       service.append(data, List(timeline1, timeline2))
-      done must beTrue
       errorQueue.size mustEqual 1
-
-      done = false
 
       expect {
         allowing(jredisClient).lpushx(timeline2, data) willReturn future
-        allowing(future).get(200L, TimeUnit.MILLISECONDS) willReturn { done = true; ResponseStatus.STATUS_OK }
+        allowing(future).get(200L, TimeUnit.MILLISECONDS) willReturn { done = true; 3L }
       }
 
       service.scheduler.retryErrors()

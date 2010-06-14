@@ -17,7 +17,7 @@ object PipelinedRedisClientSpec extends ConfiguredSpecification with JMocker wit
     val queue = mock[ErrorHandlingJobQueue]
     val future = mock[JRedisFutureSupport.FutureStatus]
     val future2 = mock[Future[JList[Array[Byte]]]]
-    val future3 = mock[Future[java.lang.Long]]
+    val longFuture = mock[JRedisFutureSupport.FutureLong]
     var client: PipelinedRedisClient = null
 
     val timeline = "t1"
@@ -34,30 +34,36 @@ object PipelinedRedisClientSpec extends ConfiguredSpecification with JMocker wit
 
     "push" in {
       expect {
-        one(jredis).lpushx(timeline, data) willReturn future
+        one(jredis).lpushx(timeline, data) willReturn longFuture
+        one(longFuture).get(1000, TimeUnit.MILLISECONDS) willReturn 23L
       }
 
-      client.push(timeline, data, None)
-      client.pipeline.toList mustEqual List(PipelinedRequest(future, None))
+      var count = 0L
+      client.push(timeline, data, None) { n => count = n }
+      client.flushPipeline()
+      count mustEqual 23
     }
 
     "pop" in {
       expect {
-        one(jredis).lrem(timeline, data, 0) willReturn future3
-        one(future3).get() willReturn 1L
+        one(jredis).lrem(timeline, data, 0) willReturn longFuture
+        one(longFuture).get(1000, TimeUnit.MILLISECONDS) willReturn 1L
       }
 
       client.pop(timeline, data, None)
-      client.pipeline.toList.map { _.future.get() } mustEqual List(ResponseStatus.STATUS_OK)
+      client.flushPipeline()
     }
 
     "pushAfter" in {
       expect {
-        one(jredis).lpushxafter(timeline, data, data2) willReturn future
+        one(jredis).linsertAfter(timeline, data, data2) willReturn longFuture
+        one(longFuture).get(1000, TimeUnit.MILLISECONDS) willReturn 23L
       }
 
-      client.pushAfter(timeline, data, data2, None)
-      client.pipeline.toList mustEqual List(PipelinedRequest(future, None))
+      var count = 0L
+      client.pushAfter(timeline, data, data2, None) { n => count = n }
+      client.flushPipeline()
+      count mustEqual 23
     }
 
     "get" in {
@@ -78,14 +84,14 @@ object PipelinedRedisClientSpec extends ConfiguredSpecification with JMocker wit
       val entry3 = List(19L).pack
 
       expect {
-        one(jredis).rpush(timeline + "~1", entry1) willReturn future
-        one(future).get(1000, TimeUnit.MILLISECONDS) willReturn ResponseStatus.STATUS_OK
+        one(jredis).rpush(timeline + "~1", entry1) willReturn longFuture
+        one(longFuture).get(1000, TimeUnit.MILLISECONDS) willReturn 1L
         one(jredis).expire(timeline + "~1", 15) willReturn future
         one(future).get(1000, TimeUnit.MILLISECONDS) willReturn ResponseStatus.STATUS_OK
-        one(jredis).rpush(timeline + "~1", entry2) willReturn future
-        one(future).get(1000, TimeUnit.MILLISECONDS) willReturn ResponseStatus.STATUS_OK
-        one(jredis).rpush(timeline + "~1", entry3) willReturn future
-        one(future).get(1000, TimeUnit.MILLISECONDS) willReturn ResponseStatus.STATUS_OK
+        one(jredis).rpush(timeline + "~1", entry2) willReturn longFuture
+        one(longFuture).get(1000, TimeUnit.MILLISECONDS) willReturn 1L
+        one(jredis).rpush(timeline + "~1", entry3) willReturn longFuture
+        one(longFuture).get(1000, TimeUnit.MILLISECONDS) willReturn 1L
         one(jredis).rename(timeline + "~1", timeline) willReturn future
         one(future).get(1000, TimeUnit.MILLISECONDS) willReturn ResponseStatus.STATUS_OK
         one(jredis).expire(timeline, 86400) willReturn future
@@ -96,43 +102,30 @@ object PipelinedRedisClientSpec extends ConfiguredSpecification with JMocker wit
     }
 
     "delete" in {
-      val futureLong = mock[Future[Long]]
-
       expect {
-        one(jredis).del(timeline) willReturn futureLong
-        one(futureLong).get(1000, TimeUnit.MILLISECONDS) willReturn 0L
+        one(jredis).del(timeline) willReturn longFuture
+        one(longFuture).get(1000, TimeUnit.MILLISECONDS) willReturn 0L
       }
 
       client.delete(timeline)
     }
 
-    "finishRequest" in {
-      val request = PipelinedRequest(future, Some(e => queue.putError(job)))
+    "laterWithErrorHandling" in {
+      val onError = Some({ e: Throwable => queue.putError(job) })
 
       "success" in {
-        expect {
-          one(future).get(1000, TimeUnit.MILLISECONDS) willReturn ResponseStatus.STATUS_OK
-        }
-
-        client.finishRequest(request)
-      }
-
-      "failure" in {
-        expect {
-          one(future).get(1000, TimeUnit.MILLISECONDS) willReturn new ResponseStatus(ResponseStatus.Code.ERROR, "I burped.")
-          one(queue).putError(job)
-        }
-
-        client.finishRequest(request)
+        client.laterWithErrorHandling(onError) { }
+        client.flushPipeline()
+        client.pipeline.size mustEqual 0
       }
 
       "exception" in {
         expect {
-          one(future).get(1000, TimeUnit.MILLISECONDS) willThrow new ExecutionException(new Exception("I died."))
           one(queue).putError(job)
         }
 
-        client.finishRequest(request)
+        client.laterWithErrorHandling(onError) { throw new ExecutionException(new Exception("I died.")) }
+        client.flushPipeline()
       }
     }
   }
