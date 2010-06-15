@@ -147,10 +147,13 @@ class PipelinedRedisClient(hostname: String, pipelineMaxSize: Int, timeout: Dura
       val tempName = uniqueTimelineName(timeline)
       var didExpire = false
       entries.foreach { entry =>
-        redisClient.rpush(tempName, entry).get(timeout.inMillis, TimeUnit.MILLISECONDS)
         if (!didExpire) {
-          redisClient.expire(tempName, 15).get(timeout.inMillis, TimeUnit.MILLISECONDS)
+          redisClient.rpush(tempName, entry).get(timeout.inMillis, TimeUnit.MILLISECONDS)
+          // bummer: we can't rename a key that has an expiration time, so these have to be permanent.
+//          redisClient.expire(tempName, 15).get(timeout.inMillis, TimeUnit.MILLISECONDS)
           didExpire = true
+        } else {
+          redisClient.rpushx(tempName, entry).get(timeout.inMillis, TimeUnit.MILLISECONDS)
         }
       }
       if (entries.size > 0) {

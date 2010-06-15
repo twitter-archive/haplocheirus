@@ -366,9 +366,8 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
       expect {
         one(shardInfo).hostname willReturn "host1"
         one(jredis).rpush("generated-name", entry1)
-        one(jredis).expire("generated-name", 15)
-        one(jredis).rpush("generated-name", entry2)
-        one(jredis).rpush("generated-name", entry3)
+        one(jredis).rpushx("generated-name", entry2)
+        one(jredis).rpushx("generated-name", entry3)
         one(jredis).rename("generated-name", timeline)
         one(jredis).expire(timeline, 1)
       }
