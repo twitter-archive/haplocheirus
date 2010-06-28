@@ -2,6 +2,7 @@ package com.twitter.haplocheirus
 
 import java.util.{List => JList}
 import com.twitter.gizzard.thrift.conversions.Sequences._
+import com.twitter.haplocheirus.thrift.conversions.TimelineSegment._
 
 
 class TimelineStore(service: TimelineStoreService) extends thrift.TimelineStore.Iface {
@@ -18,11 +19,11 @@ class TimelineStore(service: TimelineStoreService) extends thrift.TimelineStore.
   }
 
   def get(timeline_id: String, offset: Int, length: Int, dedupe: Boolean) = {
-    service.get(timeline_id, offset, length, dedupe).toJavaList
+    service.get(timeline_id, offset, length, dedupe).toThrift
   }
 
   def get_range(timeline_id: String, from_id: Long, to_id: Long, dedupe: Boolean) = {
-    service.getRange(timeline_id, from_id, to_id, dedupe).toJavaList
+    service.getRange(timeline_id, from_id, to_id, dedupe).toThrift
   }
 
   def store(timeline_id: String, entries: JList[Array[Byte]]) {

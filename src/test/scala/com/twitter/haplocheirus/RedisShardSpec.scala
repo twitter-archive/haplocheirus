@@ -85,10 +85,12 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
           one(shardInfo).hostname willReturn "host1"
           one(jredis).lrange(timeline, 0, 9) willReturn future
           one(future).get(1000, TimeUnit.MILLISECONDS) willReturn List(entry1, entry2, entry3).toJavaList
+          one(jredis).llen(timeline) willReturn longFuture
+          one(longFuture).get(1000, TimeUnit.MILLISECONDS) willReturn 3
           one(jredis).expire(timeline, 1)
         }
 
-        redisShard.get(timeline, 0, 10, false).toList mustEqual List(entry1, entry2, entry3)
+        redisShard.get(timeline, 0, 10, false).entries.toList mustEqual List(entry1, entry2, entry3)
       }
 
       "with duplicates in the sort key" in {
@@ -100,10 +102,12 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
           one(shardInfo).hostname willReturn "host1"
           one(jredis).lrange(timeline, 0, 9) willReturn future
           one(future).get(1000, TimeUnit.MILLISECONDS) willReturn List(entry1, entry2, entry3).toJavaList
+          one(jredis).llen(timeline) willReturn longFuture
+          one(longFuture).get(1000, TimeUnit.MILLISECONDS) willReturn 3
           one(jredis).expire(timeline, 1)
         }
 
-        redisShard.get(timeline, 0, 10, false).toList mustEqual List(entry2, entry3)
+        redisShard.get(timeline, 0, 10, false).entries.toList mustEqual List(entry2, entry3)
       }
 
       "with duplicates in the dedupe key" in {
@@ -115,11 +119,13 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
           allowing(shardInfo).hostname willReturn "host1"
           allowing(jredis).lrange(timeline, 0, 9) willReturn future
           allowing(future).get(1000, TimeUnit.MILLISECONDS) willReturn List(entry1, entry2, entry3).toJavaList
+          allowing(jredis).llen(timeline) willReturn longFuture
+          allowing(longFuture).get(1000, TimeUnit.MILLISECONDS) willReturn 3
           allowing(jredis).expire(timeline, 1)
         }
 
-        redisShard.get(timeline, 0, 10, false).toList mustEqual List(entry1, entry2, entry3)
-        redisShard.get(timeline, 0, 10, true).toList mustEqual List(entry2, entry3)
+        redisShard.get(timeline, 0, 10, false).entries.toList mustEqual List(entry1, entry2, entry3)
+        redisShard.get(timeline, 0, 10, true).entries.toList mustEqual List(entry2, entry3)
       }
 
       "with missing dedupe key" in {
@@ -131,10 +137,12 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
           one(shardInfo).hostname willReturn "host1"
           one(jredis).lrange(timeline, 0, 9) willReturn future
           one(future).get(1000, TimeUnit.MILLISECONDS) willReturn List(entry1, entry2, entry3).toJavaList
+          one(jredis).llen(timeline) willReturn longFuture
+          one(longFuture).get(1000, TimeUnit.MILLISECONDS) willReturn 3
           one(jredis).expire(timeline, 1)
         }
 
-        redisShard.get(timeline, 0, 10, true).toList mustEqual List(entry1, entry2, entry3)
+        redisShard.get(timeline, 0, 10, true).entries.toList mustEqual List(entry1, entry2, entry3)
       }
 
       "doesn't spaz when there aren't enough bytes to uniqify" in {
@@ -146,10 +154,12 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
           one(shardInfo).hostname willReturn "host1"
           one(jredis).lrange(timeline, 0, 9) willReturn future
           one(future).get(1000, TimeUnit.MILLISECONDS) willReturn List(entry1, entry2, entry3).toJavaList
+          one(jredis).llen(timeline) willReturn longFuture
+          one(longFuture).get(1000, TimeUnit.MILLISECONDS) willReturn 3
           one(jredis).expire(timeline, 1)
         }
 
-        redisShard.get(timeline, 0, 10, true).toList mustEqual List(entry1, entry2, entry3)
+        redisShard.get(timeline, 0, 10, true).entries.toList mustEqual List(entry1, entry2, entry3)
       }
     }
 
@@ -163,12 +173,14 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
           one(shardInfo).hostname willReturn "host1"
           one(jredis).lrange(timeline, 0, 2) willReturn future
           one(future).get(1000, TimeUnit.MILLISECONDS) willReturn List(entry1, entry2, entry3).toJavaList
+          one(jredis).llen(timeline) willReturn longFuture
+          one(longFuture).get(1000, TimeUnit.MILLISECONDS) willReturn 3
           one(jredis).expire(timeline, 1)
           one(jredis).lrange(timeline, 3, 5) willReturn future
           one(future).get(1000, TimeUnit.MILLISECONDS) willReturn List[Array[Byte]]().toJavaList
         }
 
-        redisShard.getRange(timeline, 10L, 0L, false).toList mustEqual List(entry1, entry2, entry3)
+        redisShard.getRange(timeline, 10L, 0L, false).entries.toList mustEqual List(entry1, entry2, entry3)
       }
 
       "with fromId" in {
@@ -181,10 +193,12 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
             one(shardInfo).hostname willReturn "host1"
             one(jredis).lrange(timeline, 0, 2) willReturn future
             one(future).get(1000, TimeUnit.MILLISECONDS) willReturn List(entry1, entry2, entry3).toJavaList
+            one(jredis).llen(timeline) willReturn longFuture
+            one(longFuture).get(1000, TimeUnit.MILLISECONDS) willReturn 3
             one(jredis).expire(timeline, 1)
           }
 
-          redisShard.getRange(timeline, 19L, 0L, false).toList mustEqual List(entry1, entry2)
+          redisShard.getRange(timeline, 19L, 0L, false).entries.toList mustEqual List(entry1, entry2)
         }
 
         "in a later page" in {
@@ -199,13 +213,15 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
             one(shardInfo).hostname willReturn "host1"
             one(jredis).lrange(timeline, 0, 2) willReturn future
             one(future).get(1000, TimeUnit.MILLISECONDS) willReturn List(entry1, entry2, entry3).toJavaList
+            one(jredis).llen(timeline) willReturn longFuture
+            one(longFuture).get(1000, TimeUnit.MILLISECONDS) willReturn 3
             one(jredis).expire(timeline, 1)
             one(jredis).lrange(timeline, 3, 5) willReturn future
             one(future).get(1000, TimeUnit.MILLISECONDS) willReturn List(entry3, entry4, entry5).toJavaList
             one(jredis).expire(timeline, 1)
           }
 
-          redisShard.getRange(timeline, 13L, 0L, false).toList mustEqual List(entry1, entry2, entry3, entry4)
+          redisShard.getRange(timeline, 13L, 0L, false).entries.toList mustEqual List(entry1, entry2, entry3, entry4)
         }
       }
 
@@ -219,12 +235,14 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
             allowing(shardInfo).hostname willReturn "host1"
             allowing(jredis).lrange(timeline, 0, 2) willReturn future
             allowing(future).get(1000, TimeUnit.MILLISECONDS) willReturn List(entry1, entry2, entry3).toJavaList
+            allowing(jredis).llen(timeline) willReturn longFuture
+            allowing(longFuture).get(1000, TimeUnit.MILLISECONDS) willReturn 3
             allowing(jredis).expire(timeline, 1)
           }
 
-          redisShard.getRange(timeline, 19L, 30L, false).toList mustEqual List(entry1, entry2)
-          redisShard.getRange(timeline, 19L, 23L, false).toList mustEqual List(entry1, entry2)
-          redisShard.getRange(timeline, 19L, 20L, false).toList mustEqual List(entry2)
+          redisShard.getRange(timeline, 19L, 30L, false).entries.toList mustEqual List(entry1, entry2)
+          redisShard.getRange(timeline, 19L, 23L, false).entries.toList mustEqual List(entry1, entry2)
+          redisShard.getRange(timeline, 19L, 20L, false).entries.toList mustEqual List(entry2)
         }
 
         "in a later page" in {
@@ -239,14 +257,18 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
             allowing(shardInfo).hostname willReturn "host1"
             allowing(jredis).lrange(timeline, 0, 2) willReturn future
             allowing(future).get(1000, TimeUnit.MILLISECONDS) willReturn List(entry1, entry2, entry3).toJavaList
+            allowing(jredis).llen(timeline) willReturn longFuture
+            allowing(longFuture).get(1000, TimeUnit.MILLISECONDS) willReturn 3
             allowing(jredis).expire(timeline, 1)
             allowing(jredis).lrange(timeline, 3, 5) willReturn future2
             allowing(future2).get(1000, TimeUnit.MILLISECONDS) willReturn List(entry3, entry4, entry5).toJavaList
+            allowing(jredis).llen(timeline) willReturn longFuture
+            allowing(longFuture).get(1000, TimeUnit.MILLISECONDS) willReturn 3
           }
 
-          redisShard.getRange(timeline, 13L, 30L, false).toList mustEqual List(entry1, entry2, entry3, entry4)
-          redisShard.getRange(timeline, 13L, 20L, false).toList mustEqual List(entry2, entry3, entry4)
-          redisShard.getRange(timeline, 13L, 17L, false).toList mustEqual List(entry4)
+          redisShard.getRange(timeline, 13L, 30L, false).entries.toList mustEqual List(entry1, entry2, entry3, entry4)
+          redisShard.getRange(timeline, 13L, 20L, false).entries.toList mustEqual List(entry2, entry3, entry4)
+          redisShard.getRange(timeline, 13L, 17L, false).entries.toList mustEqual List(entry4)
         }
       }
 
@@ -262,13 +284,15 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
           one(shardInfo).hostname willReturn "host1"
           one(jredis).lrange(timeline, 0, 2) willReturn future
           one(future).get(1000, TimeUnit.MILLISECONDS) willReturn List(entry1, entry2, entry3).toJavaList
+          one(jredis).llen(timeline) willReturn longFuture
+          one(longFuture).get(1000, TimeUnit.MILLISECONDS) willReturn 3
           one(jredis).expire(timeline, 1)
           one(jredis).lrange(timeline, 3, 5) willReturn future2
           one(future2).get(1000, TimeUnit.MILLISECONDS) willReturn List(entry3, entry4, entry5).toJavaList
           one(jredis).expire(timeline, 1)
         }
 
-        redisShard.getRange(timeline, 13L, 0L, false).toList mustEqual List(entry1, entry3, entry4)
+        redisShard.getRange(timeline, 13L, 0L, false).entries.toList mustEqual List(entry1, entry3, entry4)
       }
     }
 

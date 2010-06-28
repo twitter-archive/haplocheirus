@@ -168,4 +168,10 @@ class PipelinedRedisClient(hostname: String, pipelineMaxSize: Int, timeout: Dura
       redisClient.del(timeline).get(timeout.inMillis, TimeUnit.MILLISECONDS)
     }
   }
+
+  def size(timeline: String) = {
+    Stats.timeMicros("redis-llen-usec") {
+      redisClient.llen(timeline).get(timeout.inMillis, TimeUnit.MILLISECONDS).asInstanceOf[Long].toInt
+    }
+  }
 }

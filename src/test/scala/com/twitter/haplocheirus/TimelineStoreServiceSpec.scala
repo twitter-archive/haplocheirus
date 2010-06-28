@@ -5,6 +5,7 @@ import com.twitter.gizzard.nameserver.NameServer
 import com.twitter.gizzard.scheduler.{ErrorHandlingJobQueue, JobScheduler, PrioritizingJobScheduler}
 import org.specs.Specification
 import org.specs.mock.{ClassMocker, JMocker}
+import thrift.conversions.TimelineSegment._
 
 
 object TimelineStoreServiceSpec extends Specification with JMocker with ClassMocker {
@@ -76,10 +77,10 @@ object TimelineStoreServiceSpec extends Specification with JMocker with ClassMoc
 
       expect {
         one(nameServer).findCurrentForwarding(0, 632754681242344982L) willReturn shard1
-        one(shard1).get("t1", offset, length, false) willReturn data
+        one(shard1).get("t1", offset, length, false) willReturn TimelineSegment(data, 3)
       }
 
-      service.get("t1", offset, length, false) mustEqual data
+      service.get("t1", offset, length, false) mustEqual TimelineSegment(data, 3)
     }
 
     "getRange" in {
@@ -89,10 +90,10 @@ object TimelineStoreServiceSpec extends Specification with JMocker with ClassMoc
 
       expect {
         one(nameServer).findCurrentForwarding(0, 632754681242344982L) willReturn shard1
-        one(shard1).getRange("t1", fromId, toId, false) willReturn data
+        one(shard1).getRange("t1", fromId, toId, false) willReturn TimelineSegment(data, 3)
       }
 
-      service.getRange("t1", fromId, toId, false) mustEqual data
+      service.getRange("t1", fromId, toId, false) mustEqual TimelineSegment(data, 3)
     }
 
     "store" in {

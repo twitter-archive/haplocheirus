@@ -106,19 +106,20 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
     searchKeys.filter { timelineEntries contains _.key }.map { _.entry }
   }
 
-  def get(timeline: String, offset: Int, length: Int, dedupe: Boolean): Seq[Array[Byte]] = {
-    val entries = pool.withClient(shardInfo.hostname) { client =>
-      client.get(timeline, offset, length)
+  def get(timeline: String, offset: Int, length: Int, dedupe: Boolean): TimelineSegment = {
+    val (entries, size) = pool.withClient(shardInfo.hostname) { client =>
+      (client.get(timeline, offset, length), client.size(timeline))
     }
-    if (dedupe) {
+    val dedupedEntries = if (dedupe) {
       dedupeBy(dedupeBy(entries, 0), 8)
     } else {
       dedupeBy(entries, 0)
     }
+    TimelineSegment(dedupedEntries, size)
   }
 
-  def getRange(timeline: String, fromId: Long, toId: Long, dedupe: Boolean): Seq[Array[Byte]] = {
-    val entriesSince = pool.withClient(shardInfo.hostname) { client =>
+  def getRange(timeline: String, fromId: Long, toId: Long, dedupe: Boolean): TimelineSegment = {
+    val (entriesSince, size) = pool.withClient(shardInfo.hostname) { client =>
       val entries = new mutable.ArrayBuffer[Array[Byte]]()
       var cursor = 0
       var fromIdIndex = -1
@@ -142,13 +143,14 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
         val i = timelineIndexOf(entries, toId)
         if (i >= 0) i else 0
       } else 0
-      entries.take(fromIdIndex).drop(toIdIndex)
+      (entries.take(fromIdIndex).drop(toIdIndex), client.size(timeline))
     }
-    if (dedupe) {
+    val entries = if (dedupe) {
       dedupeBy(dedupeBy(entriesSince, 0), 8)
     } else {
       dedupeBy(entriesSince, 0)
     }
+    TimelineSegment(entries, size)
   }
 
   def merge(timeline: String, entries: Seq[Array[Byte]], onError: Option[Throwable => Unit]) {
