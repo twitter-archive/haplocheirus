@@ -9,6 +9,7 @@ import com.twitter.ostrich.Stats
 import com.twitter.xrayspecs.Duration
 import com.twitter.xrayspecs.TimeConversions._
 import net.lag.configgy.ConfigMap
+import net.lag.logging.Logger
 
 
 class RedisShardFactory(pool: RedisPool, rangeQueryPageSize: Int,
@@ -26,7 +27,7 @@ class RedisShardFactory(pool: RedisPool, rangeQueryPageSize: Int,
 
   def instantiate(shardInfo: ShardInfo, weight: Int, children: Seq[HaplocheirusShard]) = {
     RedisExceptionWrappingProxy[HaplocheirusShard](
-      new RedisShard(shardInfo, weight, children, pool, rangeQueryPageSize))
+      new RedisShard(shardInfo, weight, children, pool, trimMap, rangeQueryPageSize))
   }
 
   def materialize(shardInfo: ShardInfo) {
@@ -35,8 +36,9 @@ class RedisShardFactory(pool: RedisPool, rangeQueryPageSize: Int,
 }
 
 class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[HaplocheirusShard],
-                 val pool: RedisPool, val rangeQueryPageSize: Int)
+                 val pool: RedisPool, val trimMap: TimelineTrimMap, val rangeQueryPageSize: Int)
       extends HaplocheirusShard {
+  private val log = Logger.get(getClass.getName)
 
   case class EntryWithKey(key: Long, entry: Array[Byte])
 
@@ -84,13 +86,17 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
     entries.findIndexOf { sortKeyFromEntry(_) == entryId }
   }
 
-  private def checkTrim(timeline: String, size: Long) {
-    // FIXME
+  private def checkTrim(client: PipelinedRedisClient, timeline: String, size: Long) {
+    val (lowerBound, upperBound) = trimMap.getBounds(timeline)
+    if (size > upperBound) {
+      log.debug("Trimming timeline %s: %d -> %d", timeline, size, lowerBound)
+      client.trim(timeline, lowerBound)
+    }
   }
 
   def append(entry: Array[Byte], timeline: String, onError: Option[Throwable => Unit]) {
     pool.withClient(shardInfo.hostname) { client =>
-      client.push(timeline, entry, onError) { checkTrim(timeline, _) }
+      client.push(timeline, entry, onError) { checkTrim(client, timeline, _) }
     }
   }
 
@@ -168,10 +174,10 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
             i += 1
           }
           if (i == 0) {
-            client.push(timeline, insert.entry, onError) { checkTrim(timeline, _) }
+            client.push(timeline, insert.entry, onError) { checkTrim(client, timeline, _) }
           } else if (i == existing.size ||
                      (existing(i).key != insert.key && previous.key != insert.key)) {
-            client.pushAfter(timeline, previous.entry, insert.entry, onError) { checkTrim(timeline, _) }
+            client.pushAfter(timeline, previous.entry, insert.entry, onError) { checkTrim(client, timeline, _) }
             previous = insert
           }
         }

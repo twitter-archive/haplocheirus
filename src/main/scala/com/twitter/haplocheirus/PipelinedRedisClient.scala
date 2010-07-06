@@ -174,4 +174,10 @@ class PipelinedRedisClient(hostname: String, pipelineMaxSize: Int, timeout: Dura
       redisClient.llen(timeline).get(timeout.inMillis, TimeUnit.MILLISECONDS).asInstanceOf[Long].toInt
     }
   }
+
+  def trim(timeline: String, size: Int) {
+    Stats.timeMicros("redis-ltrim-usec") {
+      redisClient.ltrim(timeline, 0, size)
+    }
+  }
 }
