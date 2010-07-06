@@ -11,7 +11,8 @@ import com.twitter.xrayspecs.TimeConversions._
 import net.lag.configgy.ConfigMap
 
 
-class RedisShardFactory(pool: RedisPool, rangeQueryPageSize: Int) extends ShardFactory[HaplocheirusShard] {
+class RedisShardFactory(pool: RedisPool, rangeQueryPageSize: Int,
+                        timelineTrimConfig: ConfigMap) extends ShardFactory[HaplocheirusShard] {
   object RedisExceptionWrappingProxy extends ExceptionHandlingProxy({ e =>
     e match {
       case e: ShardException =>
@@ -20,6 +21,8 @@ class RedisShardFactory(pool: RedisPool, rangeQueryPageSize: Int) extends ShardF
         throw new ShardException(e.toString, e)
     }
   })
+
+  val trimMap = new TimelineTrimMap(timelineTrimConfig)
 
   def instantiate(shardInfo: ShardInfo, weight: Int, children: Seq[HaplocheirusShard]) = {
     RedisExceptionWrappingProxy[HaplocheirusShard](

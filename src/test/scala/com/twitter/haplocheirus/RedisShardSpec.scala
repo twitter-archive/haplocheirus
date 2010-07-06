@@ -6,7 +6,7 @@ import com.twitter.gizzard.scheduler.ErrorHandlingJobQueue
 import com.twitter.gizzard.shards.{ShardException, ShardInfo}
 import com.twitter.gizzard.thrift.conversions.Sequences._
 import com.twitter.xrayspecs.TimeConversions._
-import net.lag.configgy.Configgy
+import net.lag.configgy.{Config, Configgy}
 import org.jredis.ClientRuntimeException
 import org.jredis.ri.alphazero.{JRedisClient, JRedisFutureSupport, JRedisPipeline}
 import org.specs.Specification
@@ -23,6 +23,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
     val future2 = mock[Future[JList[Array[Byte]]]]
     val longFuture = mock[Future[Long]]
     val config = Configgy.config.configMap("redis")
+    val timelineTrimConfig = Config.fromMap(Map.empty)
     val data = "hello".getBytes
     val timeline = "t1"
 
@@ -34,7 +35,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
       redisPool = new RedisPool(config) {
         override def withClient[T](hostname: String)(f: PipelinedRedisClient => T): T = f(client)
       }
-      redisShard = new RedisShardFactory(redisPool, 3).instantiate(shardInfo, 1, Nil)
+      redisShard = new RedisShardFactory(redisPool, 3, timelineTrimConfig).instantiate(shardInfo, 1, Nil)
     }
 
     doAfter {
