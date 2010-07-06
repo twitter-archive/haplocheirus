@@ -34,5 +34,11 @@ object TimelineTrimMapSpec extends ConfiguredSpecification with JMocker with Cla
       timelineTrimMap.getBounds("") mustEqual (800, 850)
       timelineTrimMap.getBounds("user_timelinx") mustEqual (800, 850)
     }
+
+    "update on the fly" in {
+      timelineTrimMap.getBounds("user_timeline:30") mustEqual (1200, 1250)
+      trimConfig.setList("user_timeline", List("1300", "1350"))
+      timelineTrimMap.getBounds("user_timeline:30") mustEqual (1300, 1350)
+    }
   }
 }
