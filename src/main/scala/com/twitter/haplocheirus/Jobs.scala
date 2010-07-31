@@ -2,6 +2,7 @@ package com.twitter.haplocheirus
 
 import scala.collection.mutable
 import com.twitter.gizzard.jobs.{BoundJobParser, Copy, CopyFactory, UnboundJob}
+import com.twitter.gizzard.shards.ShardId
 import com.twitter.gizzard.nameserver.NameServer
 import com.twitter.xrayspecs.Time
 import com.twitter.xrayspecs.TimeConversions._
@@ -89,22 +90,22 @@ object Jobs {
 
   // FIXME
   object RedisCopyFactory extends CopyFactory[HaplocheirusShard] {
-    def apply(sourceShardId: Int, destinationShardId: Int) = null
+    def apply(sourceShardId: ShardId, destinationShardId: ShardId) = null
     //new RedisCopy(sourceShardId, destinationShardId, RedisCopy.START)
   }
 
   type Cursor = Int
   val COPY_COUNT = 1000
 
-  class RedisCopy(sourceShardId: Int, destinationShardId: Int, cursor: Cursor, count: Int)
+  class RedisCopy(sourceShardId: ShardId, destinationShardId: ShardId, cursor: Cursor, count: Int)
         extends Copy[HaplocheirusShard](sourceShardId, destinationShardId, count) {
-    def this(sourceShardId: Int, destinationShardId: Int, cursor: Cursor) =
+    def this(sourceShardId: ShardId, destinationShardId: ShardId, cursor: Cursor) =
       this(sourceShardId, destinationShardId, cursor, Jobs.COPY_COUNT)
 
     def this(attributes: Map[String, AnyVal]) = {
       this(
-        attributes("source_shard_id").toInt,
-        attributes("destination_shard_id").toInt,
+        ShardId(attributes("source_shard_hostname").toString, attributes("source_shard_table_prefix").toString),
+        ShardId(attributes("destination_shard_hostname").toString, attributes("destination_shard_table_prefix").toString),
         attributes("cursor").toInt,
         attributes("count").toInt)
     }
