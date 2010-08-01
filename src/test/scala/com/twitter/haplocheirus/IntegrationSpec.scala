@@ -3,7 +3,7 @@ package com.twitter.haplocheirus
 import java.util.concurrent.{Future, TimeUnit}
 import com.twitter.gizzard.nameserver.Forwarding
 import com.twitter.gizzard.scheduler.KestrelMessageQueue
-import com.twitter.gizzard.shards.ShardInfo
+import com.twitter.gizzard.shards.{Busy, ShardId, ShardInfo}
 import com.twitter.gizzard.thrift.conversions.Sequences._
 import org.jredis.protocol.ResponseStatus
 import org.jredis.ri.alphazero.{JRedisFutureSupport, JRedisPipeline}
@@ -25,8 +25,9 @@ object IntegrationSpec extends ConfiguredSpecification with JMocker with ClassMo
       PipelinedRedisClient.mockedOutJRedisClient = Some(jredisClient)
       service = Haplocheirus(config)
 
-      val shard = service.nameServer.createShard(new ShardInfo("com.twitter.haplocheirus.RedisShard", "dev1", "localhost"))
-      service.nameServer.setForwarding(new Forwarding(0, 0, shard))
+      val shardId = new ShardId("localhost", "dev1")
+      service.nameServer.createShard(new ShardInfo(shardId, "com.twitter.haplocheirus.RedisShard", "", "", Busy.Normal))
+      service.nameServer.setForwarding(new Forwarding(0, 0, shardId))
       service.nameServer.reload()
     }
 

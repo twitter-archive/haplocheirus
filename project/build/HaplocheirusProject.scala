@@ -16,7 +16,10 @@ class HaplocheirusProject(info: ProjectInfo) extends StandardProject(info) {
   val objenesis = "org.objenesis" % "objenesis" % "1.1" % "test"  //--auto--
   val xrayspecs = "com.twitter" % "xrayspecs" % "1.0.7"  //--auto--
 
-  val gizzard = "com.twitter" % "gizzard" % "1.0.18"
+  val kestrel   = "net.lag" % "kestrel" % "1.2"
+
+  val querulous = "com.twitter" % "querulous" % "1.1.11"
+  val gizzard = "com.twitter" % "gizzard" % "1.1.3"
   val jredis = "jredis" % "jredis" % "1.0-tw1"
   val codec = "commons-codec" % "commons-codec" % "1.4"
   val ostrich = "com.twitter" % "ostrich" % "1.1.23"
