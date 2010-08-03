@@ -18,6 +18,7 @@ object PipelinedRedisClientSpec extends ConfiguredSpecification with JMocker wit
     val future = mock[JRedisFutureSupport.FutureStatus]
     val future2 = mock[Future[JList[Array[Byte]]]]
     val longFuture = mock[JRedisFutureSupport.FutureLong]
+    val booleanFuture = mock[JRedisFutureSupport.FutureBoolean]
     var client: PipelinedRedisClient = null
 
     val timeline = "t1"
@@ -106,6 +107,21 @@ object PipelinedRedisClientSpec extends ConfiguredSpecification with JMocker wit
       }
 
       client.delete(timeline)
+    }
+
+    "isMember" in {
+      val entry1 = List(23L).pack
+      val entry2 = List(20L).pack
+
+      expect {
+        one(jredis).lismember(timeline, entry1) willReturn booleanFuture
+        one(booleanFuture).get(1000, TimeUnit.MILLISECONDS) willReturn true
+        one(jredis).lismember(timeline, entry2) willReturn booleanFuture
+        one(booleanFuture).get(1000, TimeUnit.MILLISECONDS) willReturn false
+      }
+
+      client.isMember(timeline, entry1) mustEqual true
+      client.isMember(timeline, entry2) mustEqual false
     }
 
     "laterWithErrorHandling" in {

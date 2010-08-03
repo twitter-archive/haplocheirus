@@ -103,6 +103,12 @@ class PipelinedRedisClient(hostname: String, pipelineMaxSize: Int, timeout: Dura
     }
   }
 
+  def isMember(timeline: String, entry: Array[Byte]) = {
+    Stats.timeMicros("redis-lismember") {
+      redisClient.lismember(timeline, entry).get(timeout.inMillis, TimeUnit.MILLISECONDS)
+    }
+  }
+
   def push(timeline: String, entry: Array[Byte], onError: Option[Throwable => Unit])(f: Long => Unit) {
     Stats.timeMicros("redis-push-usec") {
       val future = redisClient.lpushx(timeline, entry)
