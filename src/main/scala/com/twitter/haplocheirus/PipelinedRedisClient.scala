@@ -111,7 +111,7 @@ class PipelinedRedisClient(hostname: String, pipelineMaxSize: Int, timeout: Dura
 
   def push(timeline: String, entry: Array[Byte], onError: Option[Throwable => Unit])(f: Long => Unit) {
     Stats.timeMicros("redis-push-usec") {
-      val future = redisClient.lpushx(timeline, entry)
+      val future = redisClient.rpushx(timeline, entry)
       laterWithErrorHandling(onError) {
         f(future.get(timeout.inMillis, TimeUnit.MILLISECONDS).asInstanceOf[Long])
       }
@@ -130,7 +130,7 @@ class PipelinedRedisClient(hostname: String, pipelineMaxSize: Int, timeout: Dura
   def pushAfter(timeline: String, oldEntry: Array[Byte], newEntry: Array[Byte],
                 onError: Option[Throwable => Unit])(f: Long => Unit) {
     Stats.timeMicros("redis-pushafter-usec") {
-      val future = redisClient.linsertAfter(timeline, oldEntry, newEntry)
+      val future = redisClient.linsertBefore(timeline, oldEntry, newEntry)
       laterWithErrorHandling(onError) {
         f(future.get(timeout.inMillis, TimeUnit.MILLISECONDS).asInstanceOf[Long])
       }
@@ -138,8 +138,10 @@ class PipelinedRedisClient(hostname: String, pipelineMaxSize: Int, timeout: Dura
   }
 
   def get(timeline: String, offset: Int, length: Int): Seq[Array[Byte]] = {
+    val start = -1 - offset
+    val end = if (length > 0) (start - length + 1) else 0
     Stats.timeMicros("redis-get-usec") {
-      val rv = redisClient.lrange(timeline, offset, if (length > 0) (offset + length - 1) else -1).get(timeout.inMillis, TimeUnit.MILLISECONDS).toSeq
+      val rv = redisClient.lrange(timeline, end, start).get(timeout.inMillis, TimeUnit.MILLISECONDS).toSeq.reverse
       if (rv.size > 0) {
         val future = redisClient.expire(timeline, expiration.inSeconds)
         later { future.get(timeout.inMillis, TimeUnit.MILLISECONDS) }
@@ -152,10 +154,11 @@ class PipelinedRedisClient(hostname: String, pipelineMaxSize: Int, timeout: Dura
     Stats.timeMicros("redis-set-usec") {
       val tempName = uniqueTimelineName(timeline)
       var didExpire = false
-      entries.foreach { entry =>
+      entries.reverse.foreach { entry =>
         if (!didExpire) {
           redisClient.rpush(tempName, entry).get(timeout.inMillis, TimeUnit.MILLISECONDS)
           // bummer: we can't rename a key that has an expiration time, so these have to be permanent.
+          // FIXME: salvatore is gonna fix this in redis 2.2. bring this code back then.
 //          redisClient.expire(tempName, 15).get(timeout.inMillis, TimeUnit.MILLISECONDS)
           didExpire = true
         } else {
@@ -183,7 +186,7 @@ class PipelinedRedisClient(hostname: String, pipelineMaxSize: Int, timeout: Dura
 
   def trim(timeline: String, size: Int) {
     Stats.timeMicros("redis-ltrim-usec") {
-      redisClient.ltrim(timeline, 0, size)
+      redisClient.ltrim(timeline, -size, -1)
     }
   }
 }
