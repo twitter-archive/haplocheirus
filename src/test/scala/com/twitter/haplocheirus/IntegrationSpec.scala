@@ -50,8 +50,8 @@ object IntegrationSpec extends ConfiguredSpecification with JMocker with ClassMo
       var done = false
 
       expect {
-        one(jredisClient).lpushx(timeline1, data) willReturn future
-        one(jredisClient).lpushx(timeline2, data) willReturn future
+        one(jredisClient).rpushx(timeline1, data) willReturn future
+        one(jredisClient).rpushx(timeline2, data) willReturn future
         one(future).get(200L, TimeUnit.MILLISECONDS) willReturn 1L
         one(future).get(200L, TimeUnit.MILLISECONDS) willReturn { done = true; 2L }
       }
@@ -64,8 +64,8 @@ object IntegrationSpec extends ConfiguredSpecification with JMocker with ClassMo
       var done = false
 
       expect {
-        one(jredisClient).lpushx(timeline1, data) willReturn future
-        one(jredisClient).lpushx(timeline2, data) willReturn future
+        one(jredisClient).rpushx(timeline1, data) willReturn future
+        one(jredisClient).rpushx(timeline2, data) willReturn future
         one(future).get(200L, TimeUnit.MILLISECONDS) willReturn 1L
         one(future).get(200L, TimeUnit.MILLISECONDS) will throwA(new Exception("Oups!"))
       }
