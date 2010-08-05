@@ -150,7 +150,10 @@ class PipelinedRedisClient(hostname: String, pipelineMaxSize: Int, timeout: Dura
     }
   }
 
-  def set(timeline: String, entries: Seq[Array[Byte]]) {
+  /**
+   * Suitable for live shards. Builds up data and then renames it across atomically.
+   */
+  def setAtomically(timeline: String, entries: Seq[Array[Byte]]) {
     Stats.timeMicros("redis-set-usec") {
       val tempName = uniqueTimelineName(timeline)
       var didExpire = false
@@ -169,6 +172,30 @@ class PipelinedRedisClient(hostname: String, pipelineMaxSize: Int, timeout: Dura
         redisClient.rename(tempName, timeline).get(timeout.inMillis, TimeUnit.MILLISECONDS)
         redisClient.expire(timeline, expiration.inSeconds).get(timeout.inMillis, TimeUnit.MILLISECONDS)
       }
+    }
+  }
+
+  /**
+   * Suitable for copies and migrations of live data. Creates a stub that can get appends while
+   * being filled in. Should be protected from reads until it's done.
+   *
+   * Call setLiveStart() to prepare an empty timeline for appends, then setLive to prepend the
+   * existing data.
+   */
+  def setLiveStart(timeline: String) {
+    Stats.timeMicros("redis-setlivestart-usec") {
+      redisClient.del(timeline)
+      redisClient.rpush(timeline, new Array[Byte](0))
+    }
+  }
+
+  def setLive(timeline: String, entries: Seq[Array[Byte]]) {
+    Stats.timeMicros("redis-setlive-usec") {
+      entries.foreach { entry =>
+        redisClient.lpushx(timeline, entry)
+      }
+      redisClient.lrem(timeline, new Array[Byte](0), 1)
+      redisClient.expire(timeline, expiration.inSeconds).get(timeout.inMillis, TimeUnit.MILLISECONDS)
     }
   }
 

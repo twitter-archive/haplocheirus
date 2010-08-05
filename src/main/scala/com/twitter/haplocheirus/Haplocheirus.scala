@@ -12,7 +12,7 @@ import net.lag.logging.{Logger, ThrottledLogger}
 
 
 object Priority extends Enumeration {
-  val Migrate = Value(1)
+  val Copy = Value(1)
   val Write = Value(2)
 }
 
@@ -25,7 +25,7 @@ object Haplocheirus {
   def apply(config: ConfigMap): TimelineStoreService = {
     val jobParser = new PolymorphicJobParser
     val scheduler = PrioritizingJobScheduler(config.configMap("queue"), jobParser,
-      Map(Priority.Write.id -> "write", Priority.Migrate.id -> "migrate"))
+      Map(Priority.Write.id -> "write", Priority.Copy.id -> "copy"))
 
     val log = new ThrottledLogger[String](Logger(), config("throttled_log.period_msec").toInt,
                                           config("throttled_log.rate").toInt)
@@ -41,15 +41,16 @@ object Haplocheirus {
                                 shardRepository, log, replicationFuture)
     nameServer.reload()
 
-    val writeJobParser = new BoundJobParser(nameServer)
-    val copyJobParser = new BoundJobParser((nameServer, scheduler(Priority.Migrate.id)))
-    jobParser += ("haplocheirus".r, writeJobParser)
-    jobParser += ("(Copy|Migrate|MetadataCopy|MetadataMigrate)".r, copyJobParser)
+    jobParser += (("Append".r, new BoundJobParser(jobs.AppendParser, nameServer)))
+    jobParser += (("Remove".r, new BoundJobParser(jobs.RemoveParser, nameServer)))
+    jobParser += (("Merge".r, new BoundJobParser(jobs.MergeParser, nameServer)))
+    jobParser += (("DeleteTimeline".r, new BoundJobParser(jobs.DeleteTimelineParser, nameServer)))
+    jobParser += (("Copy".r, new BoundJobParser(jobs.RedisCopyParser, (nameServer, scheduler(Priority.Copy.id)))))
 
     scheduler.start()
 
     val future = new Future("TimelineStoreService", config.configMap("service_pool"))
-    new TimelineStoreService(nameServer, scheduler, Jobs.RedisCopyFactory, redisPool, future,
+    new TimelineStoreService(nameServer, scheduler, jobs.RedisCopyFactory, redisPool, future,
                              replicationFuture)
   }
 }

@@ -16,7 +16,7 @@ object JobsSpec extends Specification with JMocker with ClassMocker {
 
     "Append" in {
       val data = "hello".getBytes
-      val append = Jobs.Append(data, "t1")
+      val append = jobs.Append(data, "t1")
       val text = "{\"entry\":\"aGVsbG8=\",\"timeline\":\"t1\"}"
 
       expect {
@@ -29,12 +29,12 @@ object JobsSpec extends Specification with JMocker with ClassMocker {
 
       Json.build(append.toMap).toString mustEqual text
       // can't compare byte arrays in case classes. suck.
-      new Jobs.Append(Json.parse(text).asInstanceOf[Map[String, Any]]).timeline mustEqual append.timeline
+      jobs.AppendParser(Json.parse(text).asInstanceOf[Map[String, Any]]).timeline mustEqual append.timeline
     }
 
     "Remove" in {
       val data = "hello".getBytes
-      val remove = Jobs.Remove(data, "t1")
+      val remove = jobs.Remove(data, "t1")
       val text = "{\"entry\":\"aGVsbG8=\",\"timeline\":\"t1\"}"
 
       expect {
@@ -47,12 +47,12 @@ object JobsSpec extends Specification with JMocker with ClassMocker {
 
       Json.build(remove.toMap).toString mustEqual text
       // can't compare byte arrays in case classes. suck.
-      new Jobs.Remove(Json.parse(text).asInstanceOf[Map[String, Any]]).timeline mustEqual remove.timeline
+      jobs.RemoveParser(Json.parse(text).asInstanceOf[Map[String, Any]]).timeline mustEqual remove.timeline
     }
 
     "Merge" in {
       val data = List("coke".getBytes, "zero".getBytes)
-      val merge = Jobs.Merge("t1", data)
+      val merge = jobs.Merge("t1", data)
       val text = "{\"timeline\":\"t1\",\"entries\":[\"Y29rZQ==\",\"emVybw==\"]}"
 
       expect {
@@ -65,11 +65,11 @@ object JobsSpec extends Specification with JMocker with ClassMocker {
 
       Json.build(merge.toMap).toString mustEqual text
       // can't compare byte arrays in case classes. suck.
-      new Jobs.Merge(Json.parse(text).asInstanceOf[Map[String, Any]]).timeline mustEqual merge.timeline
+      jobs.MergeParser(Json.parse(text).asInstanceOf[Map[String, Any]]).timeline mustEqual merge.timeline
     }
 
     "DeleteTimeline" in {
-      val deleteTimeline = Jobs.DeleteTimeline("t1")
+      val deleteTimeline = jobs.DeleteTimeline("t1")
       val text = "{\"timeline\":\"t1\"}"
 
       expect {
@@ -81,7 +81,7 @@ object JobsSpec extends Specification with JMocker with ClassMocker {
       deleteTimeline.apply(nameServer)
 
       Json.build(deleteTimeline.toMap).toString mustEqual text
-      new Jobs.DeleteTimeline(Json.parse(text).asInstanceOf[Map[String, Any]]) mustEqual deleteTimeline
+      jobs.DeleteTimelineParser(Json.parse(text).asInstanceOf[Map[String, Any]]) mustEqual deleteTimeline
     }
   }
 }

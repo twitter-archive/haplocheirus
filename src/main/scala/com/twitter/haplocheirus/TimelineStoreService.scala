@@ -1,6 +1,6 @@
 package com.twitter.haplocheirus
 
-import com.twitter.gizzard.Future
+import com.twitter.gizzard.{Future, Hash}
 import com.twitter.gizzard.jobs.CopyFactory
 import com.twitter.gizzard.nameserver.NameServer
 import com.twitter.gizzard.scheduler.PrioritizingJobScheduler
@@ -31,7 +31,7 @@ class TimelineStoreService(val nameServer: NameServer[HaplocheirusShard],
   // can be overridden for tests.
   var addOnError = true
 
-  private def injectJob(job: Jobs.RedisJob) {
+  private def injectJob(job: jobs.RedisJob) {
     if (addOnError) {
       job.onError { e => writeQueue.putError(job) }
     }
@@ -46,13 +46,13 @@ class TimelineStoreService(val nameServer: NameServer[HaplocheirusShard],
 
   def append(entry: Array[Byte], timelines: Seq[String]) {
     timelines.foreach { timeline =>
-      injectJob(Jobs.Append(entry, timeline))
+      injectJob(jobs.Append(entry, timeline))
     }
   }
 
   def remove(entry: Array[Byte], timelines: Seq[String]) {
     timelines.foreach { timeline =>
-      injectJob(Jobs.Remove(entry, timeline))
+      injectJob(jobs.Remove(entry, timeline))
     }
   }
 
@@ -73,16 +73,16 @@ class TimelineStoreService(val nameServer: NameServer[HaplocheirusShard],
   }
 
   def merge(timeline: String, entries: Seq[Array[Byte]]) {
-    injectJob(Jobs.Merge(timeline, entries))
+    injectJob(jobs.Merge(timeline, entries))
   }
 
   def unmerge(timeline: String, entries: Seq[Array[Byte]]) {
     entries.foreach { entry =>
-      injectJob(Jobs.Remove(entry, timeline))
+      injectJob(jobs.Remove(entry, timeline))
     }
   }
 
   def deleteTimeline(timeline: String) {
-    injectJob(Jobs.DeleteTimeline(timeline))
+    injectJob(jobs.DeleteTimeline(timeline))
   }
 }

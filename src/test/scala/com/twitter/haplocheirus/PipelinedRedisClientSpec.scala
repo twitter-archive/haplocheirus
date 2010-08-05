@@ -24,7 +24,7 @@ object PipelinedRedisClientSpec extends ConfiguredSpecification with JMocker wit
     val timeline = "t1"
     val data = "rus".getBytes
     val data2 = "zim".getBytes
-    val job = Jobs.Append(data, timeline)
+    val job = jobs.Append(data, timeline)
 
     doBefore {
       client = new PipelinedRedisClient("localhost", 10, 1.second, 1.day) {
@@ -79,7 +79,7 @@ object PipelinedRedisClientSpec extends ConfiguredSpecification with JMocker wit
       client.get(timeline, 5, 10).toList mustEqual result
     }
 
-    "set" in {
+    "setAtomically" in {
       val entry1 = List(23L).pack
       val entry2 = List(20L).pack
       val entry3 = List(19L).pack
@@ -97,7 +97,7 @@ object PipelinedRedisClientSpec extends ConfiguredSpecification with JMocker wit
         one(future).get(1000, TimeUnit.MILLISECONDS) willReturn ResponseStatus.STATUS_OK
       }
 
-      client.set(timeline, List(entry1, entry2, entry3))
+      client.setAtomically(timeline, List(entry1, entry2, entry3))
     }
 
     "delete" in {

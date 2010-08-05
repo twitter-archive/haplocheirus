@@ -53,7 +53,7 @@ object Main extends Service {
                                             service.nameServer,
                                             service.copyFactory,
                                             service.scheduler,
-                                            Priority.Migrate.id)
+                                            Priority.Copy.id)
       gizzardServices.start()
 
       val processor = new thrift.TimelineStore.Processor(

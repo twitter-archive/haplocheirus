@@ -26,7 +26,7 @@ object TimelineStoreServiceSpec extends Specification with JMocker with ClassMoc
         one(scheduler).apply(Priority.Write.id) willReturn jobScheduler
         one(jobScheduler).queue willReturn queue
       }
-      service = new TimelineStoreService(nameServer, scheduler, Jobs.RedisCopyFactory, redisPool, future, replicationFuture)
+      service = new TimelineStoreService(nameServer, scheduler, jobs.RedisCopyFactory, redisPool, future, replicationFuture)
       service.addOnError = false
     }
 
