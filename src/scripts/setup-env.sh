@@ -14,25 +14,34 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+VERSION="@VERSION@"
+
 if java -version 2>&1 |grep "1\.5"; then
   echo "Java must be at least 1.6"
   exit 1
 fi
 
-#if [ "x$DB_USERNAME" = "x" -o "x$DB_PASSWORD" = "x" ]; then
-#  echo "Please set DB_USERNAME and DB_PASSWORD."
-#  exit 1
-#fi
+if gizzmo --help > /dev/null; then
+  gizzmo="gizzmo -H localhost -P 7668"
+else
+  echo "Make sure you have gizzmo available on your path."
+  echo "Find it here: http://github.com/twitter/gizzmo"
+  exit 1
+fi
 
 echo "Killing any running haplo..."
 curl http://localhost:7667/shutdown >/dev/null 2>/dev/null
 sleep 3
 
 echo "Launching haplo..."
-#echo "DROP DATABASE IF EXISTS timelines_development" | mysql -u$DB_USERNAME -p$DB_PASSWORD
-#echo "CREATE DATABASE IF NOT EXISTS timelines_development" | mysql -u$DB_USERNAME -p$DB_PASSWORD
 
 JAVA_OPTS="-Xms256m -Xmx256m -XX:NewSize=64m -XX:+UseConcMarkSweepGC -XX:+UseParNewGC -server"
-java -Dstage=development $JAVA_OPTS -jar ./dist/haplocheirus/haplocheirus-1.0.jar &
-sleep 5
-./src/scripts/haplo.rb setup-dev
+java -Dstage=development $JAVA_OPTS -jar ./dist/haplocheirus-${VERSION}/haplocheirus-${VERSION}.jar &
+
+sleep 10
+
+echo "Creating shards..."
+shard=$($gizzmo create "com.twitter.haplocheirus.RedisShard" "localhost/dev1")
+$gizzmo addforwarding -- 0 0 $shard
+$gizzmo -f reload
+echo "Done."

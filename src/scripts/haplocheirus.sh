@@ -3,11 +3,11 @@
 # haplocheirus init.d script.
 #
 # All java services require the same directory structure:
-#   /opt/local/$APP_NAME-$VERSION
+#   /usr/local/$APP_NAME-$VERSION
 #   /var/log/$APP_NAME (chown daemon, chmod 775)
 
 APP_NAME="haplocheirus"
-VERSION="1.0"
+VERSION="@VERSION@"
 APP_HOME="/usr/local/$APP_NAME/current"
 AS_USER="daemon"
 DAEMON="/usr/local/bin/daemon"

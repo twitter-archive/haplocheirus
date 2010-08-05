@@ -35,7 +35,7 @@ object PipelinedRedisClientSpec extends ConfiguredSpecification with JMocker wit
 
     "push" in {
       expect {
-        one(jredis).lpushx(timeline, data) willReturn longFuture
+        one(jredis).rpushx(timeline, data) willReturn longFuture
         one(longFuture).get(1000, TimeUnit.MILLISECONDS) willReturn 23L
       }
 
@@ -57,7 +57,7 @@ object PipelinedRedisClientSpec extends ConfiguredSpecification with JMocker wit
 
     "pushAfter" in {
       expect {
-        one(jredis).linsertAfter(timeline, data, data2) willReturn longFuture
+        one(jredis).linsertBefore(timeline, data, data2) willReturn longFuture
         one(longFuture).get(1000, TimeUnit.MILLISECONDS) willReturn 23L
       }
 
@@ -71,8 +71,8 @@ object PipelinedRedisClientSpec extends ConfiguredSpecification with JMocker wit
       val result = List("a".getBytes, "z".getBytes)
 
       expect {
-        one(jredis).lrange(timeline, 5, 14) willReturn future2
-        one(future2).get(1000, TimeUnit.MILLISECONDS) willReturn result.toJavaList
+        one(jredis).lrange(timeline, -15, -6) willReturn future2
+        one(future2).get(1000, TimeUnit.MILLISECONDS) willReturn result.reverse.toJavaList
         one(jredis).expire("t1", 86400)
       }
 
@@ -85,11 +85,11 @@ object PipelinedRedisClientSpec extends ConfiguredSpecification with JMocker wit
       val entry3 = List(19L).pack
 
       expect {
-        one(jredis).rpush(timeline + "~1", entry1) willReturn longFuture
+        one(jredis).rpush(timeline + "~1", entry3) willReturn longFuture
         one(longFuture).get(1000, TimeUnit.MILLISECONDS) willReturn 1L
         one(jredis).rpushx(timeline + "~1", entry2) willReturn longFuture
         one(longFuture).get(1000, TimeUnit.MILLISECONDS) willReturn 1L
-        one(jredis).rpushx(timeline + "~1", entry3) willReturn longFuture
+        one(jredis).rpushx(timeline + "~1", entry1) willReturn longFuture
         one(longFuture).get(1000, TimeUnit.MILLISECONDS) willReturn 1L
         one(jredis).rename(timeline + "~1", timeline) willReturn future
         one(future).get(1000, TimeUnit.MILLISECONDS) willReturn ResponseStatus.STATUS_OK

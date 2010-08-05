@@ -51,7 +51,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
       "doesn't need trim" in {
         expect {
           one(shardInfo).hostname willReturn "host1"
-          one(jredis).lpushx(timeline, data) willReturn longFuture
+          one(jredis).rpushx(timeline, data) willReturn longFuture
           one(longFuture).get(1000, TimeUnit.MILLISECONDS) willReturn 100L
         }
 
@@ -61,9 +61,9 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
       "does need trim" in {
         expect {
           one(shardInfo).hostname willReturn "host1"
-          one(jredis).lpushx(timeline, data) willReturn longFuture
+          one(jredis).rpushx(timeline, data) willReturn longFuture
           one(longFuture).get(1000, TimeUnit.MILLISECONDS) willReturn 899L
-          one(jredis).ltrim(timeline, 0, 800)
+          one(jredis).ltrim(timeline, -800, -1)
         }
 
         redisShard.append(data, timeline, None)
@@ -103,8 +103,8 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
 
         expect {
           one(shardInfo).hostname willReturn "host1"
-          one(jredis).lrange(timeline, 0, 9) willReturn future
-          one(future).get(1000, TimeUnit.MILLISECONDS) willReturn List(entry1, entry2, entry3).toJavaList
+          one(jredis).lrange(timeline, -10, -1) willReturn future
+          one(future).get(1000, TimeUnit.MILLISECONDS) willReturn List(entry1, entry2, entry3).reverse.toJavaList
           one(jredis).llen(timeline) willReturn longFuture
           one(longFuture).get(1000, TimeUnit.MILLISECONDS) willReturn 3L
           one(jredis).expire(timeline, 1)
@@ -120,8 +120,8 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
 
         expect {
           one(shardInfo).hostname willReturn "host1"
-          one(jredis).lrange(timeline, 0, 9) willReturn future
-          one(future).get(1000, TimeUnit.MILLISECONDS) willReturn List(entry1, entry2, entry3).toJavaList
+          one(jredis).lrange(timeline, -10, -1) willReturn future
+          one(future).get(1000, TimeUnit.MILLISECONDS) willReturn List(entry1, entry2, entry3).reverse.toJavaList
           one(jredis).llen(timeline) willReturn longFuture
           one(longFuture).get(1000, TimeUnit.MILLISECONDS) willReturn 3L
           one(jredis).expire(timeline, 1)
@@ -137,8 +137,8 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
 
         expect {
           allowing(shardInfo).hostname willReturn "host1"
-          allowing(jredis).lrange(timeline, 0, 9) willReturn future
-          allowing(future).get(1000, TimeUnit.MILLISECONDS) willReturn List(entry1, entry2, entry3).toJavaList
+          allowing(jredis).lrange(timeline, -10, -1) willReturn future
+          allowing(future).get(1000, TimeUnit.MILLISECONDS) willReturn List(entry1, entry2, entry3).reverse.toJavaList
           allowing(jredis).llen(timeline) willReturn longFuture
           allowing(longFuture).get(1000, TimeUnit.MILLISECONDS) willReturn 3L
           allowing(jredis).expire(timeline, 1)
@@ -155,8 +155,8 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
 
         expect {
           one(shardInfo).hostname willReturn "host1"
-          one(jredis).lrange(timeline, 0, 9) willReturn future
-          one(future).get(1000, TimeUnit.MILLISECONDS) willReturn List(entry1, entry2, entry3).toJavaList
+          one(jredis).lrange(timeline, -10, -1) willReturn future
+          one(future).get(1000, TimeUnit.MILLISECONDS) willReturn List(entry1, entry2, entry3).reverse.toJavaList
           one(jredis).llen(timeline) willReturn longFuture
           one(longFuture).get(1000, TimeUnit.MILLISECONDS) willReturn 3L
           one(jredis).expire(timeline, 1)
@@ -172,8 +172,8 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
 
         expect {
           one(shardInfo).hostname willReturn "host1"
-          one(jredis).lrange(timeline, 0, 9) willReturn future
-          one(future).get(1000, TimeUnit.MILLISECONDS) willReturn List(entry1, entry2, entry3).toJavaList
+          one(jredis).lrange(timeline, -10, -1) willReturn future
+          one(future).get(1000, TimeUnit.MILLISECONDS) willReturn List(entry1, entry2, entry3).reverse.toJavaList
           one(jredis).llen(timeline) willReturn longFuture
           one(longFuture).get(1000, TimeUnit.MILLISECONDS) willReturn 3L
           one(jredis).expire(timeline, 1)
@@ -191,12 +191,12 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
 
         expect {
           one(shardInfo).hostname willReturn "host1"
-          one(jredis).lrange(timeline, 0, 2) willReturn future
-          one(future).get(1000, TimeUnit.MILLISECONDS) willReturn List(entry1, entry2, entry3).toJavaList
+          one(jredis).lrange(timeline, -3, -1) willReturn future
+          one(future).get(1000, TimeUnit.MILLISECONDS) willReturn List(entry1, entry2, entry3).reverse.toJavaList
           one(jredis).llen(timeline) willReturn longFuture
           one(longFuture).get(1000, TimeUnit.MILLISECONDS) willReturn 3L
           one(jredis).expire(timeline, 1)
-          one(jredis).lrange(timeline, 3, 5) willReturn future
+          one(jredis).lrange(timeline, -6, -4) willReturn future
           one(future).get(1000, TimeUnit.MILLISECONDS) willReturn List[Array[Byte]]().toJavaList
         }
 
@@ -211,8 +211,8 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
 
           expect {
             one(shardInfo).hostname willReturn "host1"
-            one(jredis).lrange(timeline, 0, 2) willReturn future
-            one(future).get(1000, TimeUnit.MILLISECONDS) willReturn List(entry1, entry2, entry3).toJavaList
+            one(jredis).lrange(timeline, -3, -1) willReturn future
+            one(future).get(1000, TimeUnit.MILLISECONDS) willReturn List(entry1, entry2, entry3).reverse.toJavaList
             one(jredis).llen(timeline) willReturn longFuture
             one(longFuture).get(1000, TimeUnit.MILLISECONDS) willReturn 3L
             one(jredis).expire(timeline, 1)
@@ -231,13 +231,13 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
 
           expect {
             one(shardInfo).hostname willReturn "host1"
-            one(jredis).lrange(timeline, 0, 2) willReturn future
-            one(future).get(1000, TimeUnit.MILLISECONDS) willReturn List(entry1, entry2, entry3).toJavaList
+            one(jredis).lrange(timeline, -3, -1) willReturn future
+            one(future).get(1000, TimeUnit.MILLISECONDS) willReturn List(entry1, entry2, entry3).reverse.toJavaList
             one(jredis).llen(timeline) willReturn longFuture
             one(longFuture).get(1000, TimeUnit.MILLISECONDS) willReturn 3L
             one(jredis).expire(timeline, 1)
-            one(jredis).lrange(timeline, 3, 5) willReturn future
-            one(future).get(1000, TimeUnit.MILLISECONDS) willReturn List(entry3, entry4, entry5).toJavaList
+            one(jredis).lrange(timeline, -6, -4) willReturn future
+            one(future).get(1000, TimeUnit.MILLISECONDS) willReturn List(entry3, entry4, entry5).reverse.toJavaList
             one(jredis).expire(timeline, 1)
           }
 
@@ -253,8 +253,8 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
 
           expect {
             allowing(shardInfo).hostname willReturn "host1"
-            allowing(jredis).lrange(timeline, 0, 2) willReturn future
-            allowing(future).get(1000, TimeUnit.MILLISECONDS) willReturn List(entry1, entry2, entry3).toJavaList
+            allowing(jredis).lrange(timeline, -3, -1) willReturn future
+            allowing(future).get(1000, TimeUnit.MILLISECONDS) willReturn List(entry1, entry2, entry3).reverse.toJavaList
             allowing(jredis).llen(timeline) willReturn longFuture
             allowing(longFuture).get(1000, TimeUnit.MILLISECONDS) willReturn 3L
             allowing(jredis).expire(timeline, 1)
@@ -275,13 +275,13 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
 
           expect {
             allowing(shardInfo).hostname willReturn "host1"
-            allowing(jredis).lrange(timeline, 0, 2) willReturn future
-            allowing(future).get(1000, TimeUnit.MILLISECONDS) willReturn List(entry1, entry2, entry3).toJavaList
+            allowing(jredis).lrange(timeline, -3, -1) willReturn future
+            allowing(future).get(1000, TimeUnit.MILLISECONDS) willReturn List(entry1, entry2, entry3).reverse.toJavaList
             allowing(jredis).llen(timeline) willReturn longFuture
             allowing(longFuture).get(1000, TimeUnit.MILLISECONDS) willReturn 3L
             allowing(jredis).expire(timeline, 1)
-            allowing(jredis).lrange(timeline, 3, 5) willReturn future2
-            allowing(future2).get(1000, TimeUnit.MILLISECONDS) willReturn List(entry3, entry4, entry5).toJavaList
+            allowing(jredis).lrange(timeline, -6, -4) willReturn future2
+            allowing(future2).get(1000, TimeUnit.MILLISECONDS) willReturn List(entry3, entry4, entry5).reverse.toJavaList
             allowing(jredis).llen(timeline) willReturn longFuture
             allowing(longFuture).get(1000, TimeUnit.MILLISECONDS) willReturn 3L
           }
@@ -302,13 +302,13 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
 
         expect {
           one(shardInfo).hostname willReturn "host1"
-          one(jredis).lrange(timeline, 0, 2) willReturn future
-          one(future).get(1000, TimeUnit.MILLISECONDS) willReturn List(entry1, entry2, entry3).toJavaList
+          one(jredis).lrange(timeline, -3, -1) willReturn future
+          one(future).get(1000, TimeUnit.MILLISECONDS) willReturn List(entry1, entry2, entry3).reverse.toJavaList
           one(jredis).llen(timeline) willReturn longFuture
           one(longFuture).get(1000, TimeUnit.MILLISECONDS) willReturn 3L
           one(jredis).expire(timeline, 1)
-          one(jredis).lrange(timeline, 3, 5) willReturn future2
-          one(future2).get(1000, TimeUnit.MILLISECONDS) willReturn List(entry3, entry4, entry5).toJavaList
+          one(jredis).lrange(timeline, -6, -4) willReturn future2
+          one(future2).get(1000, TimeUnit.MILLISECONDS) willReturn List(entry3, entry4, entry5).reverse.toJavaList
           one(jredis).expire(timeline, 1)
         }
 
@@ -323,7 +323,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
         expect {
           one(shardInfo).hostname willReturn "host1"
           one(jredis).lrange(timeline, 0, -1) willReturn future
-          one(future).get(1000, TimeUnit.MILLISECONDS) willReturn List[Array[Byte]]().toJavaList
+          one(future).get(1000, TimeUnit.MILLISECONDS) willReturn List[Array[Byte]]().reverse.toJavaList
         }
 
         redisShard.merge(timeline, List(List(21L).pack), None)
@@ -333,7 +333,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
         expect {
           one(shardInfo).hostname willReturn "host1"
           one(jredis).lrange(timeline, 0, -1) willReturn future
-          one(future).get(1000, TimeUnit.MILLISECONDS) willReturn existing.map { List(_).pack }.toJavaList
+          one(future).get(1000, TimeUnit.MILLISECONDS) willReturn existing.map { List(_).pack }.reverse.toJavaList
           one(jredis).expire(timeline, 1)
         }
 
@@ -346,11 +346,11 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
         expect {
           one(shardInfo).hostname willReturn "host1"
           one(jredis).lrange(timeline, 0, -1) willReturn future
-          one(future).get(1000, TimeUnit.MILLISECONDS) willReturn existing.map { List(_).pack }.toJavaList
+          one(future).get(1000, TimeUnit.MILLISECONDS) willReturn existing.map { List(_).pack }.reverse.toJavaList
           one(jredis).expire(timeline, 1)
-          one(jredis).lpushx(timeline, List(29L).pack)
-          one(jredis).lpushx(timeline, List(28L).pack)
-          one(jredis).lpushx(timeline, List(21L).pack)
+          one(jredis).rpushx(timeline, List(29L).pack)
+          one(jredis).rpushx(timeline, List(28L).pack)
+          one(jredis).rpushx(timeline, List(21L).pack)
         }
 
         redisShard.merge(timeline, insert.map { List(_).pack }, None)
@@ -362,10 +362,10 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
         expect {
           one(shardInfo).hostname willReturn "host1"
           one(jredis).lrange(timeline, 0, -1) willReturn future
-          one(future).get(1000, TimeUnit.MILLISECONDS) willReturn existing.map { List(_).pack }.toJavaList
+          one(future).get(1000, TimeUnit.MILLISECONDS) willReturn existing.map { List(_).pack }.reverse.toJavaList
           one(jredis).expire(timeline, 1)
-          one(jredis).linsertAfter(timeline, List(7L).pack, List(5L).pack)
-          one(jredis).linsertAfter(timeline, List(5L).pack, List(2L).pack)
+          one(jredis).linsertBefore(timeline, List(7L).pack, List(5L).pack)
+          one(jredis).linsertBefore(timeline, List(5L).pack, List(2L).pack)
         }
 
         redisShard.merge(timeline, insert.map { List(_).pack }, None)
@@ -377,11 +377,11 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
         expect {
           one(shardInfo).hostname willReturn "host1"
           one(jredis).lrange(timeline, 0, -1) willReturn future
-          one(future).get(1000, TimeUnit.MILLISECONDS) willReturn existing.map { List(_).pack }.toJavaList
+          one(future).get(1000, TimeUnit.MILLISECONDS) willReturn existing.map { List(_).pack }.reverse.toJavaList
           one(jredis).expire(timeline, 1)
-          one(jredis).linsertAfter(timeline, List(20L).pack, List(19L).pack)
-          one(jredis).linsertAfter(timeline, List(16L).pack, List(14L).pack)
-          one(jredis).linsertAfter(timeline, List(14L).pack, List(13L).pack)
+          one(jredis).linsertBefore(timeline, List(20L).pack, List(19L).pack)
+          one(jredis).linsertBefore(timeline, List(16L).pack, List(14L).pack)
+          one(jredis).linsertBefore(timeline, List(14L).pack, List(13L).pack)
         }
 
         redisShard.merge(timeline, insert.map { List(_).pack }, None)
@@ -393,9 +393,9 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
         expect {
           one(shardInfo).hostname willReturn "host1"
           one(jredis).lrange(timeline, 0, -1) willReturn future
-          one(future).get(1000, TimeUnit.MILLISECONDS) willReturn existing.map { List(_).pack }.toJavaList
+          one(future).get(1000, TimeUnit.MILLISECONDS) willReturn existing.map { List(_).pack }.reverse.toJavaList
           one(jredis).expire(timeline, 1)
-          one(jredis).linsertAfter(timeline, List(16L).pack, List(15L).pack)
+          one(jredis).linsertBefore(timeline, List(16L).pack, List(15L).pack)
         }
 
         redisShard.merge(timeline, insert.map { List(_).pack }, None)
@@ -409,9 +409,9 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
 
       expect {
         one(shardInfo).hostname willReturn "host1"
-        one(jredis).rpush("generated-name", entry1)
+        one(jredis).rpush("generated-name", entry3)
         one(jredis).rpushx("generated-name", entry2)
-        one(jredis).rpushx("generated-name", entry3)
+        one(jredis).rpushx("generated-name", entry1)
         one(jredis).rename("generated-name", timeline)
         one(jredis).expire(timeline, 1)
       }
@@ -432,7 +432,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
     "exceptions are wrapped" in {
       expect {
         one(shardInfo).hostname willReturn "host1"
-        one(jredis).lpushx(timeline, data) willThrow new IllegalStateException("aiee")
+        one(jredis).rpushx(timeline, data) willThrow new IllegalStateException("aiee")
       }
 
       redisShard.append(data, timeline, None) must throwA[ShardException]

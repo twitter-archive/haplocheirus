@@ -55,7 +55,7 @@ Then:
 
 Start up your local redis server, then:
 
-    $ ./src/scripts/setup-env.sh
+    $ ./dist/haplocheirus-1.0/scripts/setup-env.sh
 
 ## Community
 
