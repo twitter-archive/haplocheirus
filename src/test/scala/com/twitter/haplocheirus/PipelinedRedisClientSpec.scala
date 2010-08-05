@@ -100,6 +100,34 @@ object PipelinedRedisClientSpec extends ConfiguredSpecification with JMocker wit
       client.setAtomically(timeline, List(entry1, entry2, entry3))
     }
 
+    "setLiveStart" in {
+      expect {
+        one(jredis).del(timeline)
+        one(jredis).rpush(timeline, new Array[Byte](0))
+      }
+
+      client.setLiveStart(timeline)
+    }
+
+    "setLive" in {
+      val entry1 = List(23L).pack
+      val entry2 = List(20L).pack
+      val entry3 = List(19L).pack
+
+      expect {
+        one(jredis).lpushx(timeline, entry1)
+        one(jredis).lpushx(timeline, entry2)
+        one(jredis).lpushx(timeline, entry3)
+
+        one(jredis).lrem(timeline, new Array[Byte](0), 1) willReturn longFuture
+        one(longFuture).get(1000, TimeUnit.MILLISECONDS) willReturn 0L
+        one(jredis).expire(timeline, 86400) willReturn future
+        one(future).get(1000, TimeUnit.MILLISECONDS) willReturn ResponseStatus.STATUS_OK
+      }
+
+      client.setLive(timeline, List(entry1, entry2, entry3))
+    }
+
     "delete" in {
       expect {
         one(jredis).del(timeline) willReturn longFuture

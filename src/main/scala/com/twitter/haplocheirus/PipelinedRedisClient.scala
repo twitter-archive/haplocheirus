@@ -26,6 +26,7 @@ object PipelinedRedisClient {
 class PipelinedRedisClient(hostname: String, pipelineMaxSize: Int, timeout: Duration,
                            keysTimeout: Duration, expiration: Duration) {
   val DEFAULT_PORT = 6379
+  val KEYS_KEY = "%keys"
   val log = Logger(getClass.getName)
 
   val segments = hostname.split(":", 2)
@@ -194,8 +195,9 @@ class PipelinedRedisClient(hostname: String, pipelineMaxSize: Int, timeout: Dura
       entries.foreach { entry =>
         redisClient.lpushx(timeline, entry)
       }
-      redisClient.lrem(timeline, new Array[Byte](0), 1)
+      redisClient.lrem(timeline, new Array[Byte](0), 1).get(timeout.inMillis, TimeUnit.MILLISECONDS)
       redisClient.expire(timeline, expiration.inSeconds).get(timeout.inMillis, TimeUnit.MILLISECONDS)
+      0
     }
   }
 
@@ -220,12 +222,18 @@ class PipelinedRedisClient(hostname: String, pipelineMaxSize: Int, timeout: Dura
   def makeKeyList() = {
     Stats.timeMicros("redis-keys") {
       val keyList = redisClient.keys().get(keysTimeout.inMillis, TimeUnit.MILLISECONDS).toSeq
-      redisClient.ltrim("%keys", 1, 0)
+      redisClient.ltrim(KEYS_KEY, 1, 0)
     	keyList.foreach { key =>
-    	  redisClient.rpush("%keys", key)
+    	  redisClient.rpush(KEYS_KEY, key)
     	}
-    	// force a pipeline flush.
-      size("%keys")
+    	// force a pipeline flush too.
+      size(KEYS_KEY)
+    }
+  }
+
+  def getKeys(offset: Int, count: Int) = {
+    Stats.timeMicros("redis-getkeys-usec") {
+      redisClient.lrange(KEYS_KEY, offset, offset + count - 1).get(timeout.inMillis, TimeUnit.MILLISECONDS).toSeq
     }
   }
 }
