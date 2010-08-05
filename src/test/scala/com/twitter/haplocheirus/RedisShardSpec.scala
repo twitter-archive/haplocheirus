@@ -34,7 +34,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
 
     doBefore {
       PipelinedRedisClient.mockedOutJRedisClient = Some(jredis)
-      val client = new PipelinedRedisClient("", 0, 1.second, 1.second) {
+      val client = new PipelinedRedisClient("", 0, 1.second, 1.second, 1.second) {
         override protected def uniqueTimelineName(name: String): String = "generated-name"
       }
       redisPool = new RedisPool(config) {

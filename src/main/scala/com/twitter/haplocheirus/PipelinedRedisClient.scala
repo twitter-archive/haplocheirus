@@ -24,7 +24,7 @@ object PipelinedRedisClient {
  * failure.
  */
 class PipelinedRedisClient(hostname: String, pipelineMaxSize: Int, timeout: Duration,
-                           expiration: Duration) {
+                           keysTimeout: Duration, expiration: Duration) {
   val DEFAULT_PORT = 6379
   val log = Logger(getClass.getName)
 
@@ -214,6 +214,18 @@ class PipelinedRedisClient(hostname: String, pipelineMaxSize: Int, timeout: Dura
   def trim(timeline: String, size: Int) {
     Stats.timeMicros("redis-ltrim-usec") {
       redisClient.ltrim(timeline, -size, -1)
+    }
+  }
+
+  def makeKeyList() = {
+    Stats.timeMicros("redis-keys") {
+      val keyList = redisClient.keys().get(keysTimeout.inMillis, TimeUnit.MILLISECONDS).toSeq
+      redisClient.ltrim("%keys", 1, 0)
+    	keyList.foreach { key =>
+    	  redisClient.rpush("%keys", key)
+    	}
+    	// force a pipeline flush.
+      size("%keys")
     }
   }
 }

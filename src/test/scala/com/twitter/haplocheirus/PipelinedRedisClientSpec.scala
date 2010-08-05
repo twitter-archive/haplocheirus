@@ -27,7 +27,7 @@ object PipelinedRedisClientSpec extends ConfiguredSpecification with JMocker wit
     val job = jobs.Append(data, timeline)
 
     doBefore {
-      client = new PipelinedRedisClient("localhost", 10, 1.second, 1.day) {
+      client = new PipelinedRedisClient("localhost", 10, 1.second, 1.second, 1.day) {
         override def makeRedisClient = jredis
         override protected def uniqueTimelineName(name: String) = name + "~1"
       }
