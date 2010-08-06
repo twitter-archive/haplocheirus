@@ -127,6 +127,10 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
     TimelineSegment(dedupedEntries, size)
   }
 
+  def getRaw(timeline: String): Seq[Array[Byte]] = {
+    pool.withClient(shardInfo.hostname) { _.get(timeline, 0, -1) }
+  }
+
   def getRange(timeline: String, fromId: Long, toId: Long, dedupe: Boolean): TimelineSegment = {
     val (entriesSince, size) = pool.withClient(shardInfo.hostname) { client =>
       val entries = new mutable.ArrayBuffer[Array[Byte]]()

@@ -184,6 +184,21 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
       }
     }
 
+    "getRaw" in {
+      val entry1 = List(23L).pack
+      val entry2 = List(20L).pack
+      val entry3 = List(19L).pack
+
+      expect {
+        one(shardInfo).hostname willReturn "host1"
+        one(jredis).lrange(timeline, 0, -1) willReturn future
+        one(future).get(1000, TimeUnit.MILLISECONDS) willReturn List(entry1, entry2, entry3).reverse.toJavaList
+        one(jredis).expire(timeline, 1)
+      }
+
+      redisShard.getRaw(timeline) mustEqual List(entry1, entry2, entry3)
+    }
+
     "getRange" in {
       "with missing fromId" in {
         val entry1 = List(23L).pack
