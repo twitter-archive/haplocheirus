@@ -27,6 +27,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
     val future = mock[Future[JList[Array[Byte]]]]
     val future2 = mock[Future[JList[Array[Byte]]]]
     val longFuture = mock[JRedisFutureSupport.FutureLong]
+    val keysFuture = mock[Future[JList[String]]]
     val config = Configgy.config.configMap("redis")
     val timelineTrimConfig = Config.fromString(configString)
     val data = "hello".getBytes
@@ -427,6 +428,50 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
       }
 
       redisShard.deleteTimeline(timeline)
+    }
+
+    "getKeys" in {
+      "from start" in {
+        expect {
+          one(shardInfo).hostname willReturn "host1"
+
+          one(jredis).keys() willReturn keysFuture
+          one(keysFuture).get(1000, TimeUnit.MILLISECONDS) willReturn List("a", "b", "c").toJavaList
+          one(jredis).ltrim("%keys", 1, 0)
+          one(jredis).rpush("%keys", "a")
+          one(jredis).rpush("%keys", "b")
+          one(jredis).rpush("%keys", "c")
+          one(jredis).llen("%keys") willReturn longFuture
+          one(longFuture).get(1000, TimeUnit.MILLISECONDS) willReturn 4L
+
+          one(jredis).lrange("%keys", 0, 1) willReturn future
+          one(future).get(1000, TimeUnit.MILLISECONDS) willReturn List("a", "b").map { _.getBytes }.toJavaList
+        }
+
+        redisShard.getKeys(0, 2).toList mustEqual List("a", "b")
+      }
+
+      "from middle" in {
+        expect {
+          one(shardInfo).hostname willReturn "host1"
+
+          one(jredis).lrange("%keys", 2, 3) willReturn future
+          one(future).get(1000, TimeUnit.MILLISECONDS) willReturn List("c").map { _.getBytes }.toJavaList
+        }
+
+        redisShard.getKeys(2, 2).toList mustEqual List("c")
+      }
+
+      "at the end" in {
+        expect {
+          one(shardInfo).hostname willReturn "host1"
+
+          one(jredis).lrange("%keys", 4, 5) willReturn future
+          one(future).get(1000, TimeUnit.MILLISECONDS) willReturn List[Array[Byte]]().toJavaList
+        }
+
+        redisShard.getKeys(4, 2).toList mustEqual List[String]()
+      }
     }
 
     "startCopy" in {

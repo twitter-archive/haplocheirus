@@ -193,6 +193,15 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
     pool.withClient(shardInfo.hostname) { _.delete(timeline) }
   }
 
+  def getKeys(offset: Int, count: Int) = {
+    pool.withClient(shardInfo.hostname) { client =>
+      if (offset == 0) {
+        client.makeKeyList()
+      }
+      client.getKeys(offset, count)
+    }
+  }
+
   def startCopy(timeline: String) {
     pool.withClient(shardInfo.hostname) { _.setLiveStart(timeline) }
   }
