@@ -429,6 +429,33 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
       redisShard.deleteTimeline(timeline)
     }
 
+    "startCopy" in {
+      expect {
+        one(shardInfo).hostname willReturn "host1"
+        one(jredis).del(timeline)
+        one(jredis).rpush(timeline, new Array[Byte](0))
+      }
+
+      redisShard.startCopy(timeline)
+    }
+
+    "doCopy" in {
+      val entry1 = List(23L).pack
+      val entry2 = List(20L).pack
+
+      expect {
+        one(shardInfo).hostname willReturn "host1"
+        one(jredis).lpushx(timeline, entry1)
+        one(jredis).lpushx(timeline, entry2)
+        one(jredis).lrem(timeline, new Array[Byte](0), 1) willReturn longFuture
+        one(longFuture).get(1000, TimeUnit.MILLISECONDS) willReturn 1L
+        one(jredis).expire(timeline, 1) willReturn longFuture
+        one(longFuture).get(1000, TimeUnit.MILLISECONDS) willReturn 1L
+      }
+
+      redisShard.doCopy(timeline, List(entry1, entry2))
+    }
+
     "exceptions are wrapped" in {
       expect {
         one(shardInfo).hostname willReturn "host1"

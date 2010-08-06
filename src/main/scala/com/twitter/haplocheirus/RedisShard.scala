@@ -186,14 +186,18 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
   }
 
   def store(timeline: String, entries: Seq[Array[Byte]]) {
-    pool.withClient(shardInfo.hostname) { client =>
-      client.setAtomically(timeline, entries)
-    }
+    pool.withClient(shardInfo.hostname) { _.setAtomically(timeline, entries) }
   }
 
   def deleteTimeline(timeline: String) {
-    pool.withClient(shardInfo.hostname) { client =>
-      client.delete(timeline)
-    }
+    pool.withClient(shardInfo.hostname) { _.delete(timeline) }
+  }
+
+  def startCopy(timeline: String) {
+    pool.withClient(shardInfo.hostname) { _.setLiveStart(timeline) }
+  }
+
+  def doCopy(timeline: String, entries: Seq[Array[Byte]]) {
+    pool.withClient(shardInfo.hostname) { _.setLive(timeline, entries) }
   }
 }

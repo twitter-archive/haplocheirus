@@ -12,6 +12,8 @@ trait HaplocheirusShard extends Shard {
   @throws(classOf[ShardException]) def store(timeline: String, entries: Seq[Array[Byte]])
   @throws(classOf[ShardException]) def merge(timeline: String, entries: Seq[Array[Byte]], onError: Option[Throwable => Unit])
   @throws(classOf[ShardException]) def deleteTimeline(timeline: String)
+  @throws(classOf[ShardException]) def startCopy(timeline: String)
+  @throws(classOf[ShardException]) def doCopy(timeline: String, entries: Seq[Array[Byte]])
 }
 
 class HaplocheirusShardAdapter(shard: ReadWriteShard[HaplocheirusShard])
@@ -24,4 +26,6 @@ class HaplocheirusShardAdapter(shard: ReadWriteShard[HaplocheirusShard])
   def store(timeline: String, entries: Seq[Array[Byte]]) = shard.writeOperation(_.store(timeline, entries))
   def merge(timeline: String, entries: Seq[Array[Byte]], onError: Option[Throwable => Unit]) = shard.writeOperation(_.merge(timeline, entries, onError))
   def deleteTimeline(timeline: String) = shard.writeOperation(_.deleteTimeline(timeline))
+  def startCopy(timeline: String) = shard.writeOperation(_.startCopy(timeline))
+  def doCopy(timeline: String, entries: Seq[Array[Byte]]) = shard.writeOperation(_.doCopy(timeline, entries))
 }
