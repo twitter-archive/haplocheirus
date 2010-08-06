@@ -19,6 +19,7 @@ object PipelinedRedisClientSpec extends ConfiguredSpecification with JMocker wit
     val future2 = mock[Future[JList[Array[Byte]]]]
     val longFuture = mock[JRedisFutureSupport.FutureLong]
     val booleanFuture = mock[JRedisFutureSupport.FutureBoolean]
+    val keyListFuture = mock[Future[JList[String]]]
     var client: PipelinedRedisClient = null
 
     val timeline = "t1"
@@ -31,6 +32,40 @@ object PipelinedRedisClientSpec extends ConfiguredSpecification with JMocker wit
         override def makeRedisClient = jredis
         override protected def uniqueTimelineName(name: String) = name + "~1"
       }
+    }
+
+    "laterWithErrorHandling" in {
+      val onError = Some({ e: Throwable => queue.putError(job) })
+
+      "success" in {
+        client.laterWithErrorHandling(onError) { }
+        client.flushPipeline()
+        client.pipeline.size mustEqual 0
+      }
+
+      "exception" in {
+        expect {
+          one(queue).putError(job)
+        }
+
+        client.laterWithErrorHandling(onError) { throw new ExecutionException(new Exception("I died.")) }
+        client.flushPipeline()
+      }
+    }
+
+    "isMember" in {
+      val entry1 = List(23L).pack
+      val entry2 = List(20L).pack
+
+      expect {
+        one(jredis).lismember(timeline, entry1) willReturn booleanFuture
+        one(booleanFuture).get(1000, TimeUnit.MILLISECONDS) willReturn true
+        one(jredis).lismember(timeline, entry2) willReturn booleanFuture
+        one(booleanFuture).get(1000, TimeUnit.MILLISECONDS) willReturn false
+      }
+
+      client.isMember(timeline, entry1) mustEqual true
+      client.isMember(timeline, entry2) mustEqual false
     }
 
     "push" in {
@@ -137,38 +172,50 @@ object PipelinedRedisClientSpec extends ConfiguredSpecification with JMocker wit
       client.delete(timeline)
     }
 
-    "isMember" in {
-      val entry1 = List(23L).pack
-      val entry2 = List(20L).pack
-
+    "size" in {
       expect {
-        one(jredis).lismember(timeline, entry1) willReturn booleanFuture
-        one(booleanFuture).get(1000, TimeUnit.MILLISECONDS) willReturn true
-        one(jredis).lismember(timeline, entry2) willReturn booleanFuture
-        one(booleanFuture).get(1000, TimeUnit.MILLISECONDS) willReturn false
+        one(jredis).llen(timeline) willReturn longFuture
+        one(longFuture).get(1000, TimeUnit.MILLISECONDS) willReturn 23L
       }
 
-      client.isMember(timeline, entry1) mustEqual true
-      client.isMember(timeline, entry2) mustEqual false
+      client.size(timeline) mustEqual 23
     }
 
-    "laterWithErrorHandling" in {
-      val onError = Some({ e: Throwable => queue.putError(job) })
-
-      "success" in {
-        client.laterWithErrorHandling(onError) { }
-        client.flushPipeline()
-        client.pipeline.size mustEqual 0
+    "trim" in {
+      expect {
+        one(jredis).ltrim(timeline, -200, -1)
       }
 
-      "exception" in {
-        expect {
-          one(queue).putError(job)
-        }
+      client.trim(timeline, 200)
+    }
 
-        client.laterWithErrorHandling(onError) { throw new ExecutionException(new Exception("I died.")) }
-        client.flushPipeline()
+    "makeKeyList" in {
+      val keys = List("a", "b", "c", "d")
+
+      expect {
+        one(jredis).keys() willReturn keyListFuture
+        one(keyListFuture).get(1000, TimeUnit.MILLISECONDS) willReturn keys.toJavaList
+        one(jredis).ltrim(client.KEYS_KEY, 1, 0)
+        keys.foreach { key => one(jredis).rpush(client.KEYS_KEY, key) }
+        one(jredis).llen(client.KEYS_KEY) willReturn longFuture
+        one(longFuture).get(1000, TimeUnit.MILLISECONDS) willReturn 4L
       }
+
+      client.makeKeyList() mustEqual 4
+    }
+
+    "getKeys" in {
+      val keys = List("a", "b", "c", "d")
+
+      expect {
+        one(jredis).lrange(client.KEYS_KEY, 0, 1) willReturn future2
+        one(future2).get(1000, TimeUnit.MILLISECONDS) willReturn keys.slice(0, 2).map { _.getBytes }.toJavaList
+        one(jredis).lrange(client.KEYS_KEY, 2, 3) willReturn future2
+        one(future2).get(1000, TimeUnit.MILLISECONDS) willReturn keys.slice(2, 4).map { _.getBytes }.toJavaList
+      }
+
+      client.getKeys(0, 2).toList mustEqual List("a", "b")
+      client.getKeys(2, 2).toList mustEqual List("c", "d")
     }
   }
 }

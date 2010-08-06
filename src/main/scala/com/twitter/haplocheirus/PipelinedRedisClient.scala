@@ -233,7 +233,7 @@ class PipelinedRedisClient(hostname: String, pipelineMaxSize: Int, timeout: Dura
 
   def getKeys(offset: Int, count: Int) = {
     Stats.timeMicros("redis-getkeys-usec") {
-      redisClient.lrange(KEYS_KEY, offset, offset + count - 1).get(timeout.inMillis, TimeUnit.MILLISECONDS).toSeq
+      redisClient.lrange(KEYS_KEY, offset, offset + count - 1).get(timeout.inMillis, TimeUnit.MILLISECONDS).toSeq.map { new String(_) }
     }
   }
 }
