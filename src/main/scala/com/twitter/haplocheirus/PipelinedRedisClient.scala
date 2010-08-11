@@ -236,4 +236,8 @@ class PipelinedRedisClient(hostname: String, pipelineMaxSize: Int, timeout: Dura
       redisClient.lrange(KEYS_KEY, offset, offset + count - 1).get(timeout.inMillis, TimeUnit.MILLISECONDS).toSeq.map { new String(_) }
     }
   }
+
+  def deleteKeyList() {
+    delete(KEYS_KEY)
+  }
 }

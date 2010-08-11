@@ -217,5 +217,14 @@ object PipelinedRedisClientSpec extends ConfiguredSpecification with JMocker wit
       client.getKeys(0, 2).toList mustEqual List("a", "b")
       client.getKeys(2, 2).toList mustEqual List("c", "d")
     }
+
+    "deleteKeyList" in {
+      expect {
+        one(jredis).del(client.KEYS_KEY) willReturn longFuture
+        one(longFuture).get(1000, TimeUnit.MILLISECONDS) willReturn 0L
+      }
+
+      client.deleteKeyList()
+    }
   }
 }
