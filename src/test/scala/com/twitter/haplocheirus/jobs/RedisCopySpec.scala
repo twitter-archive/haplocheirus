@@ -13,14 +13,15 @@ import org.specs.mock.{ClassMocker, JMocker}
 
 
 class RedisCopySpec extends ConfiguredSpecification with JMocker with ClassMocker {
+  val shard1Id = ShardId("test", "shard1")
+  val shard2Id = ShardId("test", "shard2")
+
   "RedisCopy" should {
     val entries = List("1".getBytes, "2".getBytes)
     val nameServer = mock[NameServer[HaplocheirusShard]]
     val scheduler = mock[JobScheduler]
     val shard1 = mock[HaplocheirusShard]
     val shard2 = mock[HaplocheirusShard]
-    val shard1Id = ShardId("test", "shard1")
-    val shard2Id = ShardId("test", "shard2")
 
     "start" in {
       val job = RedisCopyFactory(shard1Id, shard2Id)
@@ -54,6 +55,24 @@ class RedisCopySpec extends ConfiguredSpecification with JMocker with ClassMocke
       }
 
       job.apply((nameServer, scheduler))
+    }
+
+    "toJson" in {
+      val job = new RedisCopy(shard1Id, shard2Id, 500, 200)
+      val json = job.toJson
+      json mustMatch "Copy"
+      json mustMatch "\"cursor\":" + 500
+      json mustMatch "\"count\":" + 200
+    }
+  }
+
+  "RedisCopyParser" should {
+    "parse" in {
+      RedisCopyParser(Map("source_shard_table_prefix" -> "shard1",
+                          "source_shard_hostname" -> "test",
+                          "destination_shard_table_prefix" -> "shard2",
+                          "destination_shard_hostname" -> "test",
+                          "cursor" -> 500, "count" -> 200)) mustEqual new RedisCopy(shard1Id, shard2Id, 500, 200)
     }
   }
 }
