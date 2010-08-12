@@ -127,6 +127,10 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
     TimelineSegment(dedupedEntries, size)
   }
 
+  def getRaw(timeline: String): Seq[Array[Byte]] = {
+    pool.withClient(shardInfo.hostname) { _.get(timeline, 0, -1) }
+  }
+
   def getRange(timeline: String, fromId: Long, toId: Long, dedupe: Boolean): TimelineSegment = {
     val (entriesSince, size) = pool.withClient(shardInfo.hostname) { client =>
       val entries = new mutable.ArrayBuffer[Array[Byte]]()
@@ -186,14 +190,27 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
   }
 
   def store(timeline: String, entries: Seq[Array[Byte]]) {
-    pool.withClient(shardInfo.hostname) { client =>
-      client.setAtomically(timeline, entries)
-    }
+    pool.withClient(shardInfo.hostname) { _.setAtomically(timeline, entries) }
   }
 
   def deleteTimeline(timeline: String) {
+    pool.withClient(shardInfo.hostname) { _.delete(timeline) }
+  }
+
+  def getKeys(offset: Int, count: Int) = {
     pool.withClient(shardInfo.hostname) { client =>
-      client.delete(timeline)
+      if (offset == 0) {
+        client.makeKeyList()
+      }
+      client.getKeys(offset, count)
     }
+  }
+
+  def startCopy(timeline: String) {
+    pool.withClient(shardInfo.hostname) { _.setLiveStart(timeline) }
+  }
+
+  def doCopy(timeline: String, entries: Seq[Array[Byte]]) {
+    pool.withClient(shardInfo.hostname) { _.setLive(timeline, entries) }
   }
 }

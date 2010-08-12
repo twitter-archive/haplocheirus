@@ -2,8 +2,7 @@ package com.twitter.haplocheirus.jobs
 
 import scala.collection.mutable
 import com.twitter.gizzard.Hash
-import com.twitter.gizzard.jobs.{BoundJobParser, Copy, CopyFactory, CopyParser, UnboundJob}
-import com.twitter.gizzard.shards.ShardId
+import com.twitter.gizzard.jobs.{BoundJobParser, UnboundJob}
 import com.twitter.gizzard.nameserver.NameServer
 import com.twitter.xrayspecs.Time
 import com.twitter.xrayspecs.TimeConversions._
@@ -63,55 +62,4 @@ case class DeleteTimeline(timeline: String) extends RedisJob {
   def apply(nameServer: NameServer[HaplocheirusShard]) {
     nameServer.findCurrentForwarding(0, Hash.FNV1A_64(timeline)).deleteTimeline(timeline)
   }
-}
-
-
-
-// FIXME
-
-
-
-object RedisCopy {
-  type Cursor = Int
-
-  val START = 0
-  val END = -1
-  val COPY_COUNT = 10000
-}
-
-object RedisCopyFactory extends CopyFactory[HaplocheirusShard] {
-  def apply(sourceShardId: ShardId, destinationShardId: ShardId) = null
-  //new RedisCopy(sourceShardId, destinationShardId, RedisCopy.START)
-}
-
-object RedisCopyParser extends CopyParser[HaplocheirusShard] {
-  def apply(attributes: Map[String, Any]) = {
-    new RedisCopy(
-      ShardId(attributes("source_shard_hostname").toString, attributes("source_shard_table_prefix").toString),
-      ShardId(attributes("destination_shard_hostname").toString, attributes("destination_shard_table_prefix").toString),
-      attributes("cursor").asInstanceOf[AnyVal].toInt,
-      attributes("count").asInstanceOf[AnyVal].toInt)
-  }
-}
-
-class RedisCopy(sourceShardId: ShardId, destinationShardId: ShardId, cursor: RedisCopy.Cursor, count: Int)
-      extends Copy[HaplocheirusShard](sourceShardId, destinationShardId, count) {
-  def this(sourceShardId: ShardId, destinationShardId: ShardId, cursor: RedisCopy.Cursor) =
-    this(sourceShardId, destinationShardId, cursor, RedisCopy.COPY_COUNT)
-
-  def copyPage(sourceShard: HaplocheirusShard, destinationShard: HaplocheirusShard, count: Int) = {
-/*
-    val (items, newCursor) = sourceShard.selectAll(cursor, count)
-    destinationShard.writeCopies(items)
-    Stats.incr("edges-copy", items.size)
-    if (newCursor == Copy.END) {
-      None
-    } else {
-      Some(new Copy(sourceShardId, destinationShardId, newCursor, count))
-    }
-*/
-    Some(new RedisCopy(sourceShardId, destinationShardId, cursor, count))
-  }
-
-  def serialize = Map("cursor" -> cursor)
 }

@@ -28,8 +28,9 @@ class RedisPool(config: ConfigMap) {
   def makeClient(hostname: String) = {
     val pipelineSize = config("pipeline").toInt
     val timeout = config("timeout_msec").toInt.milliseconds
+    val keysTimeout = config("keys_timeout_msec").toInt.milliseconds
     val expiration = config("expiration_hours").toInt.hours
-    new PipelinedRedisClient(hostname, pipelineSize, timeout, expiration)
+    new PipelinedRedisClient(hostname, pipelineSize, timeout, keysTimeout, expiration)
   }
 
   def get(hostname: String): PipelinedRedisClient = {

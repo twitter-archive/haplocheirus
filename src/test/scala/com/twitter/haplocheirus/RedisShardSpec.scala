@@ -27,6 +27,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
     val future = mock[Future[JList[Array[Byte]]]]
     val future2 = mock[Future[JList[Array[Byte]]]]
     val longFuture = mock[JRedisFutureSupport.FutureLong]
+    val keysFuture = mock[Future[JList[String]]]
     val config = Configgy.config.configMap("redis")
     val timelineTrimConfig = Config.fromString(configString)
     val data = "hello".getBytes
@@ -34,7 +35,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
 
     doBefore {
       PipelinedRedisClient.mockedOutJRedisClient = Some(jredis)
-      val client = new PipelinedRedisClient("", 0, 1.second, 1.second) {
+      val client = new PipelinedRedisClient("", 0, 1.second, 1.second, 1.second) {
         override protected def uniqueTimelineName(name: String): String = "generated-name"
       }
       redisPool = new RedisPool(config) {
@@ -181,6 +182,21 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
 
         redisShard.get(timeline, 0, 10, true).entries.toList mustEqual List(entry1, entry2, entry3)
       }
+    }
+
+    "getRaw" in {
+      val entry1 = List(23L).pack
+      val entry2 = List(20L).pack
+      val entry3 = List(19L).pack
+
+      expect {
+        one(shardInfo).hostname willReturn "host1"
+        one(jredis).lrange(timeline, 0, -1) willReturn future
+        one(future).get(1000, TimeUnit.MILLISECONDS) willReturn List(entry1, entry2, entry3).reverse.toJavaList
+        one(jredis).expire(timeline, 1)
+      }
+
+      redisShard.getRaw(timeline) mustEqual List(entry1, entry2, entry3)
     }
 
     "getRange" in {
@@ -427,6 +443,77 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
       }
 
       redisShard.deleteTimeline(timeline)
+    }
+
+    "getKeys" in {
+      "from start" in {
+        expect {
+          one(shardInfo).hostname willReturn "host1"
+
+          one(jredis).keys() willReturn keysFuture
+          one(keysFuture).get(1000, TimeUnit.MILLISECONDS) willReturn List("a", "b", "c").toJavaList
+          one(jredis).ltrim("%keys", 1, 0)
+          one(jredis).rpush("%keys", "a")
+          one(jredis).rpush("%keys", "b")
+          one(jredis).rpush("%keys", "c")
+          one(jredis).llen("%keys") willReturn longFuture
+          one(longFuture).get(1000, TimeUnit.MILLISECONDS) willReturn 4L
+
+          one(jredis).lrange("%keys", 0, 1) willReturn future
+          one(future).get(1000, TimeUnit.MILLISECONDS) willReturn List("a", "b").map { _.getBytes }.toJavaList
+        }
+
+        redisShard.getKeys(0, 2).toList mustEqual List("a", "b")
+      }
+
+      "from middle" in {
+        expect {
+          one(shardInfo).hostname willReturn "host1"
+
+          one(jredis).lrange("%keys", 2, 3) willReturn future
+          one(future).get(1000, TimeUnit.MILLISECONDS) willReturn List("c").map { _.getBytes }.toJavaList
+        }
+
+        redisShard.getKeys(2, 2).toList mustEqual List("c")
+      }
+
+      "at the end" in {
+        expect {
+          one(shardInfo).hostname willReturn "host1"
+
+          one(jredis).lrange("%keys", 4, 5) willReturn future
+          one(future).get(1000, TimeUnit.MILLISECONDS) willReturn List[Array[Byte]]().toJavaList
+        }
+
+        redisShard.getKeys(4, 2).toList mustEqual List[String]()
+      }
+    }
+
+    "startCopy" in {
+      expect {
+        one(shardInfo).hostname willReturn "host1"
+        one(jredis).del(timeline)
+        one(jredis).rpush(timeline, new Array[Byte](0))
+      }
+
+      redisShard.startCopy(timeline)
+    }
+
+    "doCopy" in {
+      val entry1 = List(23L).pack
+      val entry2 = List(20L).pack
+
+      expect {
+        one(shardInfo).hostname willReturn "host1"
+        one(jredis).lpushx(timeline, entry1)
+        one(jredis).lpushx(timeline, entry2)
+        one(jredis).lrem(timeline, new Array[Byte](0), 1) willReturn longFuture
+        one(longFuture).get(1000, TimeUnit.MILLISECONDS) willReturn 1L
+        one(jredis).expire(timeline, 1) willReturn longFuture
+        one(longFuture).get(1000, TimeUnit.MILLISECONDS) willReturn 1L
+      }
+
+      redisShard.doCopy(timeline, List(entry1, entry2))
     }
 
     "exceptions are wrapped" in {
