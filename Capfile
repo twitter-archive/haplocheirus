@@ -47,10 +47,17 @@ namespace :deploy do
   end
 end
 
-# after "deploy:symlink" do
-#   run "chmod +x #{current_path}/scripts/flock.sh"
-# end
-# 
-# after "deploy:subrestart" do
-#   sleep 60
-# end
+namespace :deploy do
+  task :asme do
+    set :user, ENV["USER"]
+  end
+
+  task :subrestart do
+    sudo "/usr/local/#{application}/current/scripts/#{application}.sh restart"
+  end
+end
+
+after "deploy:subrestart" do
+  sleep 10
+  deploy.verify_build
+end
