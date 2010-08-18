@@ -7,6 +7,7 @@
 #   /var/log/$APP_NAME (chown daemon, chmod 775)
 
 APP_NAME="haplocheirus"
+ADMIN_PORT="7667"
 VERSION="@VERSION@"
 APP_HOME="/usr/local/$APP_NAME/current"
 AS_USER="daemon"
@@ -20,7 +21,7 @@ DEBUG_OPTS="-XX:ErrorFile=/var/log/$APP_NAME/java_error%p.log"
 JAVA_OPTS="-server $GC_OPTS $GC_LOG $HEAP_OPTS $JMX_OPTS $DEBUG_OPTS"
 
 pidfile="/var/run/$APP_NAME/$APP_NAME.pid"
-daemon_args="--name $APP_NAME --pidfile $pidfile --core --chdir /home/$AS_USER"
+daemon_args="--name $APP_NAME --pidfile $pidfile --core --chdir /"
 daemon_start_args="--user $AS_USER --stdout=/var/log/$APP_NAME/stdout --stderr=/var/log/$APP_NAME/error"
 
 function running() {
@@ -92,7 +93,7 @@ case "$1" in
       exit 0
     fi
 
-    curl http://localhost:9990/shutdown.txt
+    curl http://localhost:${ADMIN_PORT}/shutdown.txt
     tries=0
     while running; do
       tries=$((tries + 1))
