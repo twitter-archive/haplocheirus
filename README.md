@@ -30,9 +30,8 @@ id. A timeline query returns a slice of the timeline, newest first.
 [Gizzard](http://github.com/twitter/gizzard) is used to handle partitioning and job queueing, and
 [Redis](http://code.google.com/p/redis/) is used as the backend storage for each shard.
 
-Redis has been patched to have a few extra features. Currently this lives as a branch on github
-here: <http://github.com/robey/redis/commits/twitter2>. Eventually we hope to have these patches
-merged back into redis in some form.
+New features from redis 2.2 are required (`LPUSHX` and `LINSERT` for example), so for now, you will
+need to build redis from trunk: <http://github.com/antirez/redis>
 
 ## Building
 
@@ -40,7 +39,7 @@ You need:
 - java 1.6
 - thrift 0.2.0
 - sbt 0.7.4
-- redis-server (twitter2 branch; see above)
+- redis-server (2.2 trunk; see above)
 
 You might want:
 - haplocheirus-client <http://github.com/bitbckt/haplocheirus-client>
