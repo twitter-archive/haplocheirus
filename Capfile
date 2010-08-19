@@ -54,7 +54,7 @@ namespace :deploy do
 
   task :subrestart do
     sudo "/usr/local/#{application}/current/scripts/#{application}.sh restart"
-    sleep 1
+    sleep 5
     execute_with_hosts("verify_build", find_task("subrestart").options[:hosts])
   end
 end
