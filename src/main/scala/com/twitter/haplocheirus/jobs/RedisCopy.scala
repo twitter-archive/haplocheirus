@@ -38,7 +38,10 @@ class RedisCopy(sourceShardId: ShardId, destinationShardId: ShardId, cursor: Red
     val keys = sourceShard.getKeys(cursor, count)
     keys.foreach { key =>
       destinationShard.startCopy(key)
-      destinationShard.doCopy(key, sourceShard.getRaw(key))
+      sourceShard.getRaw(key) match {
+        case Some(data) => destinationShard.doCopy(key, data)
+        case None => destinationShard.deleteTimeline(key)
+      }
     }
     Stats.incr("copy", keys.size)
     if (keys.size == 0) {

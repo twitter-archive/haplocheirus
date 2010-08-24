@@ -6,10 +6,10 @@ import com.twitter.gizzard.shards._
 trait HaplocheirusShard extends Shard {
   @throws(classOf[ShardException]) def append(entry: Array[Byte], timeline: String, onError: Option[Throwable => Unit])
   @throws(classOf[ShardException]) def remove(entry: Array[Byte], timeline: String, onError: Option[Throwable => Unit])
-  @throws(classOf[ShardException]) def filter(timeline: String, entries: Seq[Array[Byte]]): Seq[Array[Byte]]
-  @throws(classOf[ShardException]) def get(timeline: String, offset: Int, length: Int, dedupe: Boolean): TimelineSegment
-  @throws(classOf[ShardException]) def getRaw(timeline: String): Seq[Array[Byte]]
-  @throws(classOf[ShardException]) def getRange(timeline: String, fromId: Long, toId: Long, dedupe: Boolean): TimelineSegment
+  @throws(classOf[ShardException]) def filter(timeline: String, entries: Seq[Array[Byte]]): Option[Seq[Array[Byte]]]
+  @throws(classOf[ShardException]) def get(timeline: String, offset: Int, length: Int, dedupe: Boolean): Option[TimelineSegment]
+  @throws(classOf[ShardException]) def getRaw(timeline: String): Option[Seq[Array[Byte]]]
+  @throws(classOf[ShardException]) def getRange(timeline: String, fromId: Long, toId: Long, dedupe: Boolean): Option[TimelineSegment]
   @throws(classOf[ShardException]) def store(timeline: String, entries: Seq[Array[Byte]])
   @throws(classOf[ShardException]) def merge(timeline: String, entries: Seq[Array[Byte]], onError: Option[Throwable => Unit])
   @throws(classOf[ShardException]) def deleteTimeline(timeline: String)
@@ -32,4 +32,7 @@ class HaplocheirusShardAdapter(shard: ReadWriteShard[HaplocheirusShard])
   def getKeys(offset: Int, count: Int) = shard.readOperation(_.getKeys(offset, count))
   def startCopy(timeline: String) = shard.writeOperation(_.startCopy(timeline))
   def doCopy(timeline: String, entries: Seq[Array[Byte]]) = shard.writeOperation(_.doCopy(timeline, entries))
+
+  // rebuildable:
+  //def filter(timeline: String, entries: Seq[Array[Byte]]) = shard.readOperation(_.filter(timeline, entries))
 }

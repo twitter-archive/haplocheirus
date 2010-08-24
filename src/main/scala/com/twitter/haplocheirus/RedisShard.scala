@@ -107,31 +107,44 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
   }
 
   // this is really inefficient. we should discourage its use.
-  def filter(timeline: String, entries: Seq[Array[Byte]]) = {
+  def filter(timeline: String, entries: Seq[Array[Byte]]): Option[Seq[Array[Byte]]] = {
     val searchKeys = sortKeysFromEntries(entries)
     val timelineEntries = Set(sortKeysFromEntries(pool.withClient(shardInfo.hostname) { client =>
       client.get(timeline, 0, -1)
     }).map { _.key }: _*)
-    searchKeys.filter { timelineEntries contains _.key }.map { _.entry }
+    if (timelineEntries.isEmpty) {
+      None
+    } else {
+      Some(searchKeys.filter { timelineEntries contains _.key }.map { _.entry })
+    }
   }
 
-  def get(timeline: String, offset: Int, length: Int, dedupe: Boolean): TimelineSegment = {
+  def get(timeline: String, offset: Int, length: Int, dedupe: Boolean): Option[TimelineSegment] = {
     val (entries, size) = pool.withClient(shardInfo.hostname) { client =>
       (client.get(timeline, offset, length), client.size(timeline))
     }
-    val dedupedEntries = if (dedupe) {
-      dedupeBy(dedupeBy(entries, 0), 8)
+    if (size > 0) {
+      val dedupedEntries = if (dedupe) {
+        dedupeBy(dedupeBy(entries, 0), 8)
+      } else {
+        dedupeBy(entries, 0)
+      }
+      Some(TimelineSegment(dedupedEntries, size))
     } else {
-      dedupeBy(entries, 0)
+      None
     }
-    TimelineSegment(dedupedEntries, size)
   }
 
-  def getRaw(timeline: String): Seq[Array[Byte]] = {
-    pool.withClient(shardInfo.hostname) { _.get(timeline, 0, -1) }
+  def getRaw(timeline: String): Option[Seq[Array[Byte]]] = {
+    val rv = pool.withClient(shardInfo.hostname) { _.get(timeline, 0, -1) }
+    if (rv.isEmpty) {
+      None
+    } else {
+      Some(rv)
+    }
   }
 
-  def getRange(timeline: String, fromId: Long, toId: Long, dedupe: Boolean): TimelineSegment = {
+  def getRange(timeline: String, fromId: Long, toId: Long, dedupe: Boolean): Option[TimelineSegment] = {
     val (entriesSince, size) = pool.withClient(shardInfo.hostname) { client =>
       val entries = new mutable.ArrayBuffer[Array[Byte]]()
       var cursor = 0
@@ -158,12 +171,16 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
       } else 0
       (entries.take(fromIdIndex).drop(toIdIndex), client.size(timeline))
     }
-    val entries = if (dedupe) {
-      dedupeBy(dedupeBy(entriesSince, 0), 8)
+    if (size > 0) {
+      val entries = if (dedupe) {
+        dedupeBy(dedupeBy(entriesSince, 0), 8)
+      } else {
+        dedupeBy(entriesSince, 0)
+      }
+      Some(TimelineSegment(entries, size))
     } else {
-      dedupeBy(entriesSince, 0)
+      None
     }
-    TimelineSegment(entries, size)
   }
 
   def merge(timeline: String, entries: Seq[Array[Byte]], onError: Option[Throwable => Unit]) {

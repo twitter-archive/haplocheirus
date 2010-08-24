@@ -32,10 +32,10 @@ class RedisCopySpec extends ConfiguredSpecification with JMocker with ClassMocke
         one(nameServer).findShardById(shard2Id) willReturn shard2
         one(shard1).getKeys(RedisCopy.START, RedisCopy.COPY_COUNT) willReturn List("t1", "t2")
         one(shard2).startCopy("t1")
-        one(shard1).getRaw("t1") willReturn entries
+        one(shard1).getRaw("t1") willReturn Some(entries)
         one(shard2).doCopy("t1", entries)
         one(shard2).startCopy("t2")
-        one(shard1).getRaw("t2") willReturn entries
+        one(shard1).getRaw("t2") willReturn Some(entries)
         one(shard2).doCopy("t2", entries)
         one(scheduler).apply(new RedisCopy(shard1Id, shard2Id, 2, RedisCopy.COPY_COUNT))
       }

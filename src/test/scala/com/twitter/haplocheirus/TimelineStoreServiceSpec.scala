@@ -64,10 +64,10 @@ object TimelineStoreServiceSpec extends Specification with JMocker with ClassMoc
 
       expect {
         one(nameServer).findCurrentForwarding(0, 632754681242344982L) willReturn shard1
-        one(shard1).filter(timeline, List(data)) willReturn List(data)
+        one(shard1).filter(timeline, List(data)) willReturn Some(List(data))
       }
 
-      service.filter(timeline, List(data)) mustEqual List(data)
+      service.filter(timeline, List(data)) mustEqual Some(List(data))
     }
 
     "get" in {
@@ -77,10 +77,10 @@ object TimelineStoreServiceSpec extends Specification with JMocker with ClassMoc
 
       expect {
         one(nameServer).findCurrentForwarding(0, 632754681242344982L) willReturn shard1
-        one(shard1).get("t1", offset, length, false) willReturn TimelineSegment(data, 3)
+        one(shard1).get("t1", offset, length, false) willReturn Some(TimelineSegment(data, 3))
       }
 
-      service.get("t1", offset, length, false) mustEqual TimelineSegment(data, 3)
+      service.get("t1", offset, length, false) mustEqual Some(TimelineSegment(data, 3))
     }
 
     "getRange" in {
@@ -90,10 +90,10 @@ object TimelineStoreServiceSpec extends Specification with JMocker with ClassMoc
 
       expect {
         one(nameServer).findCurrentForwarding(0, 632754681242344982L) willReturn shard1
-        one(shard1).getRange("t1", fromId, toId, false) willReturn TimelineSegment(data, 3)
+        one(shard1).getRange("t1", fromId, toId, false) willReturn Some(TimelineSegment(data, 3))
       }
 
-      service.getRange("t1", fromId, toId, false) mustEqual TimelineSegment(data, 3)
+      service.getRange("t1", fromId, toId, false) mustEqual Some(TimelineSegment(data, 3))
     }
 
     "store" in {
