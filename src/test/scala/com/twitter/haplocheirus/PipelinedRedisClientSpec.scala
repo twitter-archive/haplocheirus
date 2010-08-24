@@ -53,20 +53,20 @@ object PipelinedRedisClientSpec extends ConfiguredSpecification with JMocker wit
       }
     }
 
-    "isMember" in {
-      val entry1 = List(23L).pack
-      val entry2 = List(20L).pack
-
-      expect {
-        one(jredis).lismember(timeline, entry1) willReturn booleanFuture
-        one(booleanFuture).get(1000, TimeUnit.MILLISECONDS) willReturn true
-        one(jredis).lismember(timeline, entry2) willReturn booleanFuture
-        one(booleanFuture).get(1000, TimeUnit.MILLISECONDS) willReturn false
-      }
-
-      client.isMember(timeline, entry1) mustEqual true
-      client.isMember(timeline, entry2) mustEqual false
-    }
+    // "isMember" in {
+    //   val entry1 = List(23L).pack
+    //   val entry2 = List(20L).pack
+    // 
+    //   expect {
+    //     one(jredis).lismember(timeline, entry1) willReturn booleanFuture
+    //     one(booleanFuture).get(1000, TimeUnit.MILLISECONDS) willReturn true
+    //     one(jredis).lismember(timeline, entry2) willReturn booleanFuture
+    //     one(booleanFuture).get(1000, TimeUnit.MILLISECONDS) willReturn false
+    //   }
+    // 
+    //   client.isMember(timeline, entry1) mustEqual true
+    //   client.isMember(timeline, entry2) mustEqual false
+    // }
 
     "push" in {
       expect {

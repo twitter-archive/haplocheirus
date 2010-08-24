@@ -8,7 +8,7 @@ import com.twitter.gizzard.shards._
 import com.twitter.ostrich.Stats
 import com.twitter.querulous.StatsCollector
 import net.lag.configgy.ConfigMap
-import net.lag.logging.{Logger, ThrottledLogger}
+import net.lag.logging.Logger
 
 
 object Priority extends Enumeration {
@@ -27,18 +27,16 @@ object Haplocheirus {
     val scheduler = PrioritizingJobScheduler(config.configMap("queue"), jobParser,
       Map(Priority.Write.id -> "write", Priority.Copy.id -> "copy"))
 
-    val log = new ThrottledLogger[String](Logger(), config("throttled_log.period_msec").toInt,
-                                          config("throttled_log.rate").toInt)
     val replicationFuture = new Future("ReplicationFuture", config.configMap("replication_pool"))
     val redisPool = new RedisPool(config.configMap("redis"))
     val shardRepository = new BasicShardRepository[HaplocheirusShard](
-      new HaplocheirusShardAdapter(_), log, replicationFuture)
+      new HaplocheirusShardAdapter(_), replicationFuture)
     val shardFactory = new RedisShardFactory(redisPool, config("redis.range_query_page_size").toInt,
                                              config.configMap("timeline_trim"))
     shardRepository += ("com.twitter.haplocheirus.RedisShard" -> shardFactory)
 
     val nameServer = NameServer(config.configMap("nameservers"), Some(statsCollector),
-                                shardRepository, log, replicationFuture)
+                                shardRepository, replicationFuture)
     nameServer.reload()
 
     jobParser += (("Append".r, new BoundJobParser(jobs.AppendParser, nameServer)))
