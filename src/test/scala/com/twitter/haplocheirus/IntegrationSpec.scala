@@ -108,7 +108,7 @@ object IntegrationSpec extends ConfiguredSpecification with JMocker with ClassMo
         one(future).get(200L, TimeUnit.MILLISECONDS) willReturn 2L
         one(jredisClient).expire(timeline1, 86400) willReturn future2
         one(future2).get(200L, TimeUnit.MILLISECONDS) willReturn 0L
-        
+
         one(jredisClient).lrange(timeline1, 0, -1) willReturn timelineFuture
         one(timelineFuture).get(200L, TimeUnit.MILLISECONDS) willReturn List("a", "b", "c").map { _.getBytes }.toJavaList
         one(jredisClient).del(timeline1)
