@@ -12,6 +12,14 @@ object RedisCopy {
   val START = 0
   val END = -1
   val COPY_COUNT = 10000
+
+  def copyTimeline(timeline: String, sourceShard: HaplocheirusShard, destinationShard: HaplocheirusShard) {
+    destinationShard.startCopy(timeline)
+    sourceShard.getRaw(timeline) match {
+      case Some(data) => destinationShard.doCopy(timeline, data)
+      case None => destinationShard.deleteTimeline(timeline)
+    }
+  }
 }
 
 object RedisCopyFactory extends CopyFactory[HaplocheirusShard] {
@@ -36,10 +44,7 @@ class RedisCopy(sourceShardId: ShardId, destinationShardId: ShardId, cursor: Red
 
   def copyPage(sourceShard: HaplocheirusShard, destinationShard: HaplocheirusShard, count: Int) = {
     val keys = sourceShard.getKeys(cursor, count)
-    keys.foreach { key =>
-      destinationShard.startCopy(key)
-      destinationShard.doCopy(key, sourceShard.getRaw(key))
-    }
+    keys.foreach { key => RedisCopy.copyTimeline(key, sourceShard, destinationShard) }
     Stats.incr("copy", keys.size)
     if (keys.size == 0) {
       None

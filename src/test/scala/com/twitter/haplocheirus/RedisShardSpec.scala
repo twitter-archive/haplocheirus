@@ -93,7 +93,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
         one(jredis).expire(timeline, 1)
       }
 
-      redisShard.filter(timeline, List(entry1, entry2)).toList mustEqual List(entry2)
+      redisShard.filter(timeline, List(entry1, entry2)).get.toList mustEqual List(entry2)
     }
 
     "get" in {
@@ -111,7 +111,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
           one(jredis).expire(timeline, 1)
         }
 
-        redisShard.get(timeline, 0, 10, false).entries.toList mustEqual List(entry1, entry2, entry3)
+        redisShard.get(timeline, 0, 10, false).get.entries.toList mustEqual List(entry1, entry2, entry3)
       }
 
       "with duplicates in the sort key" in {
@@ -128,7 +128,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
           one(jredis).expire(timeline, 1)
         }
 
-        redisShard.get(timeline, 0, 10, false).entries.toList mustEqual List(entry2, entry3)
+        redisShard.get(timeline, 0, 10, false).get.entries.toList mustEqual List(entry2, entry3)
       }
 
       "with duplicates in the dedupe key" in {
@@ -145,8 +145,8 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
           allowing(jredis).expire(timeline, 1)
         }
 
-        redisShard.get(timeline, 0, 10, false).entries.toList mustEqual List(entry1, entry2, entry3)
-        redisShard.get(timeline, 0, 10, true).entries.toList mustEqual List(entry2, entry3)
+        redisShard.get(timeline, 0, 10, false).get.entries.toList mustEqual List(entry1, entry2, entry3)
+        redisShard.get(timeline, 0, 10, true).get.entries.toList mustEqual List(entry2, entry3)
       }
 
       "with missing dedupe key" in {
@@ -163,7 +163,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
           one(jredis).expire(timeline, 1)
         }
 
-        redisShard.get(timeline, 0, 10, true).entries.toList mustEqual List(entry1, entry2, entry3)
+        redisShard.get(timeline, 0, 10, true).get.entries.toList mustEqual List(entry1, entry2, entry3)
       }
 
       "doesn't spaz when there aren't enough bytes to uniqify" in {
@@ -180,7 +180,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
           one(jredis).expire(timeline, 1)
         }
 
-        redisShard.get(timeline, 0, 10, true).entries.toList mustEqual List(entry1, entry2, entry3)
+        redisShard.get(timeline, 0, 10, true).get.entries.toList mustEqual List(entry1, entry2, entry3)
       }
     }
 
@@ -196,7 +196,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
         one(jredis).expire(timeline, 1)
       }
 
-      redisShard.getRaw(timeline) mustEqual List(entry1, entry2, entry3)
+      redisShard.getRaw(timeline) mustEqual Some(List(entry1, entry2, entry3))
     }
 
     "getRange" in {
@@ -216,7 +216,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
           one(future).get(1000, TimeUnit.MILLISECONDS) willReturn List[Array[Byte]]().toJavaList
         }
 
-        redisShard.getRange(timeline, 10L, 0L, false).entries.toList mustEqual List(entry1, entry2, entry3)
+        redisShard.getRange(timeline, 10L, 0L, false).get.entries.toList mustEqual List(entry1, entry2, entry3)
       }
 
       "with fromId" in {
@@ -234,7 +234,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
             one(jredis).expire(timeline, 1)
           }
 
-          redisShard.getRange(timeline, 19L, 0L, false).entries.toList mustEqual List(entry1, entry2)
+          redisShard.getRange(timeline, 19L, 0L, false).get.entries.toList mustEqual List(entry1, entry2)
         }
 
         "in a later page" in {
@@ -257,7 +257,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
             one(jredis).expire(timeline, 1)
           }
 
-          redisShard.getRange(timeline, 13L, 0L, false).entries.toList mustEqual List(entry1, entry2, entry3, entry4)
+          redisShard.getRange(timeline, 13L, 0L, false).get.entries.toList mustEqual List(entry1, entry2, entry3, entry4)
         }
       }
 
@@ -276,9 +276,9 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
             allowing(jredis).expire(timeline, 1)
           }
 
-          redisShard.getRange(timeline, 19L, 30L, false).entries.toList mustEqual List(entry1, entry2)
-          redisShard.getRange(timeline, 19L, 23L, false).entries.toList mustEqual List(entry1, entry2)
-          redisShard.getRange(timeline, 19L, 20L, false).entries.toList mustEqual List(entry2)
+          redisShard.getRange(timeline, 19L, 30L, false).get.entries.toList mustEqual List(entry1, entry2)
+          redisShard.getRange(timeline, 19L, 23L, false).get.entries.toList mustEqual List(entry1, entry2)
+          redisShard.getRange(timeline, 19L, 20L, false).get.entries.toList mustEqual List(entry2)
         }
 
         "in a later page" in {
@@ -302,9 +302,9 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
             allowing(longFuture).get(1000, TimeUnit.MILLISECONDS) willReturn 3L
           }
 
-          redisShard.getRange(timeline, 13L, 30L, false).entries.toList mustEqual List(entry1, entry2, entry3, entry4)
-          redisShard.getRange(timeline, 13L, 20L, false).entries.toList mustEqual List(entry2, entry3, entry4)
-          redisShard.getRange(timeline, 13L, 17L, false).entries.toList mustEqual List(entry4)
+          redisShard.getRange(timeline, 13L, 30L, false).get.entries.toList mustEqual List(entry1, entry2, entry3, entry4)
+          redisShard.getRange(timeline, 13L, 20L, false).get.entries.toList mustEqual List(entry2, entry3, entry4)
+          redisShard.getRange(timeline, 13L, 17L, false).get.entries.toList mustEqual List(entry4)
         }
       }
 
@@ -328,7 +328,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
           one(jredis).expire(timeline, 1)
         }
 
-        redisShard.getRange(timeline, 13L, 0L, false).entries.toList mustEqual List(entry1, entry3, entry4)
+        redisShard.getRange(timeline, 13L, 0L, false).get.entries.toList mustEqual List(entry1, entry3, entry4)
       }
     }
 

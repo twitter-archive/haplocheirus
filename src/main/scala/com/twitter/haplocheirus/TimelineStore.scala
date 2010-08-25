@@ -15,15 +15,30 @@ class TimelineStore(service: TimelineStoreService) extends thrift.TimelineStore.
   }
 
   def filter(timeline_id: String, entries: JList[Array[Byte]]) = {
-    service.filter(timeline_id, entries.toSeq).toJavaList
+    service.filter(timeline_id, entries.toSeq) match {
+      case None =>
+        List[Array[Byte]]().toJavaList
+      case Some(x) =>
+        x.toJavaList
+    }
   }
 
   def get(timeline_id: String, offset: Int, length: Int, dedupe: Boolean) = {
-    service.get(timeline_id, offset, length, dedupe).toThrift
+    service.get(timeline_id, offset, length, dedupe) match {
+      case None =>
+        new TimelineSegment(Nil, 0).toThrift
+      case Some(x) =>
+        x.toThrift
+    }
   }
 
   def get_range(timeline_id: String, from_id: Long, to_id: Long, dedupe: Boolean) = {
-    service.getRange(timeline_id, from_id, to_id, dedupe).toThrift
+    service.getRange(timeline_id, from_id, to_id, dedupe) match {
+      case None =>
+        new TimelineSegment(Nil, 0).toThrift
+      case Some(x) =>
+        x.toThrift
+    }
   }
 
   def store(timeline_id: String, entries: JList[Array[Byte]]) {
