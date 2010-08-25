@@ -1,12 +1,14 @@
 # Docs at http://confluence.local.twitter.com/display/RELEASE/Twitter-cap-utils+README
 begin
   require 'rubygems'
-  gem 'twitter-cap-utils', "0.6.3"
+  gem 'twitter-cap-utils', "0.6.4"
   require "railsless-deploy"
   require 'twitter_cap_utils'
 rescue LoadError
   abort "Please gem install twitter-cap-utils railsless-deploy"
 end
+
+set :origin, "twitter"
 
 set :application, "haplocheirus"
 set :admin_port, 7667
@@ -36,9 +38,9 @@ namespace :deploy do
       "mkdir -p /usr/local/#{application}/releases",
       "chown -R twitter:twitter /usr/local/#{application}",
       "mkdir -p /var/log/#{application}",
-      "chown daemon:daemon /var/log/#{application}",
+      "chown haplo:haplo /var/log/#{application}",
       "mkdir -p /var/spool/kestrel",
-      "chown daemon:daemon /var/spool/kestrel",
+      "chown haplo:haplo /var/spool/kestrel",
     ]
 
     run "sudo sh -c '#{commands.join(' && ')}'" do |channel, stream, data|
@@ -61,3 +63,4 @@ after "deploy:subrestart" do
   sleep 5
   execute_with_hosts("deploy:verify_build", find_task("deploy:subrestart").options[:hosts])
 end
+
