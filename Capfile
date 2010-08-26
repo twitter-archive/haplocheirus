@@ -19,7 +19,7 @@ task :production do
 end
 
 task :canary do
-  role :haplo, "sjc1h108.prod.twitter.com"
+  role :haplo, "sjc1r052.prod.twitter.com"
 end
 
 namespace :deploy do
@@ -38,9 +38,9 @@ namespace :deploy do
       "mkdir -p /usr/local/#{application}/releases",
       "chown -R twitter:twitter /usr/local/#{application}",
       "mkdir -p /var/log/#{application}",
-      "chown haplo:haplo /var/log/#{application}",
+      "chown -R haplo:haplo /var/log/#{application}",
       "mkdir -p /var/spool/kestrel",
-      "chown haplo:haplo /var/spool/kestrel",
+      "chown -R haplo:haplo /var/spool/kestrel",
     ]
 
     run "sudo sh -c '#{commands.join(' && ')}'" do |channel, stream, data|
@@ -54,9 +54,9 @@ namespace :deploy do
     set :user, ENV["USER"]
   end
 
-  task :subrestart do
-    sudo "/usr/local/#{application}/current/scripts/#{application}.sh restart"
-  end
+#  task :subrestart do
+#    sudo "/usr/local/#{application}/current/scripts/#{application}.sh restart"
+#  end
 end
 
 after "deploy:subrestart" do
