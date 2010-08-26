@@ -8,7 +8,7 @@ rescue LoadError
   abort "Please gem install twitter-cap-utils railsless-deploy"
 end
 
-set :origin, "twitter"
+set :user, "haplo"
 
 set :application, "haplocheirus"
 set :admin_port, 7667
