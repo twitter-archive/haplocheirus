@@ -9,8 +9,10 @@ rescue LoadError
 end
 
 set :user, "haplo"
+set :build_user, "twitter"
 
 set :application, "haplocheirus"
+set :monit_application, "haplo"
 set :admin_port, 7667
 
 
@@ -36,7 +38,7 @@ namespace :deploy do
 
     commands = [
       "mkdir -p /usr/local/#{application}/releases",
-      "chown -R twitter:twitter /usr/local/#{application}",
+      "chown -R haplo:haplo /usr/local/#{application}",
       "mkdir -p /var/log/#{application}",
       "chown -R haplo:haplo /var/log/#{application}",
       "mkdir -p /var/spool/kestrel",
