@@ -1,7 +1,7 @@
 # Docs at http://confluence.local.twitter.com/display/RELEASE/Twitter-cap-utils+README
 begin
   require 'rubygems'
-  gem 'twitter-cap-utils', "0.6.4"
+  gem 'twitter-cap-utils', "~> 0.6.5"
   require "railsless-deploy"
   require 'twitter_cap_utils'
 rescue LoadError
