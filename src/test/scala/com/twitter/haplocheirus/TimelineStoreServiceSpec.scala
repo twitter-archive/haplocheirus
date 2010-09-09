@@ -41,7 +41,7 @@ object TimelineStoreServiceSpec extends Specification with JMocker with ClassMoc
         one(shard2).append(data, "t2", None)
       }
 
-      service.append(data, timelines)
+      service.append(data, "t", List(1L, 2L))
     }
 
     "remove" in {
@@ -55,7 +55,7 @@ object TimelineStoreServiceSpec extends Specification with JMocker with ClassMoc
         one(shard2).remove(data, "t2", None)
       }
 
-      service.remove(data, timelines)
+      service.remove(data, "t", List(1L, 2L))
     }
 
     "filter" in {

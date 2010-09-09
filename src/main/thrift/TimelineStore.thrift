@@ -12,8 +12,8 @@ struct TimelineSegment {
 }
 
 service TimelineStore {
-  void append(1: binary entry, 2: list<string> timeline_ids) throws(1: TimelineStoreException ex)
-  void remove(1: binary entry, 2: list<string> timeline_ids) throws(1: TimelineStoreException ex)
+  void append(1: binary entry, 2: string timeline_prefix, 3: list<i64> timeline_ids) throws(1: TimelineStoreException ex)
+  void remove(1: binary entry, 2: string timeline_prefix, 3: list<i64> timeline_ids) throws(1: TimelineStoreException ex)
   list<binary> filter(1: string timeline_id, 2: list<binary> entry) throws(1: TimelineStoreException ex)
   TimelineSegment get(1: string timeline_id, 2: i32 offset, 3: i32 length, 4: bool dedupe) throws(1: TimelineStoreException ex)
   TimelineSegment get_range(1: string timeline_id, 2: i64 from_id, 3: i64 to_id, 4: bool dedupe) throws(1: TimelineStoreException ex)
