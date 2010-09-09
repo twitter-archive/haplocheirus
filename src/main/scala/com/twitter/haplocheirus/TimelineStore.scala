@@ -6,12 +6,12 @@ import com.twitter.haplocheirus.thrift.conversions.TimelineSegment._
 
 
 class TimelineStore(service: TimelineStoreService) extends thrift.TimelineStore.Iface {
-  def append(entry: Array[Byte], timeline_ids: JList[String]) {
-    service.append(entry, timeline_ids.toSeq)
+  def append(entry: Array[Byte], timeline_prefix: String, timeline_ids: JList[java.lang.Long]) {
+    service.append(entry, timeline_prefix, timeline_ids.toSeq)
   }
 
-  def remove(entry: Array[Byte], timeline_ids: JList[String]) {
-    service.remove(entry, timeline_ids.toSeq)
+  def remove(entry: Array[Byte], timeline_prefix: String, timeline_ids: JList[java.lang.Long]) {
+    service.remove(entry, timeline_prefix, timeline_ids.toSeq)
   }
 
   def filter(timeline_id: String, entries: JList[Array[Byte]]) = {

@@ -19,7 +19,7 @@ class HaplocheirusProject(info: ProjectInfo) extends StandardProject(info) with 
   val kestrel   = "net.lag" % "kestrel" % "1.2"
 
   val querulous = "com.twitter" % "querulous" % "1.1.11"
-  val gizzard = "com.twitter" % "gizzard" % "1.3.16"
+  val gizzard = "com.twitter" % "gizzard" % "1.3.17"
   val jredis = "jredis" % "jredis" % "1.0-tw1"
   val codec = "commons-codec" % "commons-codec" % "1.4"
   val ostrich = "com.twitter" % "ostrich" % "1.1.23"
