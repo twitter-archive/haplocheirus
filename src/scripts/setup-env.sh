@@ -16,7 +16,7 @@
 
 VERSION="@VERSION@"
 
-if java -version 2>&1 |grep "1\.5"; then
+if java -version 2>&1 | grep "1\.5"; then
   echo "Java must be at least 1.6"
   exit 1
 fi
@@ -36,12 +36,12 @@ sleep 3
 echo "Launching haplo..."
 
 JAVA_OPTS="-Xms256m -Xmx256m -XX:NewSize=64m -XX:+UseConcMarkSweepGC -XX:+UseParNewGC -server"
-java -Dstage=development $JAVA_OPTS -jar ./dist/haplocheirus-${VERSION}/haplocheirus-${VERSION}.jar &
+java -Dstage=development $JAVA_OPTS -jar ./dist/haplocheirus/haplocheirus-${VERSION}.jar &
 
 sleep 10
 
 echo "Creating shards..."
-shard=$($gizzmo create "com.twitter.haplocheirus.RedisShard" "localhost/dev1")
-$gizzmo addforwarding -- 0 0 $shard
+$gizzmo create "com.twitter.haplocheirus.RedisShard" "localhost/dev1" >/dev/null
+$gizzmo addforwarding -- 0 0 "localhost/dev1"
 $gizzmo -f reload
 echo "Done."
