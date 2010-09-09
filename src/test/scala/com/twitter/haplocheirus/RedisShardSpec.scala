@@ -84,16 +84,31 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
       val entry1 = List(20L).pack
       val entry2 = List(21L).pack
       val entry3 = List(22L).pack
+      val entry4 = List(23L).pack
+      val entry5 = List(24L).pack
       val future = mock[Future[JList[Array[Byte]]]]
 
-      expect {
-        one(shardInfo).hostname willReturn "host1"
-        one(jredis).lrange(timeline, 0, -1) willReturn future
-        one(future).get(1000, TimeUnit.MILLISECONDS) willReturn List(entry2, entry3).toJavaList
-        one(jredis).expire(timeline, 1)
+      "with no limit" in {
+        expect {
+          one(shardInfo).hostname willReturn "host1"
+          one(jredis).lrange(timeline, 0, -1) willReturn future
+          one(future).get(1000, TimeUnit.MILLISECONDS) willReturn List(entry2, entry3).toJavaList
+          one(jredis).expire(timeline, 1)
+        }
+
+        redisShard.filter(timeline, List(entry1, entry2), -1).get.toList mustEqual List(entry2)
       }
 
-      redisShard.filter(timeline, List(entry1, entry2)).get.toList mustEqual List(entry2)
+      "with a search limit" in {
+        expect {
+          one(shardInfo).hostname willReturn "host1"
+          one(jredis).lrange(timeline, -3, -1) willReturn future
+          one(future).get(1000, TimeUnit.MILLISECONDS) willReturn List(entry2, entry3, entry4).toJavaList
+          one(jredis).expire(timeline, 1)
+        }
+
+        redisShard.filter(timeline, List(entry1, entry2), 3).get.toList mustEqual List(entry2)
+      }
     }
 
     "get" in {

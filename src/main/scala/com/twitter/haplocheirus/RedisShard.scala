@@ -107,10 +107,10 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
   }
 
   // this is really inefficient. we should discourage its use.
-  def filter(timeline: String, entries: Seq[Array[Byte]]): Option[Seq[Array[Byte]]] = {
+  def filter(timeline: String, entries: Seq[Array[Byte]], maxSearch: Int): Option[Seq[Array[Byte]]] = {
     val searchKeys = sortKeysFromEntries(entries)
     val timelineEntries = Set(sortKeysFromEntries(pool.withClient(shardInfo.hostname) { client =>
-      client.get(timeline, 0, -1)
+      client.get(timeline, 0, maxSearch)
     }).map { _.key }: _*)
     if (timelineEntries.isEmpty) {
       None

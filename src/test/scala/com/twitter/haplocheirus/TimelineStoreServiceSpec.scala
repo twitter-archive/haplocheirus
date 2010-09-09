@@ -64,10 +64,10 @@ object TimelineStoreServiceSpec extends Specification with JMocker with ClassMoc
 
       expect {
         one(nameServer).findCurrentForwarding(0, 632754681242344982L) willReturn shard1
-        one(shard1).filter(timeline, List(data)) willReturn Some(List(data))
+        one(shard1).filter(timeline, List(data), -1) willReturn Some(List(data))
       }
 
-      service.filter(timeline, List(data)) mustEqual Some(List(data))
+      service.filter(timeline, List(data), -1) mustEqual Some(List(data))
     }
 
     "get" in {
