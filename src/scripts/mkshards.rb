@@ -45,7 +45,7 @@ rescue => e
 end
 
 app_host, app_port = (config['app_host'] || 'localhost').split(':')
-app_port ||= 7667
+app_port ||= 7668
 
 namespace = config['namespace'] || nil
 db_trees = Array(config['databases'] || 'localhost')
