@@ -35,7 +35,7 @@ class PipelinedRedisClient(hostname: String, pipelineMaxSize: Int, timeout: Dura
   } else {
     DefaultConnectionSpec.newSpec(segments(0), DEFAULT_PORT, 0, null)
   }
-  connectionSpec.setHeartbeat(300)
+  connectionSpec.setHeartbeat(30000)
   val redisClient = makeRedisClient
   var alive = true
 
