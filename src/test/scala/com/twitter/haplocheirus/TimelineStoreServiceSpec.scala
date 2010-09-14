@@ -156,7 +156,7 @@ object TimelineStoreServiceSpec extends Specification with JMocker with ClassMoc
         one(nameServer).findCurrentForwarding(0, 632754681242344982L) willReturn shard1
         one(nameServer).findCurrentForwarding(0, 632753581730716771L) willReturn shard2
         one(shard2).getRaw("t2") willReturn Some(data)
-//        one(shard1).merge("t1", data, None)
+        one(shard1).remove("t1", data, None)
       }
 
       service.unmergeIndirect(timeline1, timeline2)

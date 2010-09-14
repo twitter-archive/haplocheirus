@@ -77,7 +77,7 @@ case class UnmergeIndirect(destTimeline: String, sourceTimeline: String) extends
     val destShard = nameServer.findCurrentForwarding(0, Hash.FNV1A_64(destTimeline))
     val sourceShard = nameServer.findCurrentForwarding(0, Hash.FNV1A_64(sourceTimeline))
     sourceShard.getRaw(sourceTimeline) foreach { entries =>
-//      destShard.merge(destTimeline, entries, onErrorCallback)
+      destShard.remove(destTimeline, entries, onErrorCallback)
     }
   }
 }
