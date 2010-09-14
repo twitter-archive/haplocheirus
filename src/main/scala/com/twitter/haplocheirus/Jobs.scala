@@ -74,7 +74,11 @@ case class UnmergeIndirect(destTimeline: String, sourceTimeline: String) extends
   }
 
   def apply(nameServer: NameServer[HaplocheirusShard]) {
-//    nameServer.findCurrentForwarding(0, Hash.FNV1A_64(timeline)).merge(timeline, entries, onErrorCallback)
+    val destShard = nameServer.findCurrentForwarding(0, Hash.FNV1A_64(destTimeline))
+    val sourceShard = nameServer.findCurrentForwarding(0, Hash.FNV1A_64(sourceTimeline))
+    sourceShard.getRaw(sourceTimeline) foreach { entries =>
+//      destShard.merge(destTimeline, entries, onErrorCallback)
+    }
   }
 }
 

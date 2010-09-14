@@ -85,7 +85,7 @@ object JobsSpec extends Specification with JMocker with ClassMocker {
         one(nameServer).findCurrentForwarding(0, 632754681242344982L) willReturn shard1
         one(nameServer).findCurrentForwarding(0, 632753581730716771L) willReturn shard2
         one(shard2).getRaw("t2") willReturn Some(data)
-        one(shard1).unmerge("t1", data, None)
+//        one(shard1).unmerge("t1", data, None)
       }
 
       jobs.UnmergeIndirectParser(map).toString mustEqual unmergeIndirect.toString
