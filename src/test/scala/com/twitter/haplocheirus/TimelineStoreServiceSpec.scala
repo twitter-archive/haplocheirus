@@ -132,7 +132,7 @@ object TimelineStoreServiceSpec extends Specification with JMocker with ClassMoc
       service.unmerge(timeline, data)
     }
 
-    "merge_indirect" in {
+    "mergeIndirect" in {
       val data = List("a".getBytes, "z".getBytes)
       val timeline1 = "t1"
       val timeline2 = "t2"
@@ -147,7 +147,7 @@ object TimelineStoreServiceSpec extends Specification with JMocker with ClassMoc
       service.mergeIndirect(timeline1, timeline2)
     }
 
-    "unmerge_indirect" in {
+    "unmergeIndirect" in {
       val data = List("a".getBytes, "z".getBytes)
       val timeline1 = "t1"
       val timeline2 = "t2"
