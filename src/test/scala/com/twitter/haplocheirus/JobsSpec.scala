@@ -21,7 +21,7 @@ object JobsSpec extends Specification with JMocker with ClassMocker {
 
       expect {
         one(nameServer).findCurrentForwarding(0, 632754681242344982L) willReturn shard1
-        one(shard1).append(data, "t1", None)
+        one(shard1).append("t1", List(data), None)
       }
 
       jobs.AppendParser(map).toString mustEqual append.toString
@@ -36,7 +36,7 @@ object JobsSpec extends Specification with JMocker with ClassMocker {
 
       expect {
         one(nameServer).findCurrentForwarding(0, 632754681242344982L) willReturn shard1
-        one(shard1).remove(data, "t1", None)
+        one(shard1).remove("t1", List(data), None)
       }
 
       jobs.RemoveParser(map).toString mustEqual remove.toString

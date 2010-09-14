@@ -30,7 +30,7 @@ case class Append(entry: Array[Byte], timeline: String) extends RedisJob {
   }
 
   def apply(nameServer: NameServer[HaplocheirusShard]) {
-    nameServer.findCurrentForwarding(0, Hash.FNV1A_64(timeline)).append(entry, timeline, onErrorCallback)
+    nameServer.findCurrentForwarding(0, Hash.FNV1A_64(timeline)).append(timeline, List(entry), onErrorCallback)
   }
 }
 
@@ -40,7 +40,7 @@ case class Remove(entry: Array[Byte], timeline: String) extends RedisJob {
   }
 
   def apply(nameServer: NameServer[HaplocheirusShard]) {
-    nameServer.findCurrentForwarding(0, Hash.FNV1A_64(timeline)).remove(entry, timeline, onErrorCallback)
+    nameServer.findCurrentForwarding(0, Hash.FNV1A_64(timeline)).remove(timeline, List(entry), onErrorCallback)
   }
 }
 

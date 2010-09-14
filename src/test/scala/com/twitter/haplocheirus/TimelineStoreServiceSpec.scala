@@ -37,8 +37,8 @@ object TimelineStoreServiceSpec extends Specification with JMocker with ClassMoc
       expect {
         one(nameServer).findCurrentForwarding(0, 632754681242344982L) willReturn shard1
         one(nameServer).findCurrentForwarding(0, 632753581730716771L) willReturn shard2
-        one(shard1).append(data, "t1", None)
-        one(shard2).append(data, "t2", None)
+        one(shard1).append("t1", List(data), None)
+        one(shard2).append("t2", List(data), None)
       }
 
       service.append(data, "t", List(1L, 2L))
@@ -51,8 +51,8 @@ object TimelineStoreServiceSpec extends Specification with JMocker with ClassMoc
       expect {
         one(nameServer).findCurrentForwarding(0, 632754681242344982L) willReturn shard1
         one(nameServer).findCurrentForwarding(0, 632753581730716771L) willReturn shard2
-        one(shard1).remove(data, "t1", None)
-        one(shard2).remove(data, "t2", None)
+        one(shard1).remove("t1", List(data), None)
+        one(shard2).remove("t2", List(data), None)
       }
 
       service.remove(data, "t", List(1L, 2L))
@@ -125,8 +125,8 @@ object TimelineStoreServiceSpec extends Specification with JMocker with ClassMoc
 
       expect {
         exactly(2).of(nameServer).findCurrentForwarding(0, 632754681242344982L) willReturn shard1
-        one(shard1).remove("a".getBytes, "t1", None)
-        one(shard1).remove("z".getBytes, "t1", None)
+        one(shard1).remove("t1", List(data(0)), None)
+        one(shard1).remove("t1", List(data(1)), None)
       }
 
       service.unmerge(timeline, data)

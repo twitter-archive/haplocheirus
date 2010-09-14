@@ -56,7 +56,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
           one(longFuture).get(1000, TimeUnit.MILLISECONDS) willReturn 100L
         }
 
-        redisShard.append(data, timeline, None)
+        redisShard.append(timeline, List(data), None)
       }
 
       "does need trim" in {
@@ -67,7 +67,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
           one(jredis).ltrim(timeline, -800, -1)
         }
 
-        redisShard.append(data, timeline, None)
+        redisShard.append(timeline, List(data), None)
       }
     }
 
@@ -77,7 +77,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
         one(jredis).lrem(timeline, data, 0)
       }
 
-      redisShard.remove(data, timeline, None)
+      redisShard.remove(timeline, List(data), None)
     }
 
     "filter" in {
@@ -537,7 +537,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
         one(jredis).rpushx(timeline, data) willThrow new IllegalStateException("aiee")
       }
 
-      redisShard.append(data, timeline, None) must throwA[ShardException]
+      redisShard.append(timeline, List(data), None) must throwA[ShardException]
     }
   }
 }

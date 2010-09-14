@@ -94,15 +94,19 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
     }
   }
 
-  def append(entry: Array[Byte], timeline: String, onError: Option[Throwable => Unit]) {
+  def append(timeline: String, entries: Seq[Array[Byte]], onError: Option[Throwable => Unit]) {
     pool.withClient(shardInfo.hostname) { client =>
-      client.push(timeline, entry, onError) { checkTrim(client, timeline, _) }
+      entries.foreach { entry =>
+        client.push(timeline, entry, onError) { checkTrim(client, timeline, _) }
+      }
     }
   }
 
-  def remove(entry: Array[Byte], timeline: String, onError: Option[Throwable => Unit]) {
+  def remove(timeline: String, entries: Seq[Array[Byte]], onError: Option[Throwable => Unit]) {
     pool.withClient(shardInfo.hostname) { client =>
-      client.pop(timeline, entry, onError)
+      entries.foreach { entry =>
+        client.pop(timeline, entry, onError)
+      }
     }
   }
 
