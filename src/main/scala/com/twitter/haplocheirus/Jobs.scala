@@ -54,6 +54,30 @@ case class Merge(timeline: String, entries: Seq[Array[Byte]]) extends RedisJob {
   }
 }
 
+case class MergeIndirect(destTimeline: String, sourceTimeline: String) extends RedisJob {
+  def toMap = {
+    Map("dest_timeline" -> destTimeline, "source_timeline" -> sourceTimeline)
+  }
+
+  def apply(nameServer: NameServer[HaplocheirusShard]) {
+    val destShard = nameServer.findCurrentForwarding(0, Hash.FNV1A_64(destTimeline))
+    val sourceShard = nameServer.findCurrentForwarding(0, Hash.FNV1A_64(sourceTimeline))
+    sourceShard.getRaw(sourceTimeline) foreach { entries =>
+      destShard.merge(destTimeline, entries, onErrorCallback)
+    }
+  }
+}
+
+case class UnmergeIndirect(destTimeline: String, sourceTimeline: String) extends RedisJob {
+  def toMap = {
+    Map("dest_timeline" -> destTimeline, "source_timeline" -> sourceTimeline)
+  }
+
+  def apply(nameServer: NameServer[HaplocheirusShard]) {
+//    nameServer.findCurrentForwarding(0, Hash.FNV1A_64(timeline)).merge(timeline, entries, onErrorCallback)
+  }
+}
+
 case class DeleteTimeline(timeline: String) extends RedisJob {
   def toMap = {
     Map("timeline" -> timeline)

@@ -86,6 +86,9 @@ service TimelineStore {
    */
   void unmerge(1: string timeline_id, 2: list<binary> entries) throws(1: TimelineStoreException ex)
 
+  void merge_indirect(1: string dest_timeline_id, 2: string source_timeline_id) throws(1: TimelineStoreException ex)
+  void unmerge_indirect(1: string dest_timeline_id, 2: string source_timeline_id) throws(1: TimelineStoreException ex)
+
   /*
    * Delete a timeline completely.
    */

@@ -132,6 +132,32 @@ object TimelineStoreServiceSpec extends Specification with JMocker with ClassMoc
       service.unmerge(timeline, data)
     }
 
+    "merge_indirect" in {
+      val data = List("a".getBytes, "z".getBytes)
+      val timeline1 = "t1"
+      val timeline2 = "t2"
+
+      expect {
+        one(nameServer).findCurrentForwarding(0, 632754681242344982L) willReturn shard1
+        one(nameServer).findCurrentForwarding(0, 632753581730716771L) willReturn shard2
+        one(shard2).getRaw("t2") willReturn Some(data)
+        one(shard1).merge("t1", data, None)
+      }
+
+      service.mergeIndirect(timeline1, timeline2)
+    }
+
+    "unmerge_indirect" in {
+      val timeline1 = "t1"
+      val timeline2 = "t2"
+
+      expect {
+//        exactly(2).of(nameServer).findCurrentForwarding(0, 632754681242344982L) willReturn shard1
+      }
+
+      service.unmergeIndirect(timeline1, timeline2)
+    }
+
     "deleteTimeline" in {
       expect {
         one(nameServer).findCurrentForwarding(0, 632754681242344982L) willReturn shard1

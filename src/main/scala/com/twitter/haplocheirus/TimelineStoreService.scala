@@ -82,6 +82,14 @@ class TimelineStoreService(val nameServer: NameServer[HaplocheirusShard],
     }
   }
 
+  def mergeIndirect(destTimeline: String, sourceTimeline: String) {
+    injectJob(jobs.MergeIndirect(destTimeline, sourceTimeline))
+  }
+
+  def unmergeIndirect(destTimeline: String, sourceTimeline: String) {
+    injectJob(jobs.UnmergeIndirect(destTimeline, sourceTimeline))
+  }
+
   def deleteTimeline(timeline: String) {
     injectJob(jobs.DeleteTimeline(timeline))
   }

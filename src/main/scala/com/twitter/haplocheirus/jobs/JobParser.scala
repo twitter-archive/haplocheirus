@@ -29,6 +29,20 @@ object MergeParser extends JobParser {
   }
 }
 
+object MergeIndirectParser extends JobParser {
+  def apply(attributes: Map[String, Any]) = {
+    new MergeIndirect(attributes("dest_timeline").asInstanceOf[String],
+                      attributes("source_timeline").asInstanceOf[String])
+  }
+}
+
+object UnmergeIndirectParser extends JobParser {
+  def apply(attributes: Map[String, Any]) = {
+    new UnmergeIndirect(attributes("dest_timeline").asInstanceOf[String],
+                        attributes("source_timeline").asInstanceOf[String])
+  }
+}
+
 object DeleteTimelineParser extends JobParser {
   def apply(attributes: Map[String, Any]) = {
     new DeleteTimeline(attributes("timeline").asInstanceOf[String])
