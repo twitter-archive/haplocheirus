@@ -360,6 +360,21 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
         redisShard.merge(timeline, List(List(21L).pack), None)
       }
 
+      "tiny little entries" in {
+        val insert = List("a".getBytes, "b".getBytes)
+
+        expect {
+          one(shardInfo).hostname willReturn "host1"
+          one(jredis).lrange(timeline, 0, -1) willReturn future
+          one(future).get(1000, TimeUnit.MILLISECONDS) willReturn existing.map { List(_).pack }.reverse.toJavaList
+          one(jredis).expire(timeline, 1)
+          one(jredis).rpushx(timeline, insert(0))
+          one(jredis).rpushx(timeline, insert(1))
+        }
+
+        redisShard.merge(timeline, insert, None)
+      }
+
       "nothing to merge" in {
         expect {
           one(shardInfo).hostname willReturn "host1"
