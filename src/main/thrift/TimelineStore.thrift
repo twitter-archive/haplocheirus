@@ -50,6 +50,7 @@ service TimelineStore {
    * ones that were found. If max_search is -1, the entire timeline is searched; otherwise, only
    * the first N entries are searched. The returned entries will exactly match entries passed in --
    * that is, returned entries come from the passed-in set, not the actual timeline.
+   * Throw "TimelineStoreException" if there's no such timeline in cache.
    */
   list<binary> filter(1: string timeline_id, 2: list<binary> entry, 3: i32 max_search) throws(1: TimelineStoreException ex)
 
@@ -57,6 +58,7 @@ service TimelineStore {
    * Fetch a span of entries from a timeline. The offset & length are counted from most recent to
    * oldest, so an offset of 0 is the newest entry. If "dedupe" is true, only entries with unique
    * dedupe keys (the 2nd i64 of a timeline entry) will be returned.
+   * Throw "TimelineStoreException" if there's no such timeline in cache.
    */
   TimelineSegment get(1: string timeline_id, 2: i32 offset, 3: i32 length, 4: bool dedupe) throws(1: TimelineStoreException ex)
 
@@ -65,6 +67,7 @@ service TimelineStore {
    * with a lower or higher id that were inserted out of order. Both from_id & to_id are optional
    * (may be blank) and are treated as prefixes so that a unique prefix may be used instead of the
    * whole entry. Entries may be "deduped" just like in "get".
+   * Throw "TimelineStoreException" if there's no such timeline in cache.
    */
   TimelineSegment get_range(1: string timeline_id, 2: i64 from_id, 3: i64 to_id, 4: bool dedupe) throws(1: TimelineStoreException ex)
 

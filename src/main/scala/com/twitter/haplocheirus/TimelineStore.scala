@@ -3,6 +3,7 @@ package com.twitter.haplocheirus
 import java.util.{List => JList}
 import com.twitter.gizzard.thrift.conversions.Sequences._
 import com.twitter.haplocheirus.thrift.conversions.TimelineSegment._
+import thrift.TimelineStoreException
 
 
 class TimelineStore(service: TimelineStoreService) extends thrift.TimelineStore.Iface {
@@ -15,29 +16,20 @@ class TimelineStore(service: TimelineStoreService) extends thrift.TimelineStore.
   }
 
   def filter(timeline_id: String, entries: JList[Array[Byte]], max_search: Int) = {
-    service.filter(timeline_id, entries.toSeq, max_search) match {
-      case None =>
-        List[Array[Byte]]().toJavaList
-      case Some(x) =>
-        x.toJavaList
+    service.filter(timeline_id, entries.toSeq, max_search).map(_.toJavaList).getOrElse {
+      throw new TimelineStoreException("no timeline")
     }
   }
 
   def get(timeline_id: String, offset: Int, length: Int, dedupe: Boolean) = {
-    service.get(timeline_id, offset, length, dedupe) match {
-      case None =>
-        new TimelineSegment(Nil, 0).toThrift
-      case Some(x) =>
-        x.toThrift
+    service.get(timeline_id, offset, length, dedupe).map(_.toThrift).getOrElse {
+      throw new TimelineStoreException("no timeline")
     }
   }
 
   def get_range(timeline_id: String, from_id: Long, to_id: Long, dedupe: Boolean) = {
-    service.getRange(timeline_id, from_id, to_id, dedupe) match {
-      case None =>
-        new TimelineSegment(Nil, 0).toThrift
-      case Some(x) =>
-        x.toThrift
+    service.getRange(timeline_id, from_id, to_id, dedupe).map(_.toThrift).getOrElse {
+      throw new TimelineStoreException("no timeline")
     }
   }
 
