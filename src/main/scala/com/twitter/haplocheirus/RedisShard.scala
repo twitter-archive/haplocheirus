@@ -43,7 +43,11 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
   case class EntryWithKey(key: Long, entry: Array[Byte])
 
   private def sortKeyFromEntry(entry: Array[Byte], offset: Int): Long = {
-    ByteBuffer.wrap(entry).order(ByteOrder.LITTLE_ENDIAN).getLong(offset)
+    if (entry.size < offset + 8) {
+      0
+    } else {
+      ByteBuffer.wrap(entry).order(ByteOrder.LITTLE_ENDIAN).getLong(offset)
+    }
   }
 
   private def sortKeyFromEntry(entry: Array[Byte]): Long = sortKeyFromEntry(entry, 0)

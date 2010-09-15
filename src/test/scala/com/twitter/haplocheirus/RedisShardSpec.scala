@@ -368,8 +368,8 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
           one(jredis).lrange(timeline, 0, -1) willReturn future
           one(future).get(1000, TimeUnit.MILLISECONDS) willReturn existing.map { List(_).pack }.reverse.toJavaList
           one(jredis).expire(timeline, 1)
-          one(jredis).rpushx(timeline, insert(0))
-          one(jredis).rpushx(timeline, insert(1))
+          one(jredis).linsertBefore(timeline, List(7L).pack, insert(0))
+          one(jredis).linsertBefore(timeline, insert(0), insert(1))
         }
 
         redisShard.merge(timeline, insert, None)
