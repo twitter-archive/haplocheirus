@@ -1,7 +1,7 @@
 # Docs at http://confluence.local.twitter.com/display/RELEASE/Twitter-cap-utils+README
 begin
   require 'rubygems'
-  gem 'twitter-cap-utils', "~> 0.6.6"
+  gem 'twitter-cap-utils', "~> 0.6.8"
   require "railsless-deploy"
   require 'twitter_cap_utils'
 rescue LoadError
@@ -17,7 +17,7 @@ set :admin_port, 7667
 
 
 task :production do
-  role :haplo, *loony("-g role:haplo")
+  role :haplo, *loony_or_override("-g role:haplo")
 end
 
 task :canary do
@@ -62,7 +62,8 @@ namespace :deploy do
 end
 
 after "deploy:subrestart" do
-  sleep 5
+  set :rolling_restart_group_size, 5
+  sleep 30
   execute_with_hosts("deploy:verify_build", find_task("deploy:subrestart").options[:hosts])
 end
 
