@@ -124,9 +124,8 @@ object TimelineStoreServiceSpec extends Specification with JMocker with ClassMoc
       val timeline = "t1"
 
       expect {
-        exactly(2).of(nameServer).findCurrentForwarding(0, 632754681242344982L) willReturn shard1
-        one(shard1).remove("t1", List(data(0)), None)
-        one(shard1).remove("t1", List(data(1)), None)
+        one(nameServer).findCurrentForwarding(0, 632754681242344982L) willReturn shard1
+        one(shard1).remove("t1", data, None)
       }
 
       service.unmerge(timeline, data)
@@ -137,14 +136,25 @@ object TimelineStoreServiceSpec extends Specification with JMocker with ClassMoc
       val timeline1 = "t1"
       val timeline2 = "t2"
 
-      expect {
-        one(nameServer).findCurrentForwarding(0, 632754681242344982L) willReturn shard1
-        one(nameServer).findCurrentForwarding(0, 632753581730716771L) willReturn shard2
-        one(shard2).getRaw("t2") willReturn Some(data)
-        one(shard1).merge("t1", data, None)
+      "with a source timeline" in {
+        expect {
+          one(nameServer).findCurrentForwarding(0, 632754681242344982L) willReturn shard1
+          one(nameServer).findCurrentForwarding(0, 632753581730716771L) willReturn shard2
+          one(shard2).getRaw("t2") willReturn Some(data)
+          one(shard1).merge("t1", data, None)
+        }
+
+        service.mergeIndirect(timeline1, timeline2) mustEqual true
       }
 
-      service.mergeIndirect(timeline1, timeline2)
+      "without a source timeline" in {
+        expect {
+          one(nameServer).findCurrentForwarding(0, 632753581730716771L) willReturn shard2
+          one(shard2).getRaw("t2") willReturn None
+        }
+
+        service.mergeIndirect(timeline1, timeline2) mustEqual false
+      }
     }
 
     "unmergeIndirect" in {
@@ -152,14 +162,25 @@ object TimelineStoreServiceSpec extends Specification with JMocker with ClassMoc
       val timeline1 = "t1"
       val timeline2 = "t2"
 
-      expect {
-        one(nameServer).findCurrentForwarding(0, 632754681242344982L) willReturn shard1
-        one(nameServer).findCurrentForwarding(0, 632753581730716771L) willReturn shard2
-        one(shard2).getRaw("t2") willReturn Some(data)
-        one(shard1).remove("t1", data, None)
+      "with a source timeline" in {
+        expect {
+          one(nameServer).findCurrentForwarding(0, 632754681242344982L) willReturn shard1
+          one(nameServer).findCurrentForwarding(0, 632753581730716771L) willReturn shard2
+          one(shard2).getRaw("t2") willReturn Some(data)
+          one(shard1).remove("t1", data, None)
+        }
+
+        service.unmergeIndirect(timeline1, timeline2) mustEqual true
       }
 
-      service.unmergeIndirect(timeline1, timeline2)
+      "without a source timeline" in {
+        expect {
+          one(nameServer).findCurrentForwarding(0, 632753581730716771L) willReturn shard2
+          one(shard2).getRaw("t2") willReturn None
+        }
+
+        service.unmergeIndirect(timeline1, timeline2) mustEqual false
+      }
     }
 
     "deleteTimeline" in {

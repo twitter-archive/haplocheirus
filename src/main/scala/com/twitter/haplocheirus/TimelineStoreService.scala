@@ -52,7 +52,7 @@ class TimelineStoreService(val nameServer: NameServer[HaplocheirusShard],
 
   def remove(entry: Array[Byte], prefix: String, timelines: Seq[Long]) {
     timelines.foreach { timeline =>
-      injectJob(jobs.Remove(entry, prefix + timeline.toString))
+      injectJob(jobs.Remove(prefix + timeline.toString, List(entry)))
     }
   }
 
@@ -77,17 +77,27 @@ class TimelineStoreService(val nameServer: NameServer[HaplocheirusShard],
   }
 
   def unmerge(timeline: String, entries: Seq[Array[Byte]]) {
-    entries.foreach { entry =>
-      injectJob(jobs.Remove(entry, timeline))
+    injectJob(jobs.Remove(timeline, entries))
+  }
+
+  def mergeIndirect(destTimeline: String, sourceTimeline: String): Boolean = {
+    shardFor(sourceTimeline).getRaw(sourceTimeline) match {
+      case None =>
+        false
+      case Some(entries) =>
+        injectJob(jobs.Merge(destTimeline, entries))
+        true
     }
   }
 
-  def mergeIndirect(destTimeline: String, sourceTimeline: String) {
-    injectJob(jobs.MergeIndirect(destTimeline, sourceTimeline))
-  }
-
-  def unmergeIndirect(destTimeline: String, sourceTimeline: String) {
-    injectJob(jobs.UnmergeIndirect(destTimeline, sourceTimeline))
+  def unmergeIndirect(destTimeline: String, sourceTimeline: String): Boolean = {
+    shardFor(sourceTimeline).getRaw(sourceTimeline) match {
+      case None =>
+        false
+      case Some(entries) =>
+        injectJob(jobs.Remove(destTimeline, entries))
+        true
+    }
   }
 
   def deleteTimeline(timeline: String) {

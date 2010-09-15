@@ -86,8 +86,19 @@ service TimelineStore {
    */
   void unmerge(1: string timeline_id, 2: list<binary> entries) throws(1: TimelineStoreException ex)
 
-  void merge_indirect(1: string dest_timeline_id, 2: string source_timeline_id) throws(1: TimelineStoreException ex)
-  void unmerge_indirect(1: string dest_timeline_id, 2: string source_timeline_id) throws(1: TimelineStoreException ex)
+  /*
+   * Merge entries from one timeline into another. If the destination timeline hasn't been created,
+   * silently do nothing. Merged entries will be loosely sorted according to the timeline ids.
+   * Return true if the source timeline was in cache, false if there was nothing to do.
+   */
+  bool merge_indirect(1: string dest_timeline_id, 2: string source_timeline_id) throws(1: TimelineStoreException ex)
+
+  /*
+   * Remove all the entries from one timeline out of another. If the destination timeline hasn't
+   * been created, silently do nothing. Return true if the source timeline was in cache, false if
+   * there was nothing to do.
+   */
+  bool unmerge_indirect(1: string dest_timeline_id, 2: string source_timeline_id) throws(1: TimelineStoreException ex)
 
   /*
    * Delete a timeline completely.

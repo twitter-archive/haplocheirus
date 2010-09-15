@@ -34,16 +34,6 @@ case class Append(entry: Array[Byte], timeline: String) extends RedisJob {
   }
 }
 
-case class Remove(entry: Array[Byte], timeline: String) extends RedisJob {
-  def toMap = {
-    Map("entry" -> encodeBase64(entry), "timeline" -> timeline)
-  }
-
-  def apply(nameServer: NameServer[HaplocheirusShard]) {
-    nameServer.findCurrentForwarding(0, Hash.FNV1A_64(timeline)).remove(timeline, List(entry), onErrorCallback)
-  }
-}
-
 case class Merge(timeline: String, entries: Seq[Array[Byte]]) extends RedisJob {
   def toMap = {
     Map("timeline" -> timeline, "entries" -> entries.map(encodeBase64(_)))
@@ -54,31 +44,13 @@ case class Merge(timeline: String, entries: Seq[Array[Byte]]) extends RedisJob {
   }
 }
 
-case class MergeIndirect(destTimeline: String, sourceTimeline: String) extends RedisJob {
+case class Remove(timeline: String, entries: Seq[Array[Byte]]) extends RedisJob {
   def toMap = {
-    Map("dest_timeline" -> destTimeline, "source_timeline" -> sourceTimeline)
+    Map("timeline" -> timeline, "entries" -> entries.map(encodeBase64(_)))
   }
 
   def apply(nameServer: NameServer[HaplocheirusShard]) {
-    val destShard = nameServer.findCurrentForwarding(0, Hash.FNV1A_64(destTimeline))
-    val sourceShard = nameServer.findCurrentForwarding(0, Hash.FNV1A_64(sourceTimeline))
-    sourceShard.getRaw(sourceTimeline) foreach { entries =>
-      destShard.merge(destTimeline, entries, onErrorCallback)
-    }
-  }
-}
-
-case class UnmergeIndirect(destTimeline: String, sourceTimeline: String) extends RedisJob {
-  def toMap = {
-    Map("dest_timeline" -> destTimeline, "source_timeline" -> sourceTimeline)
-  }
-
-  def apply(nameServer: NameServer[HaplocheirusShard]) {
-    val destShard = nameServer.findCurrentForwarding(0, Hash.FNV1A_64(destTimeline))
-    val sourceShard = nameServer.findCurrentForwarding(0, Hash.FNV1A_64(sourceTimeline))
-    sourceShard.getRaw(sourceTimeline) foreach { entries =>
-      destShard.remove(destTimeline, entries, onErrorCallback)
-    }
+    nameServer.findCurrentForwarding(0, Hash.FNV1A_64(timeline)).remove(timeline, entries, onErrorCallback)
   }
 }
 

@@ -53,11 +53,11 @@ class TimelineStore(service: TimelineStoreService) extends thrift.TimelineStore.
     service.unmerge(timeline_id, entries.toSeq)
   }
 
-  def merge_indirect(dest_timeline_id: String, source_timeline_id: String) {
+  def merge_indirect(dest_timeline_id: String, source_timeline_id: String) = {
     service.mergeIndirect(dest_timeline_id, source_timeline_id)
   }
 
-  def unmerge_indirect(dest_timeline_id: String, source_timeline_id: String) {
+  def unmerge_indirect(dest_timeline_id: String, source_timeline_id: String) = {
     service.unmergeIndirect(dest_timeline_id, source_timeline_id)
   }
 
