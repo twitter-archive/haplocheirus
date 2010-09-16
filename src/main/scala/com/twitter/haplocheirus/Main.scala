@@ -62,7 +62,7 @@ object Main extends Service {
         )
       )
       thriftServer = TSelectorServer("timelines", config("server_port").toInt,
-                                     config.configMap("gizzard_services"), processor)
+                                     config.configMap("timeline_store_service"), processor)
       thriftServer.serve()
     } catch {
       case e: Exception =>
