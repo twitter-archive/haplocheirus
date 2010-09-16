@@ -37,7 +37,6 @@ class RedisPool(name: String, config: ConfigMap) {
     val pool = synchronized {
       val pool = serverMap.getOrElseUpdate(hostname, {
         val queue = new LinkedBlockingQueue[PipelinedRedisClient]()
-        Stats.makeGauge("redis-pool-" + hostname) { queue.size }
         ClientPool(queue, 0)
       })
       if (pool.count < poolSize) {
