@@ -2,16 +2,17 @@ package com.twitter.haplocheirus
 
 import java.util.concurrent.CountDownLatch
 import com.twitter.gizzard.proxy.ExceptionHandlingProxy
-import com.twitter.gizzard.thrift.{GizzardServices, TSelectorServer}
+import com.twitter.gizzard.thrift.GizzardServices
 import com.twitter.ostrich.{BackgroundProcess, Service, ServiceTracker, Stats}
 import com.twitter.xrayspecs.TimeConversions._
 import net.lag.configgy.{Configgy, ConfigMap, RuntimeEnvironment}
 import net.lag.logging.Logger
-
+import org.apache.thrift.server.TThreadPoolServer
+import org.apache.thrift.transport.TServerSocket
 
 object Main extends Service {
   val log = Logger.get(getClass.getName)
-  var thriftServer: TSelectorServer = null
+  var thriftServer: TThreadPoolServer = null
   var gizzardServices: GizzardServices[HaplocheirusShard] = null
   var service: TimelineStoreService = null
 
@@ -61,8 +62,7 @@ object Main extends Service {
           NuLoggingProxy[thrift.TimelineStore.Iface](Stats, "timelines", new TimelineStore(service))
         )
       )
-      thriftServer = TSelectorServer("timelines", config("server_port").toInt,
-                                     config.configMap("timeline_store_service"), processor)
+      thriftServer = new TThreadPoolServer(processor, new TServerSocket(config("server_port").toInt))
       thriftServer.serve()
     } catch {
       case e: Exception =>
@@ -74,7 +74,7 @@ object Main extends Service {
 
   def stopThrift() {
     log.info("Thrift servers shutting down...")
-    thriftServer.shutdown()
+    thriftServer.stop()
     thriftServer = null
     gizzardServices.shutdown()
     gizzardServices = null
