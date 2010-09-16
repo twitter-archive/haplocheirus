@@ -41,6 +41,7 @@ object Main extends Service {
     stopThrift()
     deathSwitch.countDown()
     log.info("Goodbye!")
+    System.exit(0)
   }
 
   def quiesce() {
@@ -74,9 +75,17 @@ object Main extends Service {
 
   def stopThrift() {
     log.info("Thrift servers shutting down...")
-    thriftServer.stop()
-    thriftServer = null
     gizzardServices.shutdown()
     gizzardServices = null
+    // thrift server doesn't correctly die. :(
+    val t = new Thread() {
+      override def run() {
+        thriftServer.stop()
+        thriftServer = null
+      }
+    }
+    t.setDaemon(true)
+    t.start()
+    Thread.sleep(1000)
   }
 }
