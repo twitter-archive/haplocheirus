@@ -21,7 +21,8 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
     """
 
     val shardInfo = mock[ShardInfo]
-    var redisPool: RedisPool = null
+    var readPool: RedisPool = null
+    var writePool: RedisPool = null
     var redisShard: HaplocheirusShard = null
     val jredis = mock[JRedisPipeline]
     val future = mock[Future[JList[Array[Byte]]]]
@@ -38,10 +39,13 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
       val client = new PipelinedRedisClient("", 0, 1.second, 1.second, 1.second) {
         override protected def uniqueTimelineName(name: String): String = "generated-name"
       }
-      redisPool = new RedisPool(config) {
+      readPool = new RedisPool(config) {
         override def withClient[T](hostname: String)(f: PipelinedRedisClient => T): T = f(client)
       }
-      redisShard = new RedisShardFactory(redisPool, 3, timelineTrimConfig).instantiate(shardInfo, 1, Nil)
+      writePool = new RedisPool(config) {
+        override def withClient[T](hostname: String)(f: PipelinedRedisClient => T): T = f(client)
+      }
+      redisShard = new RedisShardFactory(readPool, writePool, 3, timelineTrimConfig).instantiate(shardInfo, 1, Nil)
     }
 
     doAfter {
