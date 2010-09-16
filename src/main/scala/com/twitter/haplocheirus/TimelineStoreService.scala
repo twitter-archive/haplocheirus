@@ -12,14 +12,12 @@ class TimelineStoreService(val nameServer: NameServer[HaplocheirusShard],
                            val scheduler: PrioritizingJobScheduler,
                            val copyFactory: CopyFactory[HaplocheirusShard],
                            val redisPool: RedisPool,
-                           val future: Future,
                            val replicationFuture: Future) {
   val log = Logger(getClass.getName)
   val writeQueue = scheduler(Priority.Write.id).queue
 
   def shutdown() {
     scheduler.shutdown()
-    future.shutdown()
     replicationFuture.shutdown()
     redisPool.shutdown()
   }

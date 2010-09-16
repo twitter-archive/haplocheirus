@@ -15,7 +15,6 @@ object TimelineStoreServiceSpec extends Specification with JMocker with ClassMoc
     val jobScheduler = mock[JobScheduler]
     val queue = mock[ErrorHandlingJobQueue]
     val redisPool = mock[RedisPool]
-    val future = mock[Future]
     val replicationFuture = mock[Future]
     val shard1 = mock[HaplocheirusShard]
     val shard2 = mock[HaplocheirusShard]
@@ -26,7 +25,7 @@ object TimelineStoreServiceSpec extends Specification with JMocker with ClassMoc
         one(scheduler).apply(Priority.Write.id) willReturn jobScheduler
         one(jobScheduler).queue willReturn queue
       }
-      service = new TimelineStoreService(nameServer, scheduler, jobs.RedisCopyFactory, redisPool, future, replicationFuture)
+      service = new TimelineStoreService(nameServer, scheduler, jobs.RedisCopyFactory, redisPool, replicationFuture)
       service.addOnError = false
     }
 
@@ -144,7 +143,6 @@ object TimelineStoreServiceSpec extends Specification with JMocker with ClassMoc
     "shutdown" in {
       expect {
         one(scheduler).shutdown()
-        one(future).shutdown()
         one(replicationFuture).shutdown()
         one(redisPool).shutdown()
       }

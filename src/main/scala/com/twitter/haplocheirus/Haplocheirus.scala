@@ -47,8 +47,6 @@ object Haplocheirus {
 
     scheduler.start()
 
-    val future = new Future("TimelineStoreService", config.configMap("service_pool"))
-    new TimelineStoreService(nameServer, scheduler, jobs.RedisCopyFactory, redisPool, future,
-                             replicationFuture)
+    new TimelineStoreService(nameServer, scheduler, jobs.RedisCopyFactory, redisPool, replicationFuture)
   }
 }
