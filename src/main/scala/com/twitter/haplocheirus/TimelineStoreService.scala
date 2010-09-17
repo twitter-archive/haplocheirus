@@ -44,7 +44,6 @@ class TimelineStoreService(val nameServer: NameServer[HaplocheirusShard],
   }
 
   def append(entry: Array[Byte], prefix: String, timelines: Seq[Long]) {
-  def append(entry: Array[Byte], timelines: Seq[String]) {
     Stats.addTiming("x-timelines-per-append", timelines.size)
     timelines.foreach { timeline =>
       injectJob(jobs.Append(entry, prefix + timeline.toString))
@@ -52,7 +51,6 @@ class TimelineStoreService(val nameServer: NameServer[HaplocheirusShard],
   }
 
   def remove(entry: Array[Byte], prefix: String, timelines: Seq[Long]) {
-  def remove(entry: Array[Byte], timelines: Seq[String]) {
     Stats.addTiming("x-timelines-per-remove", timelines.size)
     timelines.foreach { timeline =>
       injectJob(jobs.Remove(prefix + timeline.toString, List(entry)))

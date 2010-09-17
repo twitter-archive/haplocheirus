@@ -100,7 +100,7 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
   }
 
   def append(timeline: String, entries: Seq[Array[Byte]], onError: Option[Throwable => Unit]) {
-    pool.withClient(shardInfo.hostname) { client =>
+    writePool.withClient(shardInfo.hostname) { client =>
       entries.foreach { entry =>
         client.push(timeline, entry, onError) { checkTrim(client, timeline, _) }
       }
@@ -108,7 +108,7 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
   }
 
   def remove(timeline: String, entries: Seq[Array[Byte]], onError: Option[Throwable => Unit]) {
-    pool.withClient(shardInfo.hostname) { client =>
+    writePool.withClient(shardInfo.hostname) { client =>
       entries.foreach { entry =>
         client.pop(timeline, entry, onError)
       }
@@ -118,7 +118,7 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
   // this is really inefficient. we should discourage its use.
   def filter(timeline: String, entries: Seq[Array[Byte]], maxSearch: Int): Option[Seq[Array[Byte]]] = {
     val searchKeys = sortKeysFromEntries(entries)
-    val timelineEntries = Set(sortKeysFromEntries(pool.withClient(shardInfo.hostname) { client =>
+    val timelineEntries = Set(sortKeysFromEntries(readPool.withClient(shardInfo.hostname) { client =>
       client.get(timeline, 0, maxSearch)
     }).map { _.key }: _*)
     if (timelineEntries.isEmpty) {

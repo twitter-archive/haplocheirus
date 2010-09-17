@@ -71,7 +71,6 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
         }
 
         redisShard.append(timeline, List(data), None)
-        redisShard.append(data, timeline, None)
         writes mustEqual 1
       }
 
@@ -84,7 +83,6 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
         }
 
         redisShard.append(timeline, List(data), None)
-        redisShard.append(data, timeline, None)
         writes mustEqual 1
       }
     }
@@ -96,7 +94,6 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
       }
 
       redisShard.remove(timeline, List(data), None)
-      redisShard.remove(data, timeline, None)
       writes mustEqual 1
     }
 
@@ -406,6 +403,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
         }
 
         redisShard.merge(timeline, insert, None)
+        writes mustEqual 1
       }
 
       "nothing to merge" in {
