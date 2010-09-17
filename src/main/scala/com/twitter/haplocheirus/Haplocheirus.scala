@@ -30,16 +30,15 @@ object Haplocheirus {
     val readPool = new RedisPool("read", config.configMap("redis.read"))
     val writePool = new RedisPool("write", config.configMap("redis.write"))
 
-    val replicationFuture = new Future("ReplicationFuture", config.configMap("replication_pool"))
     val shardRepository = new BasicShardRepository[HaplocheirusShard](
-      new HaplocheirusShardAdapter(_), replicationFuture)
+      new HaplocheirusShardAdapter(_), None)
     val shardFactory = new RedisShardFactory(readPool, writePool,
                                              config("redis.range_query_page_size").toInt,
                                              config.configMap("timeline_trim"))
     shardRepository += ("com.twitter.haplocheirus.RedisShard" -> shardFactory)
 
     val nameServer = NameServer(config.configMap("nameservers"), Some(statsCollector),
-                                shardRepository, replicationFuture)
+                                shardRepository, None)
     nameServer.reload()
 
     jobParser += (("Append".r, new BoundJobParser(jobs.AppendParser, nameServer)))
@@ -50,6 +49,6 @@ object Haplocheirus {
 
     scheduler.start()
 
-    new TimelineStoreService(nameServer, scheduler, jobs.RedisCopyFactory, readPool, writePool, replicationFuture)
+    new TimelineStoreService(nameServer, scheduler, jobs.RedisCopyFactory, readPool, writePool)
   }
 }
