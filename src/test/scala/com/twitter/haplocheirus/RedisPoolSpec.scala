@@ -14,7 +14,7 @@ object RedisPoolSpec extends ConfiguredSpecification with JMocker with ClassMock
     val config = Configgy.config.configMap("redis")
 
     doBefore {
-      redisPool = new RedisPool(config) {
+      redisPool = new RedisPool("test", config.configMap("read")) {
         override def makeClient(hostname: String) = client
       }
     }

@@ -5,23 +5,22 @@ import com.twitter.gizzard.jobs.CopyFactory
 import com.twitter.gizzard.nameserver.NameServer
 import com.twitter.gizzard.scheduler.PrioritizingJobScheduler
 import com.twitter.gizzard.thrift.conversions.Sequences._
+import com.twitter.ostrich.Stats
 import net.lag.logging.Logger
 
 
 class TimelineStoreService(val nameServer: NameServer[HaplocheirusShard],
                            val scheduler: PrioritizingJobScheduler,
                            val copyFactory: CopyFactory[HaplocheirusShard],
-                           val redisPool: RedisPool,
-                           val future: Future,
-                           val replicationFuture: Future) {
+                           val readPool: RedisPool,
+                           val writePool: RedisPool) {
   val log = Logger(getClass.getName)
   val writeQueue = scheduler(Priority.Write.id).queue
 
   def shutdown() {
     scheduler.shutdown()
-    future.shutdown()
-    replicationFuture.shutdown()
-    redisPool.shutdown()
+    readPool.shutdown()
+    writePool.shutdown()
   }
 
   private def shardFor(timeline: String) = {
@@ -45,12 +44,16 @@ class TimelineStoreService(val nameServer: NameServer[HaplocheirusShard],
   }
 
   def append(entry: Array[Byte], prefix: String, timelines: Seq[Long]) {
+  def append(entry: Array[Byte], timelines: Seq[String]) {
+    Stats.addTiming("x-timelines-per-append", timelines.size)
     timelines.foreach { timeline =>
       injectJob(jobs.Append(entry, prefix + timeline.toString))
     }
   }
 
   def remove(entry: Array[Byte], prefix: String, timelines: Seq[Long]) {
+  def remove(entry: Array[Byte], timelines: Seq[String]) {
+    Stats.addTiming("x-timelines-per-remove", timelines.size)
     timelines.foreach { timeline =>
       injectJob(jobs.Remove(prefix + timeline.toString, List(entry)))
     }

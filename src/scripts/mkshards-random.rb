@@ -21,6 +21,7 @@ require 'yaml'
 options = {
   :config_filename => ENV['HOME'] + "/.shards.yml",
   :count => 500,
+  :replicas => 2,
 }
 
 parser = OptionParser.new do |opts|
@@ -32,6 +33,9 @@ parser = OptionParser.new do |opts|
   end
   opts.on("-n", "--count=N", "create N bins (default: #{options[:count]})") do |count|
     options[:count] = count.to_i
+  end
+  opts.on("-r", "--replicas=N", "create N replicas (default: #{options[:replicas]})") do |replicas|
+    options[:replicas] = replicas.to_i
   end
 end
 
@@ -54,18 +58,39 @@ gizzmo = lambda do |cmd|
   `gizzmo --host=#{app_host} --port=#{app_port} #{cmd}`
 end
 
+class RandomDistribution
+  def initialize(db_list)
+    @db_list = db_list
+    @shuffled_list = []
+  end
+
+  def shuffle
+    @shuffled_list = @db_list.dup
+    (1...@shuffled_list.size).to_a.reverse_each do |i|
+      j = rand(i + 1)
+      @shuffled_list[i], @shuffled_list[j] = @shuffled_list[j], @shuffled_list[i]
+    end
+  end
+
+  def next
+    shuffle if @shuffled_list.empty?
+    @shuffled_list.pop
+  end
+end
+
+distribution = RandomDistribution.new(db_trees.flatten)
 
 print "Creating bins"
 STDOUT.flush
 options[:count].times do |i|
   table_name = [ namespace, "haplo_%04d" % i ].compact.join("_")
-  hosts = Array(db_trees[i % db_trees.size])
   lower_bound = (1 << 60) / options[:count] * i
 
   gizzmo.call "create com.twitter.gizzard.shards.ReplicatingShard localhost/#{table_name}_replicating"
 
   distinct = 1
-  hosts.each do |host|
+  options[:replicas].times do |replica|
+    host = distribution.next
     host, weight = host.split('/')
     weight ||= 4
     gizzmo.call "create com.twitter.haplocheirus.RedisShard #{host}/#{table_name}_#{distinct}"

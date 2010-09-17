@@ -12,7 +12,7 @@ import net.lag.configgy.ConfigMap
 import net.lag.logging.Logger
 
 
-class RedisShardFactory(pool: RedisPool, rangeQueryPageSize: Int,
+class RedisShardFactory(readPool: RedisPool, writePool: RedisPool, rangeQueryPageSize: Int,
                         timelineTrimConfig: ConfigMap) extends ShardFactory[HaplocheirusShard] {
   object RedisExceptionWrappingProxy extends ExceptionHandlingProxy({ e =>
     e match {
@@ -27,7 +27,7 @@ class RedisShardFactory(pool: RedisPool, rangeQueryPageSize: Int,
 
   def instantiate(shardInfo: ShardInfo, weight: Int, children: Seq[HaplocheirusShard]) = {
     RedisExceptionWrappingProxy[HaplocheirusShard](
-      new RedisShard(shardInfo, weight, children, pool, trimMap, rangeQueryPageSize))
+      new RedisShard(shardInfo, weight, children, readPool, writePool, trimMap, rangeQueryPageSize))
   }
 
   def materialize(shardInfo: ShardInfo) {
@@ -36,7 +36,8 @@ class RedisShardFactory(pool: RedisPool, rangeQueryPageSize: Int,
 }
 
 class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[HaplocheirusShard],
-                 val pool: RedisPool, val trimMap: TimelineTrimMap, val rangeQueryPageSize: Int)
+                 val readPool: RedisPool, val writePool: RedisPool,
+                 val trimMap: TimelineTrimMap, val rangeQueryPageSize: Int)
       extends HaplocheirusShard {
   private val log = Logger.get(getClass.getName)
 
@@ -128,7 +129,7 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
   }
 
   def get(timeline: String, offset: Int, length: Int, dedupe: Boolean): Option[TimelineSegment] = {
-    val (entries, size) = pool.withClient(shardInfo.hostname) { client =>
+    val (entries, size) = readPool.withClient(shardInfo.hostname) { client =>
       (client.get(timeline, offset, length), client.size(timeline))
     }
     if (size > 0) {
@@ -146,7 +147,7 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
   }
 
   def getRaw(timeline: String): Option[Seq[Array[Byte]]] = {
-    val rv = pool.withClient(shardInfo.hostname) { _.get(timeline, 0, -1) }
+    val rv = readPool.withClient(shardInfo.hostname) { _.get(timeline, 0, -1) }
     if (rv.isEmpty) {
       None
     } else {
@@ -155,7 +156,7 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
   }
 
   def getRange(timeline: String, fromId: Long, toId: Long, dedupe: Boolean): Option[TimelineSegment] = {
-    val (entriesSince, size) = pool.withClient(shardInfo.hostname) { client =>
+    val (entriesSince, size) = readPool.withClient(shardInfo.hostname) { client =>
       val entries = new mutable.ArrayBuffer[Array[Byte]]()
       var cursor = 0
       var fromIdIndex = -1
@@ -196,7 +197,7 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
   }
 
   def merge(timeline: String, entries: Seq[Array[Byte]], onError: Option[Throwable => Unit]) {
-    pool.withClient(shardInfo.hostname) { client =>
+    writePool.withClient(shardInfo.hostname) { client =>
       val existing = sortKeysFromEntries(client.get(timeline, 0, -1))
       if (existing.size > 0) {
         var i = 0
@@ -219,15 +220,15 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
   }
 
   def store(timeline: String, entries: Seq[Array[Byte]]) {
-    pool.withClient(shardInfo.hostname) { _.setAtomically(timeline, entries) }
+    writePool.withClient(shardInfo.hostname) { _.setAtomically(timeline, entries) }
   }
 
   def deleteTimeline(timeline: String) {
-    pool.withClient(shardInfo.hostname) { _.delete(timeline) }
+    writePool.withClient(shardInfo.hostname) { _.delete(timeline) }
   }
 
   def getKeys(offset: Int, count: Int) = {
-    pool.withClient(shardInfo.hostname) { client =>
+    readPool.withClient(shardInfo.hostname) { client =>
       if (offset == 0) {
         client.makeKeyList()
       }
@@ -236,10 +237,10 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
   }
 
   def startCopy(timeline: String) {
-    pool.withClient(shardInfo.hostname) { _.setLiveStart(timeline) }
+    writePool.withClient(shardInfo.hostname) { _.setLiveStart(timeline) }
   }
 
   def doCopy(timeline: String, entries: Seq[Array[Byte]]) {
-    pool.withClient(shardInfo.hostname) { _.setLive(timeline, entries) }
+    writePool.withClient(shardInfo.hostname) { _.setLive(timeline, entries) }
   }
 }

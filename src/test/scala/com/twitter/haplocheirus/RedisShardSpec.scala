@@ -21,7 +21,10 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
     """
 
     val shardInfo = mock[ShardInfo]
-    var redisPool: RedisPool = null
+    var readPool: RedisPool = null
+    var writePool: RedisPool = null
+    var reads = 0
+    var writes = 0
     var redisShard: HaplocheirusShard = null
     val jredis = mock[JRedisPipeline]
     val future = mock[Future[JList[Array[Byte]]]]
@@ -38,10 +41,21 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
       val client = new PipelinedRedisClient("", 0, 1.second, 1.second, 1.second) {
         override protected def uniqueTimelineName(name: String): String = "generated-name"
       }
-      redisPool = new RedisPool(config) {
-        override def withClient[T](hostname: String)(f: PipelinedRedisClient => T): T = f(client)
+      reads = 0
+      readPool = new RedisPool("read", config.configMap("read")) {
+        override def withClient[T](hostname: String)(f: PipelinedRedisClient => T): T = {
+          reads += 1
+          f(client)
+        }
       }
-      redisShard = new RedisShardFactory(redisPool, 3, timelineTrimConfig).instantiate(shardInfo, 1, Nil)
+      writes = 0
+      writePool = new RedisPool("write", config.configMap("write")) {
+        override def withClient[T](hostname: String)(f: PipelinedRedisClient => T): T = {
+          writes += 1
+          f(client)
+        }
+      }
+      redisShard = new RedisShardFactory(readPool, writePool, 3, timelineTrimConfig).instantiate(shardInfo, 1, Nil)
     }
 
     doAfter {
@@ -57,6 +71,8 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
         }
 
         redisShard.append(timeline, List(data), None)
+        redisShard.append(data, timeline, None)
+        writes mustEqual 1
       }
 
       "does need trim" in {
@@ -68,6 +84,8 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
         }
 
         redisShard.append(timeline, List(data), None)
+        redisShard.append(data, timeline, None)
+        writes mustEqual 1
       }
     }
 
@@ -78,6 +96,8 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
       }
 
       redisShard.remove(timeline, List(data), None)
+      redisShard.remove(data, timeline, None)
+      writes mustEqual 1
     }
 
     "filter" in {
@@ -127,6 +147,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
         }
 
         redisShard.get(timeline, 0, 10, false).get.entries.toList mustEqual List(entry1, entry2, entry3)
+        reads mustEqual 1
       }
 
       "with duplicates in the sort key" in {
@@ -144,6 +165,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
         }
 
         redisShard.get(timeline, 0, 10, false).get.entries.toList mustEqual List(entry2, entry3)
+        reads mustEqual 1
       }
 
       "with duplicates in the dedupe key" in {
@@ -162,6 +184,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
 
         redisShard.get(timeline, 0, 10, false).get.entries.toList mustEqual List(entry1, entry2, entry3)
         redisShard.get(timeline, 0, 10, true).get.entries.toList mustEqual List(entry2, entry3)
+        reads mustEqual 2
       }
 
       "with missing dedupe key" in {
@@ -179,6 +202,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
         }
 
         redisShard.get(timeline, 0, 10, true).get.entries.toList mustEqual List(entry1, entry2, entry3)
+        reads mustEqual 1
       }
 
       "doesn't spaz when there aren't enough bytes to uniqify" in {
@@ -196,6 +220,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
         }
 
         redisShard.get(timeline, 0, 10, true).get.entries.toList mustEqual List(entry1, entry2, entry3)
+        reads mustEqual 1
       }
     }
 
@@ -212,6 +237,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
       }
 
       redisShard.getRaw(timeline) mustEqual Some(List(entry1, entry2, entry3))
+      reads mustEqual 1
     }
 
     "getRange" in {
@@ -232,6 +258,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
         }
 
         redisShard.getRange(timeline, 10L, 0L, false).get.entries.toList mustEqual List(entry1, entry2, entry3)
+        reads mustEqual 1
       }
 
       "with fromId" in {
@@ -250,6 +277,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
           }
 
           redisShard.getRange(timeline, 19L, 0L, false).get.entries.toList mustEqual List(entry1, entry2)
+          reads mustEqual 1
         }
 
         "in a later page" in {
@@ -273,6 +301,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
           }
 
           redisShard.getRange(timeline, 13L, 0L, false).get.entries.toList mustEqual List(entry1, entry2, entry3, entry4)
+          reads mustEqual 1
         }
       }
 
@@ -294,6 +323,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
           redisShard.getRange(timeline, 19L, 30L, false).get.entries.toList mustEqual List(entry1, entry2)
           redisShard.getRange(timeline, 19L, 23L, false).get.entries.toList mustEqual List(entry1, entry2)
           redisShard.getRange(timeline, 19L, 20L, false).get.entries.toList mustEqual List(entry2)
+          reads mustEqual 3
         }
 
         "in a later page" in {
@@ -320,6 +350,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
           redisShard.getRange(timeline, 13L, 30L, false).get.entries.toList mustEqual List(entry1, entry2, entry3, entry4)
           redisShard.getRange(timeline, 13L, 20L, false).get.entries.toList mustEqual List(entry2, entry3, entry4)
           redisShard.getRange(timeline, 13L, 17L, false).get.entries.toList mustEqual List(entry4)
+          reads mustEqual 3
         }
       }
 
@@ -344,6 +375,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
         }
 
         redisShard.getRange(timeline, 13L, 0L, false).get.entries.toList mustEqual List(entry1, entry3, entry4)
+        reads mustEqual 1
       }
     }
 
@@ -358,6 +390,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
         }
 
         redisShard.merge(timeline, List(List(21L).pack), None)
+        writes mustEqual 1
       }
 
       "tiny little entries" in {
@@ -384,6 +417,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
         }
 
         redisShard.merge(timeline, List[Array[Byte]](), None)
+        writes mustEqual 1
       }
 
       "all prefix" in {
@@ -400,6 +434,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
         }
 
         redisShard.merge(timeline, insert.map { List(_).pack }, None)
+        writes mustEqual 1
       }
 
       "all postfix" in {
@@ -415,6 +450,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
         }
 
         redisShard.merge(timeline, insert.map { List(_).pack }, None)
+        writes mustEqual 1
       }
 
       "all infix" in {
@@ -431,6 +467,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
         }
 
         redisShard.merge(timeline, insert.map { List(_).pack }, None)
+        writes mustEqual 1
       }
 
       "dupes" in {
@@ -445,6 +482,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
         }
 
         redisShard.merge(timeline, insert.map { List(_).pack }, None)
+        writes mustEqual 1
       }
     }
 
@@ -463,6 +501,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
       }
 
       redisShard.store(timeline, List(entry1, entry2, entry3))
+      writes mustEqual 1
     }
 
     "deleteTimeline" in {
@@ -473,6 +512,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
       }
 
       redisShard.deleteTimeline(timeline)
+      writes mustEqual 1
     }
 
     "getKeys" in {
@@ -494,6 +534,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
         }
 
         redisShard.getKeys(0, 2).toList mustEqual List("a", "b")
+        reads mustEqual 1
       }
 
       "from middle" in {
@@ -505,6 +546,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
         }
 
         redisShard.getKeys(2, 2).toList mustEqual List("c")
+        reads mustEqual 1
       }
 
       "at the end" in {
@@ -516,6 +558,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
         }
 
         redisShard.getKeys(4, 2).toList mustEqual List[String]()
+        reads mustEqual 1
       }
     }
 
@@ -527,6 +570,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
       }
 
       redisShard.startCopy(timeline)
+      writes mustEqual 1
     }
 
     "doCopy" in {
@@ -544,6 +588,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
       }
 
       redisShard.doCopy(timeline, List(entry1, entry2))
+      writes mustEqual 1
     }
 
     "exceptions are wrapped" in {

@@ -10,7 +10,7 @@ import net.lag.logging.Logger
 import org.jredis.ClientRuntimeException
 
 
-class RedisPool(config: ConfigMap) {
+class RedisPool(name: String, config: ConfigMap) {
   case class ClientPool(available: LinkedBlockingQueue[PipelinedRedisClient], var count: Int)
 
   val log = Logger(getClass.getName)
@@ -19,7 +19,7 @@ class RedisPool(config: ConfigMap) {
   val poolTimeout = config("pool_timeout_msec").toInt.milliseconds
   val serverMap = new mutable.HashMap[String, ClientPool]
 
-  Stats.makeGauge("redis-pool") {
+  Stats.makeGauge("redis-pool-" + name) {
     synchronized {
       serverMap.values.foldLeft(0) { _ + _.available.size }
     }
@@ -37,7 +37,6 @@ class RedisPool(config: ConfigMap) {
     val pool = synchronized {
       val pool = serverMap.getOrElseUpdate(hostname, {
         val queue = new LinkedBlockingQueue[PipelinedRedisClient]()
-        Stats.makeGauge("redis-pool-" + hostname) { queue.size }
         ClientPool(queue, 0)
       })
       if (pool.count < poolSize) {
