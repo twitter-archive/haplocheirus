@@ -9,10 +9,11 @@ import net.lag.configgy.{Configgy, ConfigMap, RuntimeEnvironment}
 import net.lag.logging.Logger
 import org.apache.thrift.server.TThreadPoolServer
 import org.apache.thrift.transport.TServerSocket
+import thrift.BetterTThreadPoolServer
 
 object Main extends Service {
   val log = Logger.get(getClass.getName)
-  var thriftServer: TThreadPoolServer = null
+  var thriftServer: BetterTThreadPoolServer = null
   var gizzardServices: GizzardServices[HaplocheirusShard] = null
   var service: TimelineStoreService = null
 
@@ -63,7 +64,9 @@ object Main extends Service {
           NuLoggingProxy[thrift.TimelineStore.Iface](Stats, "timelines", new TimelineStore(service))
         )
       )
-      thriftServer = new TThreadPoolServer(processor, new TServerSocket(config("server_port").toInt))
+      thriftServer = BetterTThreadPoolServer("haplocheirus", config("server_port").toInt,
+                                             config("timeline_store_service.idle_timeout_sec").toInt * 1000,
+                                             processor)
       thriftServer.serve()
     } catch {
       case e: Exception =>
@@ -77,15 +80,7 @@ object Main extends Service {
     log.info("Thrift servers shutting down...")
     gizzardServices.shutdown()
     gizzardServices = null
-    // thrift server doesn't correctly die. :(
-    val t = new Thread() {
-      override def run() {
-        thriftServer.stop()
-        thriftServer = null
-      }
-    }
-    t.setDaemon(true)
-    t.start()
-    Thread.sleep(1000)
+    thriftServer.stop()
+    thriftServer = null
   }
 }
