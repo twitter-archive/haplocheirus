@@ -2,16 +2,18 @@ package com.twitter.haplocheirus
 
 import java.util.concurrent.CountDownLatch
 import com.twitter.gizzard.proxy.ExceptionHandlingProxy
-import com.twitter.gizzard.thrift.{GizzardServices, TSelectorServer}
+import com.twitter.gizzard.thrift.GizzardServices
 import com.twitter.ostrich.{BackgroundProcess, Service, ServiceTracker, Stats}
 import com.twitter.xrayspecs.TimeConversions._
 import net.lag.configgy.{Configgy, ConfigMap, RuntimeEnvironment}
 import net.lag.logging.Logger
-
+import org.apache.thrift.server.TThreadPoolServer
+import org.apache.thrift.transport.TServerSocket
+import thrift.BetterTThreadPoolServer
 
 object Main extends Service {
   val log = Logger.get(getClass.getName)
-  var thriftServer: TSelectorServer = null
+  var thriftServer: BetterTThreadPoolServer = null
   var gizzardServices: GizzardServices[HaplocheirusShard] = null
   var service: TimelineStoreService = null
 
@@ -40,6 +42,7 @@ object Main extends Service {
     stopThrift()
     deathSwitch.countDown()
     log.info("Goodbye!")
+    System.exit(0)
   }
 
   def quiesce() {
@@ -61,8 +64,9 @@ object Main extends Service {
           NuLoggingProxy[thrift.TimelineStore.Iface](Stats, "timelines", new TimelineStore(service))
         )
       )
-      thriftServer = TSelectorServer("timelines", config("server_port").toInt,
-                                     config.configMap("timeline_store_service"), processor)
+      thriftServer = BetterTThreadPoolServer("haplocheirus", config("server_port").toInt,
+                                             config("timeline_store_service.idle_timeout_sec").toInt * 1000,
+                                             processor)
       thriftServer.serve()
     } catch {
       case e: Exception =>
@@ -74,9 +78,9 @@ object Main extends Service {
 
   def stopThrift() {
     log.info("Thrift servers shutting down...")
-    thriftServer.shutdown()
-    thriftServer = null
     gizzardServices.shutdown()
     gizzardServices = null
+    thriftServer.stop()
+    thriftServer = null
   }
 }
