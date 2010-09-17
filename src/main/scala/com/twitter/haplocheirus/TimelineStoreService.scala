@@ -5,6 +5,7 @@ import com.twitter.gizzard.jobs.CopyFactory
 import com.twitter.gizzard.nameserver.NameServer
 import com.twitter.gizzard.scheduler.PrioritizingJobScheduler
 import com.twitter.gizzard.thrift.conversions.Sequences._
+import com.twitter.ostrich.Stats
 import net.lag.logging.Logger
 
 
