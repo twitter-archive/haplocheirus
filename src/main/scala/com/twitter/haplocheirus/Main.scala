@@ -80,15 +80,7 @@ object Main extends Service {
     log.info("Thrift servers shutting down...")
     gizzardServices.shutdown()
     gizzardServices = null
-    // thrift server doesn't correctly die. :(
-    val t = new Thread() {
-      override def run() {
-        thriftServer.stop()
-        thriftServer = null
-      }
-    }
-    t.setDaemon(true)
-    t.start()
-    Thread.sleep(1000)
+    thriftServer.stop()
+    thriftServer = null
   }
 }

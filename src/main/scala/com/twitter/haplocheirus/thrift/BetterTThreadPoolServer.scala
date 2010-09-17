@@ -1,7 +1,7 @@
 package com.twitter.haplocheirus.thrift
 
-import java.net.{ServerSocket, Socket}
-import java.util.concurrent.{ExecutorService, SynchronousQueue, ThreadPoolExecutor, TimeUnit}
+import java.net.{ServerSocket, Socket, SocketTimeoutException}
+import java.util.concurrent.{CountDownLatch, ExecutorService, SynchronousQueue, ThreadPoolExecutor, TimeUnit}
 import com.twitter.gizzard.NamedPoolThreadFactory
 import com.twitter.ostrich.Stats
 import net.lag.logging.Logger
@@ -50,7 +50,8 @@ class BetterTThreadPoolServer(name: String, port: Int, idleTimeout: Int,
   private val ACCEPT_TIMEOUT = 1000
   private val SHUTDOWN_TIMEOUT = 5000
 
-  @volatile var running = false
+  @volatile var running = true
+  private val deathSwitch = new CountDownLatch(1)
 
   private val serverSocket = new ServerSocket(port)
   serverSocket.setReuseAddress(true)
@@ -74,8 +75,10 @@ class BetterTThreadPoolServer(name: String, port: Int, idleTimeout: Int,
           }
         })
       } catch {
-        case x: TTransportException =>
-          log.error(x, "Transport error occurred during accept: %s", x)
+        case x: SocketTimeoutException =>
+          // ignore
+        case x: Exception =>
+          log.error(x, "Error occurred during accept: %s", x)
           running = false
       }
     }
@@ -86,13 +89,14 @@ class BetterTThreadPoolServer(name: String, port: Int, idleTimeout: Int,
     executor.shutdown()
     executor.awaitTermination(SHUTDOWN_TIMEOUT, TimeUnit.MILLISECONDS)
     executor.shutdownNow()
-    executor.awaitTermination(SHUTDOWN_TIMEOUT, TimeUnit.MILLISECONDS)
 
     log.info("Finished shutting down service %s.", name)
+    deathSwitch.countDown()
   }
 
   override def stop() {
     running = false
+    deathSwitch.await()
   }
 
   private def process(client: Socket) {
