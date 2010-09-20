@@ -46,6 +46,7 @@ object Haplocheirus {
     jobParser += (("Merge".r, new BoundJobParser(jobs.MergeParser, nameServer)))
     jobParser += (("DeleteTimeline".r, new BoundJobParser(jobs.DeleteTimelineParser, nameServer)))
     jobParser += (("Copy".r, new BoundJobParser(jobs.RedisCopyParser, (nameServer, scheduler(Priority.Copy.id)))))
+    jobParser += (("MultiAppend".r, new BoundJobParser(jobs.MultiAppendParser, (nameServer, scheduler(Priority.Write.id)))))
 
     scheduler.start()
 

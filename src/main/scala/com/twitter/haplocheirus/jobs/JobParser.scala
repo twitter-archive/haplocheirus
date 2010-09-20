@@ -1,7 +1,6 @@
 package com.twitter.haplocheirus.jobs
 
 import com.twitter.gizzard.jobs.UnboundJobParser
-import com.twitter.gizzard.shards.ShardId
 import com.twitter.gizzard.nameserver.NameServer
 import org.apache.commons.codec.binary.Base64
 

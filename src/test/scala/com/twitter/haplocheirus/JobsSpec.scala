@@ -11,6 +11,7 @@ import org.specs.mock.{ClassMocker, JMocker}
 object JobsSpec extends Specification with JMocker with ClassMocker {
   "Jobs" should {
     val nameServer = mock[NameServer[HaplocheirusShard]]
+    val scheduler = mock[JobScheduler]
     val shard1 = mock[HaplocheirusShard]
     val shard2 = mock[HaplocheirusShard]
 
@@ -71,6 +72,25 @@ object JobsSpec extends Specification with JMocker with ClassMocker {
       jobs.DeleteTimelineParser(map).toString mustEqual deleteTimeline.toString
       deleteTimeline.toMap mustEqual map
       deleteTimeline.apply(nameServer)
+    }
+
+    "MultiAppend" in {
+      val data = "hello".getBytes
+      val multiAppend = jobs.MultiAppend(data, "timeline:", List(3L, 4L, 5L))
+      val map = Map("entry" -> "aGVsbG8=", "timeline_prefix" -> "timeline:",
+                    "timeline_ids" -> "AwAAAAAAAAAEAAAAAAAAAAUAAAAAAAAA")
+
+      expect {
+        one(scheduler).apply(jobs.Append(data, "timeline:3"))
+        one(scheduler).apply(jobs.Append(data, "timeline:4"))
+        one(scheduler).apply(jobs.Append(data, "timeline:5"))
+      }
+
+      jobs.MultiAppendParser(map).entry.toList mustEqual multiAppend.entry.toList
+      jobs.MultiAppendParser(map).timelinePrefix mustEqual multiAppend.timelinePrefix
+      jobs.MultiAppendParser(map).timelineIds.toList mustEqual multiAppend.timelineIds.toList
+      multiAppend.toMap mustEqual map
+      multiAppend.apply((nameServer, scheduler))
     }
   }
 }
