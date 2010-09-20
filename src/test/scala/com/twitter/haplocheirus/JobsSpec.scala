@@ -74,9 +74,9 @@ object JobsSpec extends Specification with JMocker with ClassMocker {
       deleteTimeline.apply(nameServer)
     }
 
-    "MultiAppend" in {
+    "MultiPush" in {
       val data = "hello".getBytes
-      val multiAppend = jobs.MultiAppend(data, "timeline:", List(3L, 4L, 5L))
+      val multiPush = jobs.MultiPush(data, "timeline:", List(3L, 4L, 5L))
       val map = Map("entry" -> "aGVsbG8=", "timeline_prefix" -> "timeline:",
                     "timeline_ids" -> "AwAAAAAAAAAEAAAAAAAAAAUAAAAAAAAA")
 
@@ -86,11 +86,11 @@ object JobsSpec extends Specification with JMocker with ClassMocker {
         one(scheduler).apply(jobs.Append(data, "timeline:5"))
       }
 
-      jobs.MultiAppendParser(map).entry.toList mustEqual multiAppend.entry.toList
-      jobs.MultiAppendParser(map).timelinePrefix mustEqual multiAppend.timelinePrefix
-      jobs.MultiAppendParser(map).timelineIds.toList mustEqual multiAppend.timelineIds.toList
-      multiAppend.toMap mustEqual map
-      multiAppend.apply((nameServer, scheduler))
+      jobs.MultiPushParser(map).entry.toList mustEqual multiPush.entry.toList
+      jobs.MultiPushParser(map).timelinePrefix mustEqual multiPush.timelinePrefix
+      jobs.MultiPushParser(map).timelineIds.toList mustEqual multiPush.timelineIds.toList
+      multiPush.toMap mustEqual map
+      multiPush.apply((nameServer, scheduler))
     }
   }
 }
