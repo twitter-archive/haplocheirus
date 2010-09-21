@@ -1,11 +1,12 @@
 package com.twitter.haplocheirus
 
-import java.util.concurrent.{Future, TimeUnit}
+import java.util.concurrent.{ExecutionException, Future, TimeUnit}
 import java.util.{List => JList}
 import com.twitter.gizzard.nameserver.Forwarding
 import com.twitter.gizzard.scheduler.KestrelMessageQueue
 import com.twitter.gizzard.shards.{Busy, ShardId, ShardInfo}
 import com.twitter.gizzard.thrift.conversions.Sequences._
+import com.twitter.ostrich.Stats
 import org.jredis.protocol.ResponseStatus
 import org.jredis.ri.alphazero.{JRedisFutureSupport, JRedisPipeline}
 import org.specs.Specification
@@ -53,43 +54,46 @@ object IntegrationSpec extends ConfiguredSpecification with JMocker with ClassMo
     val timeline2 = "home_timeline:77777"
     val data = List(123L).pack
 
+    def pushAttempts() = {
+      Stats.getTiming("redis-push-usec").get(false).count
+    }
+
     "perform a basic append" in {
       // tricksy: since the expectations are met in another thread, we have to manually assert
       // that they happened.
-      var done = false
-
       expect {
         one(jredisClient).rpushx(timeline1, data) willReturn future
         one(jredisClient).rpushx(timeline2, data) willReturn future
         one(future).get(200L, TimeUnit.MILLISECONDS) willReturn 1L
-        one(future).get(200L, TimeUnit.MILLISECONDS) willReturn { done = true; 2L }
+        one(future).get(200L, TimeUnit.MILLISECONDS) willReturn 2L
       }
 
+      val oldCount = pushAttempts()
+      service.scheduler.size mustEqual 0
       service.append(data, "home_timeline:", List(109L, 77777L))
-      done must beTrue
+      pushAttempts() must eventually(be_==(oldCount + 2))
     }
 
     "write to the error log on failure, and retry successfully" in {
-      var done = false
-
       expect {
         one(jredisClient).rpushx(timeline1, data) willReturn future
         one(jredisClient).rpushx(timeline2, data) willReturn future
         one(future).get(200L, TimeUnit.MILLISECONDS) willReturn 1L
-        one(future).get(200L, TimeUnit.MILLISECONDS) will throwA(new Exception("Oups!"))
+        one(future).get(200L, TimeUnit.MILLISECONDS) willThrow new ExecutionException(new Exception("Oups!"))
       }
 
+      val oldCount = pushAttempts()
       errorQueue.size mustEqual 0
       service.append(data, "home_timeline:", List(109L, 77777L))
-      errorQueue.size mustEqual 1
+      pushAttempts() must eventually(be_==(oldCount + 2))
+      errorQueue.size must eventually(be_==(1))
 
       expect {
-        allowing(jredisClient).lpushx(timeline2, data) willReturn future
-        allowing(future).get(200L, TimeUnit.MILLISECONDS) willReturn { done = true; 3L }
+        allowing(jredisClient).rpushx(timeline2, data) willReturn future
+        allowing(future).get(200L, TimeUnit.MILLISECONDS) willReturn 3L
       }
 
       service.scheduler.retryErrors()
-      done must beTrue
       errorQueue.size mustEqual 0
     }
 
@@ -122,6 +126,8 @@ object IntegrationSpec extends ConfiguredSpecification with JMocker with ClassMo
         one(future2).get(200L, TimeUnit.MILLISECONDS) willReturn 0L
         one(jredisClient).expire(timeline1, 86400) willReturn future2
         one(future2).get(200L, TimeUnit.MILLISECONDS) willReturn 0L
+
+        allowing(jredisClient).quit()
       }
 
       val segment = service.get(timeline1, 0, 2, false).get

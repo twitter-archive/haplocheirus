@@ -34,10 +34,7 @@ object TimelineStoreServiceSpec extends Specification with JMocker with ClassMoc
       val timelines = List("t1", "t2")
 
       expect {
-        one(nameServer).findCurrentForwarding(0, 632754681242344982L) willReturn shard1
-        one(nameServer).findCurrentForwarding(0, 632753581730716771L) willReturn shard2
-        one(shard1).append("t1", List(data), None)
-        one(shard2).append("t2", List(data), None)
+        one(queue).put(jobs.MultiPush(data, "t", List(1L, 2L)))
       }
 
       service.append(data, "t", List(1L, 2L))

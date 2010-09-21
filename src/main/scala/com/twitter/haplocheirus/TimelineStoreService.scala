@@ -13,9 +13,16 @@ class TimelineStoreService(val nameServer: NameServer[HaplocheirusShard],
                            val scheduler: PrioritizingJobScheduler,
                            val copyFactory: CopyFactory[HaplocheirusShard],
                            val readPool: RedisPool,
-                           val writePool: RedisPool) {
-  val log = Logger(getClass.getName)
+                           val writePool: RedisPool)
+      extends JobInjector {
+
+  private val log = Logger(getClass.getName)
+
   val writeQueue = scheduler(Priority.Write.id).queue
+
+  def injectJob(job: jobs.RedisJob) {
+    injectJob(nameServer, writeQueue, job)
+  }
 
   def shutdown() {
     scheduler.shutdown()
@@ -27,26 +34,18 @@ class TimelineStoreService(val nameServer: NameServer[HaplocheirusShard],
     nameServer.findCurrentForwarding(0, Hash.FNV1A_64(timeline))
   }
 
-  // can be overridden for tests.
-  var addOnError = true
-
-  private def injectJob(job: jobs.RedisJob) {
-    if (addOnError) {
-      job.onError { e => writeQueue.putError(job) }
-    }
-    try {
-      job(nameServer)
-    } catch {
-      case e: Throwable =>
-        log.error(e, "Exception starting job %s: %s", job, e)
-        writeQueue.putError(job)
-    }
-  }
-
+  val SLICE = 100
   def append(entry: Array[Byte], prefix: String, timelines: Seq[Long]) {
     Stats.addTiming("x-timelines-per-append", timelines.size)
-    timelines.foreach { timeline =>
-      injectJob(jobs.Append(entry, prefix + timeline.toString))
+    var i = 0
+    while (i < timelines.size) {
+      val job = Stats.timeMicros("x-append-job") {
+        jobs.MultiPush(entry, prefix, timelines.slice(i, i + SLICE))
+      }
+      Stats.timeMicros("x-append-put") {
+        writeQueue.put(job)
+      }
+      i += SLICE
     }
   }
 

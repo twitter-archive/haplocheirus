@@ -2,8 +2,8 @@ package com.twitter.haplocheirus
 
 import com.twitter.gizzard.Future
 import com.twitter.gizzard.nameserver.NameServer
-import com.twitter.gizzard.scheduler.{JobScheduler, PrioritizingJobScheduler}
-import com.twitter.json.Json
+import com.twitter.gizzard.scheduler.{ErrorHandlingJobQueue, JobScheduler, PrioritizingJobScheduler}
+import com.twitter.json.{Json, JsonQuoted}
 import org.specs.Specification
 import org.specs.mock.{ClassMocker, JMocker}
 
@@ -11,6 +11,7 @@ import org.specs.mock.{ClassMocker, JMocker}
 object JobsSpec extends Specification with JMocker with ClassMocker {
   "Jobs" should {
     val nameServer = mock[NameServer[HaplocheirusShard]]
+    val scheduler = mock[JobScheduler]
     val shard1 = mock[HaplocheirusShard]
     val shard2 = mock[HaplocheirusShard]
 
@@ -24,7 +25,7 @@ object JobsSpec extends Specification with JMocker with ClassMocker {
         one(shard1).append("t1", List(data), None)
       }
 
-      jobs.AppendParser(map).toString mustEqual append.toString
+      new jobs.AppendParser(null)(map).toString mustEqual append.toString
       append.toMap mustEqual map
       append.apply(nameServer)
     }
@@ -39,7 +40,7 @@ object JobsSpec extends Specification with JMocker with ClassMocker {
         one(shard1).remove("t1", data, None)
       }
 
-      jobs.RemoveParser(map).toString mustEqual remove.toString
+      new jobs.RemoveParser(null)(map).toString mustEqual remove.toString
       remove.toMap mustEqual map
       remove.apply(nameServer)
     }
@@ -54,7 +55,7 @@ object JobsSpec extends Specification with JMocker with ClassMocker {
         one(shard1).merge("t1", data, None)
       }
 
-      jobs.MergeParser(map).toString mustEqual merge.toString
+      new jobs.MergeParser(null)(map).toString mustEqual merge.toString
       merge.toMap mustEqual map
       merge.apply(nameServer)
     }
@@ -68,9 +69,35 @@ object JobsSpec extends Specification with JMocker with ClassMocker {
         one(shard1).deleteTimeline("t1")
       }
 
-      jobs.DeleteTimelineParser(map).toString mustEqual deleteTimeline.toString
+      new jobs.DeleteTimelineParser(null)(map).toString mustEqual deleteTimeline.toString
       deleteTimeline.toMap mustEqual map
       deleteTimeline.apply(nameServer)
+    }
+
+    "MultiPush" in {
+      val data = "hello".getBytes
+      val multiPush = jobs.MultiPush(data, "timeline:", List(3L, 4L, 5L))
+      val map = Map("entry" -> JsonQuoted("\"aGVsbG8=\""), "timeline_prefix" -> "timeline:",
+                    "timeline_ids" -> JsonQuoted("\"AwAAAAAAAAAEAAAAAAAAAAUAAAAAAAAA\""))
+
+      multiPush.addOnError = false
+      val queue = mock[ErrorHandlingJobQueue]
+
+      expect {
+        allowing(scheduler).queue willReturn queue
+        one(nameServer).findCurrentForwarding(0, 776251139709896853L) willReturn shard1
+        one(shard1).append("timeline:3", List(data), None)
+        one(nameServer).findCurrentForwarding(0, 776243443128499376L) willReturn shard1
+        one(shard1).append("timeline:4", List(data), None)
+        one(nameServer).findCurrentForwarding(0, 776244542640127587L) willReturn shard1
+        one(shard1).append("timeline:5", List(data), None)
+      }
+
+      jobs.MultiPushParser(map).entry.toList mustEqual multiPush.entry.toList
+      jobs.MultiPushParser(map).timelinePrefix mustEqual multiPush.timelinePrefix
+      jobs.MultiPushParser(map).timelineIds.toList mustEqual multiPush.timelineIds.toList
+      multiPush.toMap mustEqual map
+      multiPush.apply((nameServer, scheduler))
     }
   }
 }
