@@ -25,7 +25,7 @@ object JobsSpec extends Specification with JMocker with ClassMocker {
         one(shard1).append("t1", List(data), None)
       }
 
-      jobs.AppendParser(map).toString mustEqual append.toString
+      new jobs.AppendParser(null)(map).toString mustEqual append.toString
       append.toMap mustEqual map
       append.apply(nameServer)
     }
@@ -40,7 +40,7 @@ object JobsSpec extends Specification with JMocker with ClassMocker {
         one(shard1).remove("t1", data, None)
       }
 
-      jobs.RemoveParser(map).toString mustEqual remove.toString
+      new jobs.RemoveParser(null)(map).toString mustEqual remove.toString
       remove.toMap mustEqual map
       remove.apply(nameServer)
     }
@@ -55,7 +55,7 @@ object JobsSpec extends Specification with JMocker with ClassMocker {
         one(shard1).merge("t1", data, None)
       }
 
-      jobs.MergeParser(map).toString mustEqual merge.toString
+      new jobs.MergeParser(null)(map).toString mustEqual merge.toString
       merge.toMap mustEqual map
       merge.apply(nameServer)
     }
@@ -69,7 +69,7 @@ object JobsSpec extends Specification with JMocker with ClassMocker {
         one(shard1).deleteTimeline("t1")
       }
 
-      jobs.DeleteTimelineParser(map).toString mustEqual deleteTimeline.toString
+      new jobs.DeleteTimelineParser(null)(map).toString mustEqual deleteTimeline.toString
       deleteTimeline.toMap mustEqual map
       deleteTimeline.apply(nameServer)
     }

@@ -42,10 +42,11 @@ object Haplocheirus {
                                 shardRepository, None)
     nameServer.reload()
 
-    jobParser += (("Append".r, new BoundJobParser(jobs.AppendParser, nameServer)))
-    jobParser += (("Remove".r, new BoundJobParser(jobs.RemoveParser, nameServer)))
-    jobParser += (("Merge".r, new BoundJobParser(jobs.MergeParser, nameServer)))
-    jobParser += (("DeleteTimeline".r, new BoundJobParser(jobs.DeleteTimelineParser, nameServer)))
+    val writeQueue = scheduler(Priority.Write.id).queue
+    jobParser += (("Append".r, new BoundJobParser(new jobs.AppendParser(writeQueue), nameServer)))
+    jobParser += (("Remove".r, new BoundJobParser(new jobs.RemoveParser(writeQueue), nameServer)))
+    jobParser += (("Merge".r, new BoundJobParser(new jobs.MergeParser(writeQueue), nameServer)))
+    jobParser += (("DeleteTimeline".r, new BoundJobParser(new jobs.DeleteTimelineParser(writeQueue), nameServer)))
     jobParser += (("Copy".r, new BoundJobParser(jobs.RedisCopyParser, (nameServer, scheduler(Priority.Copy.id)))))
     jobParser += (("MultiPush".r, new BoundJobParser(jobs.MultiPushParser, (nameServer, scheduler(Priority.Write.id)))))
 
