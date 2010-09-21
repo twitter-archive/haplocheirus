@@ -26,7 +26,6 @@ case class MultiPush(entry: Array[Byte], timelinePrefix: String, timelineIds: Se
   }
 
   def apply(environment: (NameServer[HaplocheirusShard], JobScheduler)) {
-    println("do eet")
     val (nameServer, scheduler) = environment
     timelineIds.foreach { id =>
       val job = Append(entry, timelinePrefix + id.toString)

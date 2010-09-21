@@ -45,9 +45,7 @@ class TimelineStoreService(val nameServer: NameServer[HaplocheirusShard],
 
   def append(entry: Array[Byte], prefix: String, timelines: Seq[Long]) {
     Stats.addTiming("x-timelines-per-append", timelines.size)
-    timelines.foreach { timeline =>
-      injectJob(jobs.Append(entry, prefix + timeline.toString))
-    }
+    writeQueue.put(jobs.MultiPush(entry, prefix, timelines))
   }
 
   def remove(entry: Array[Byte], prefix: String, timelines: Seq[Long]) {
