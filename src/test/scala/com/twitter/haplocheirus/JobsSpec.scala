@@ -17,71 +17,60 @@ object JobsSpec extends Specification with JMocker with ClassMocker {
     "Append" in {
       val data = "hello".getBytes
       val append = jobs.Append(data, "t1")
-      val text = "{\"entry\":\"aGVsbG8=\",\"timeline\":\"t1\"}"
+      val map = Map("entry" -> "aGVsbG8=", "timeline" -> "t1")
 
       expect {
         one(nameServer).findCurrentForwarding(0, 632754681242344982L) willReturn shard1
-        one(shard1).append(data, "t1", None)
+        one(shard1).append("t1", List(data), None)
       }
 
-      append.toMap mustEqual Map("entry" -> "aGVsbG8=", "timeline" -> "t1")
+      jobs.AppendParser(map).toString mustEqual append.toString
+      append.toMap mustEqual map
       append.apply(nameServer)
-
-      Json.build(append.toMap).toString mustEqual text
-      // can't compare byte arrays in case classes. suck.
-      jobs.AppendParser(Json.parse(text).asInstanceOf[Map[String, Any]]).timeline mustEqual append.timeline
     }
 
     "Remove" in {
-      val data = "hello".getBytes
-      val remove = jobs.Remove(data, "t1")
-      val text = "{\"entry\":\"aGVsbG8=\",\"timeline\":\"t1\"}"
+      val data = List("coke".getBytes, "zero".getBytes)
+      val remove = jobs.Remove("t1", data)
+      val map = Map("timeline" -> "t1", "entries" -> List("Y29rZQ==", "emVybw=="))
 
       expect {
         one(nameServer).findCurrentForwarding(0, 632754681242344982L) willReturn shard1
-        one(shard1).remove(data, "t1", None)
+        one(shard1).remove("t1", data, None)
       }
 
-      remove.toMap mustEqual Map("entry" -> "aGVsbG8=", "timeline" -> "t1")
+      jobs.RemoveParser(map).toString mustEqual remove.toString
+      remove.toMap mustEqual map
       remove.apply(nameServer)
-
-      Json.build(remove.toMap).toString mustEqual text
-      // can't compare byte arrays in case classes. suck.
-      jobs.RemoveParser(Json.parse(text).asInstanceOf[Map[String, Any]]).timeline mustEqual remove.timeline
     }
 
     "Merge" in {
       val data = List("coke".getBytes, "zero".getBytes)
       val merge = jobs.Merge("t1", data)
-      val text = "{\"timeline\":\"t1\",\"entries\":[\"Y29rZQ==\",\"emVybw==\"]}"
+      val map = Map("timeline" -> "t1", "entries" -> List("Y29rZQ==", "emVybw=="))
 
       expect {
         one(nameServer).findCurrentForwarding(0, 632754681242344982L) willReturn shard1
         one(shard1).merge("t1", data, None)
       }
 
-      merge.toMap mustEqual Map("timeline" -> "t1", "entries" -> List("Y29rZQ==", "emVybw=="))
+      jobs.MergeParser(map).toString mustEqual merge.toString
+      merge.toMap mustEqual map
       merge.apply(nameServer)
-
-      Json.build(merge.toMap).toString mustEqual text
-      // can't compare byte arrays in case classes. suck.
-      jobs.MergeParser(Json.parse(text).asInstanceOf[Map[String, Any]]).timeline mustEqual merge.timeline
     }
 
     "DeleteTimeline" in {
       val deleteTimeline = jobs.DeleteTimeline("t1")
-      val text = "{\"timeline\":\"t1\"}"
+      val map = Map("timeline" -> "t1")
 
       expect {
         one(nameServer).findCurrentForwarding(0, 632754681242344982L) willReturn shard1
         one(shard1).deleteTimeline("t1")
       }
 
-      deleteTimeline.toMap mustEqual Map("timeline" -> "t1")
+      jobs.DeleteTimelineParser(map).toString mustEqual deleteTimeline.toString
+      deleteTimeline.toMap mustEqual map
       deleteTimeline.apply(nameServer)
-
-      Json.build(deleteTimeline.toMap).toString mustEqual text
-      jobs.DeleteTimelineParser(Json.parse(text).asInstanceOf[Map[String, Any]]) mustEqual deleteTimeline
     }
   }
 }

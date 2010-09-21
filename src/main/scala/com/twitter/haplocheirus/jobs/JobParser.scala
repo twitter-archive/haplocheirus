@@ -17,8 +17,8 @@ object AppendParser extends JobParser {
 
 object RemoveParser extends JobParser {
   def apply(attributes: Map[String, Any]) = {
-    new Remove(Base64.decodeBase64(attributes("entry").asInstanceOf[String]),
-               attributes("timeline").asInstanceOf[String])
+    new Remove(attributes("timeline").asInstanceOf[String],
+               attributes("entries").asInstanceOf[Seq[String]].map(Base64.decodeBase64(_)))
   }
 }
 

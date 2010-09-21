@@ -70,7 +70,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
           one(longFuture).get(1000, TimeUnit.MILLISECONDS) willReturn 100L
         }
 
-        redisShard.append(data, timeline, None)
+        redisShard.append(timeline, List(data), None)
         writes mustEqual 1
       }
 
@@ -82,7 +82,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
           one(jredis).ltrim(timeline, -800, -1)
         }
 
-        redisShard.append(data, timeline, None)
+        redisShard.append(timeline, List(data), None)
         writes mustEqual 1
       }
     }
@@ -93,7 +93,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
         one(jredis).lrem(timeline, data, 0)
       }
 
-      redisShard.remove(data, timeline, None)
+      redisShard.remove(timeline, List(data), None)
       writes mustEqual 1
     }
 
@@ -101,17 +101,31 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
       val entry1 = List(20L).pack
       val entry2 = List(21L).pack
       val entry3 = List(22L).pack
+      val entry4 = List(23L).pack
+      val entry5 = List(24L).pack
       val future = mock[Future[JList[Array[Byte]]]]
 
-      expect {
-        one(shardInfo).hostname willReturn "host1"
-        one(jredis).lrange(timeline, 0, -1) willReturn future
-        one(future).get(1000, TimeUnit.MILLISECONDS) willReturn List(entry2, entry3).toJavaList
-        one(jredis).expire(timeline, 1)
+      "with no limit" in {
+        expect {
+          one(shardInfo).hostname willReturn "host1"
+          one(jredis).lrange(timeline, 0, -1) willReturn future
+          one(future).get(1000, TimeUnit.MILLISECONDS) willReturn List(entry2, entry3).toJavaList
+          one(jredis).expire(timeline, 1)
+        }
+
+        redisShard.filter(timeline, List(entry1, entry2), -1).get.toList mustEqual List(entry2)
       }
 
-      redisShard.filter(timeline, List(entry1, entry2)).get.toList mustEqual List(entry2)
-      reads mustEqual 1
+      "with a search limit" in {
+        expect {
+          one(shardInfo).hostname willReturn "host1"
+          one(jredis).lrange(timeline, -3, -1) willReturn future
+          one(future).get(1000, TimeUnit.MILLISECONDS) willReturn List(entry2, entry3, entry4).toJavaList
+          one(jredis).expire(timeline, 1)
+        }
+
+        redisShard.filter(timeline, List(entry1, entry2), 3).get.toList mustEqual List(entry2)
+      }
     }
 
     "get" in {
@@ -376,6 +390,22 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
         writes mustEqual 1
       }
 
+      "tiny little entries" in {
+        val insert = List("a".getBytes, "b".getBytes)
+
+        expect {
+          one(shardInfo).hostname willReturn "host1"
+          one(jredis).lrange(timeline, 0, -1) willReturn future
+          one(future).get(1000, TimeUnit.MILLISECONDS) willReturn existing.map { List(_).pack }.reverse.toJavaList
+          one(jredis).expire(timeline, 1)
+          one(jredis).linsertBefore(timeline, List(7L).pack, insert(0))
+          one(jredis).linsertBefore(timeline, insert(0), insert(1))
+        }
+
+        redisShard.merge(timeline, insert, None)
+        writes mustEqual 1
+      }
+
       "nothing to merge" in {
         expect {
           one(shardInfo).hostname willReturn "host1"
@@ -565,7 +595,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
         one(jredis).rpushx(timeline, data) willThrow new IllegalStateException("aiee")
       }
 
-      redisShard.append(data, timeline, None) must throwA[ShardException]
+      redisShard.append(timeline, List(data), None) must throwA[ShardException]
     }
   }
 }

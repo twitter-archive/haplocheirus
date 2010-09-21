@@ -44,7 +44,11 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
   case class EntryWithKey(key: Long, entry: Array[Byte])
 
   private def sortKeyFromEntry(entry: Array[Byte], offset: Int): Long = {
-    ByteBuffer.wrap(entry).order(ByteOrder.LITTLE_ENDIAN).getLong(offset)
+    if (entry.size < offset + 8) {
+      0
+    } else {
+      ByteBuffer.wrap(entry).order(ByteOrder.LITTLE_ENDIAN).getLong(offset)
+    }
   }
 
   private def sortKeyFromEntry(entry: Array[Byte]): Long = sortKeyFromEntry(entry, 0)
@@ -95,23 +99,27 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
     }
   }
 
-  def append(entry: Array[Byte], timeline: String, onError: Option[Throwable => Unit]) {
+  def append(timeline: String, entries: Seq[Array[Byte]], onError: Option[Throwable => Unit]) {
     writePool.withClient(shardInfo.hostname) { client =>
-      client.push(timeline, entry, onError) { checkTrim(client, timeline, _) }
+      entries.foreach { entry =>
+        client.push(timeline, entry, onError) { checkTrim(client, timeline, _) }
+      }
     }
   }
 
-  def remove(entry: Array[Byte], timeline: String, onError: Option[Throwable => Unit]) {
+  def remove(timeline: String, entries: Seq[Array[Byte]], onError: Option[Throwable => Unit]) {
     writePool.withClient(shardInfo.hostname) { client =>
-      client.pop(timeline, entry, onError)
+      entries.foreach { entry =>
+        client.pop(timeline, entry, onError)
+      }
     }
   }
 
   // this is really inefficient. we should discourage its use.
-  def filter(timeline: String, entries: Seq[Array[Byte]]): Option[Seq[Array[Byte]]] = {
+  def filter(timeline: String, entries: Seq[Array[Byte]], maxSearch: Int): Option[Seq[Array[Byte]]] = {
     val searchKeys = sortKeysFromEntries(entries)
     val timelineEntries = Set(sortKeysFromEntries(readPool.withClient(shardInfo.hostname) { client =>
-      client.get(timeline, 0, -1)
+      client.get(timeline, 0, maxSearch)
     }).map { _.key }: _*)
     if (timelineEntries.isEmpty) {
       None

@@ -30,17 +30,7 @@ case class Append(entry: Array[Byte], timeline: String) extends RedisJob {
   }
 
   def apply(nameServer: NameServer[HaplocheirusShard]) {
-    nameServer.findCurrentForwarding(0, Hash.FNV1A_64(timeline)).append(entry, timeline, onErrorCallback)
-  }
-}
-
-case class Remove(entry: Array[Byte], timeline: String) extends RedisJob {
-  def toMap = {
-    Map("entry" -> encodeBase64(entry), "timeline" -> timeline)
-  }
-
-  def apply(nameServer: NameServer[HaplocheirusShard]) {
-    nameServer.findCurrentForwarding(0, Hash.FNV1A_64(timeline)).remove(entry, timeline, onErrorCallback)
+    nameServer.findCurrentForwarding(0, Hash.FNV1A_64(timeline)).append(timeline, List(entry), onErrorCallback)
   }
 }
 
@@ -51,6 +41,16 @@ case class Merge(timeline: String, entries: Seq[Array[Byte]]) extends RedisJob {
 
   def apply(nameServer: NameServer[HaplocheirusShard]) {
     nameServer.findCurrentForwarding(0, Hash.FNV1A_64(timeline)).merge(timeline, entries, onErrorCallback)
+  }
+}
+
+case class Remove(timeline: String, entries: Seq[Array[Byte]]) extends RedisJob {
+  def toMap = {
+    Map("timeline" -> timeline, "entries" -> entries.map(encodeBase64(_)))
+  }
+
+  def apply(nameServer: NameServer[HaplocheirusShard]) {
+    nameServer.findCurrentForwarding(0, Hash.FNV1A_64(timeline)).remove(timeline, entries, onErrorCallback)
   }
 }
 

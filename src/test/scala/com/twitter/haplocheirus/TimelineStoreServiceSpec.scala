@@ -36,11 +36,11 @@ object TimelineStoreServiceSpec extends Specification with JMocker with ClassMoc
       expect {
         one(nameServer).findCurrentForwarding(0, 632754681242344982L) willReturn shard1
         one(nameServer).findCurrentForwarding(0, 632753581730716771L) willReturn shard2
-        one(shard1).append(data, "t1", None)
-        one(shard2).append(data, "t2", None)
+        one(shard1).append("t1", List(data), None)
+        one(shard2).append("t2", List(data), None)
       }
 
-      service.append(data, timelines)
+      service.append(data, "t", List(1L, 2L))
     }
 
     "remove" in {
@@ -50,11 +50,11 @@ object TimelineStoreServiceSpec extends Specification with JMocker with ClassMoc
       expect {
         one(nameServer).findCurrentForwarding(0, 632754681242344982L) willReturn shard1
         one(nameServer).findCurrentForwarding(0, 632753581730716771L) willReturn shard2
-        one(shard1).remove(data, "t1", None)
-        one(shard2).remove(data, "t2", None)
+        one(shard1).remove("t1", List(data), None)
+        one(shard2).remove("t2", List(data), None)
       }
 
-      service.remove(data, timelines)
+      service.remove(data, "t", List(1L, 2L))
     }
 
     "filter" in {
@@ -63,10 +63,10 @@ object TimelineStoreServiceSpec extends Specification with JMocker with ClassMoc
 
       expect {
         one(nameServer).findCurrentForwarding(0, 632754681242344982L) willReturn shard1
-        one(shard1).filter(timeline, List(data)) willReturn Some(List(data))
+        one(shard1).filter(timeline, List(data), -1) willReturn Some(List(data))
       }
 
-      service.filter(timeline, List(data)) mustEqual Some(List(data))
+      service.filter(timeline, List(data), -1) mustEqual Some(List(data))
     }
 
     "get" in {
@@ -123,12 +123,63 @@ object TimelineStoreServiceSpec extends Specification with JMocker with ClassMoc
       val timeline = "t1"
 
       expect {
-        exactly(2).of(nameServer).findCurrentForwarding(0, 632754681242344982L) willReturn shard1
-        one(shard1).remove("a".getBytes, "t1", None)
-        one(shard1).remove("z".getBytes, "t1", None)
+        one(nameServer).findCurrentForwarding(0, 632754681242344982L) willReturn shard1
+        one(shard1).remove("t1", data, None)
       }
 
       service.unmerge(timeline, data)
+    }
+
+    "mergeIndirect" in {
+      val data = List("a".getBytes, "z".getBytes)
+      val timeline1 = "t1"
+      val timeline2 = "t2"
+
+      "with a source timeline" in {
+        expect {
+          one(nameServer).findCurrentForwarding(0, 632754681242344982L) willReturn shard1
+          one(nameServer).findCurrentForwarding(0, 632753581730716771L) willReturn shard2
+          one(shard2).getRaw("t2") willReturn Some(data)
+          one(shard1).merge("t1", data, None)
+        }
+
+        service.mergeIndirect(timeline1, timeline2) mustEqual true
+      }
+
+      "without a source timeline" in {
+        expect {
+          one(nameServer).findCurrentForwarding(0, 632753581730716771L) willReturn shard2
+          one(shard2).getRaw("t2") willReturn None
+        }
+
+        service.mergeIndirect(timeline1, timeline2) mustEqual false
+      }
+    }
+
+    "unmergeIndirect" in {
+      val data = List("a".getBytes, "z".getBytes)
+      val timeline1 = "t1"
+      val timeline2 = "t2"
+
+      "with a source timeline" in {
+        expect {
+          one(nameServer).findCurrentForwarding(0, 632754681242344982L) willReturn shard1
+          one(nameServer).findCurrentForwarding(0, 632753581730716771L) willReturn shard2
+          one(shard2).getRaw("t2") willReturn Some(data)
+          one(shard1).remove("t1", data, None)
+        }
+
+        service.unmergeIndirect(timeline1, timeline2) mustEqual true
+      }
+
+      "without a source timeline" in {
+        expect {
+          one(nameServer).findCurrentForwarding(0, 632753581730716771L) willReturn shard2
+          one(shard2).getRaw("t2") willReturn None
+        }
+
+        service.unmergeIndirect(timeline1, timeline2) mustEqual false
+      }
     }
 
     "deleteTimeline" in {

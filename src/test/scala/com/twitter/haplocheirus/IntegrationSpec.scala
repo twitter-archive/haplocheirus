@@ -65,7 +65,7 @@ object IntegrationSpec extends ConfiguredSpecification with JMocker with ClassMo
         one(future).get(200L, TimeUnit.MILLISECONDS) willReturn { done = true; 2L }
       }
 
-      service.append(data, List(timeline1, timeline2))
+      service.append(data, "home_timeline:", List(109L, 77777L))
       done must beTrue
     }
 
@@ -80,7 +80,7 @@ object IntegrationSpec extends ConfiguredSpecification with JMocker with ClassMo
       }
 
       errorQueue.size mustEqual 0
-      service.append(data, List(timeline1, timeline2))
+      service.append(data, "home_timeline:", List(109L, 77777L))
       errorQueue.size mustEqual 1
 
       expect {
