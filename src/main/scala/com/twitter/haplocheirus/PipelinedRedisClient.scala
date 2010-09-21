@@ -99,7 +99,7 @@ class PipelinedRedisClient(hostname: String, pipelineMaxSize: Int, timeout: Dura
           log.error(e, "Timeout waiting for redis response from %s: %s", hostname, e.getCause())
           onError.foreach(_(e))
         case e: Throwable =>
-          log.error(e, "Unknown jredis error from %s: %s", hostname, e.getCause())
+          log.error(e, "Unknown jredis error from %s: %s", hostname, e)
           onError.foreach(_(e))
       }
     }
