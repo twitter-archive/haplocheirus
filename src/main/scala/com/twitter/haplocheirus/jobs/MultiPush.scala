@@ -15,7 +15,7 @@ object MultiPushParser extends UnboundJobParser[(NameServer[HaplocheirusShard], 
 }
 
 case class MultiPush(entry: Array[Byte], timelinePrefix: String, timelineIds: Seq[Long])
-     extends UnboundJob[(NameServer[HaplocheirusShard], JobScheduler)] {
+     extends UnboundJob[(NameServer[HaplocheirusShard], JobScheduler)] with JobInjector {
   protected def encodeBase64(data: Array[Byte]) = {
     Base64.encodeBase64String(data).replaceAll("\r\n", "")
   }
@@ -29,7 +29,7 @@ case class MultiPush(entry: Array[Byte], timelinePrefix: String, timelineIds: Se
     val (nameServer, scheduler) = environment
     timelineIds.foreach { id =>
       val job = Append(entry, timelinePrefix + id.toString)
-      scheduler(job)
+      injectJob(nameServer, scheduler.queue, job)
     }
   }
 }

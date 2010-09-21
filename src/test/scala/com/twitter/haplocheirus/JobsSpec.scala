@@ -2,7 +2,7 @@ package com.twitter.haplocheirus
 
 import com.twitter.gizzard.Future
 import com.twitter.gizzard.nameserver.NameServer
-import com.twitter.gizzard.scheduler.{JobScheduler, PrioritizingJobScheduler}
+import com.twitter.gizzard.scheduler.{ErrorHandlingJobQueue, JobScheduler, PrioritizingJobScheduler}
 import com.twitter.json.Json
 import org.specs.Specification
 import org.specs.mock.{ClassMocker, JMocker}
@@ -80,10 +80,17 @@ object JobsSpec extends Specification with JMocker with ClassMocker {
       val map = Map("entry" -> "aGVsbG8=", "timeline_prefix" -> "timeline:",
                     "timeline_ids" -> "AwAAAAAAAAAEAAAAAAAAAAUAAAAAAAAA")
 
+      multiPush.addOnError = false
+      val queue = mock[ErrorHandlingJobQueue]
+
       expect {
-        one(scheduler).apply(jobs.Append(data, "timeline:3"))
-        one(scheduler).apply(jobs.Append(data, "timeline:4"))
-        one(scheduler).apply(jobs.Append(data, "timeline:5"))
+        allowing(scheduler).queue willReturn queue
+        one(nameServer).findCurrentForwarding(0, 776251139709896853L) willReturn shard1
+        one(shard1).append("timeline:3", List(data), None)
+        one(nameServer).findCurrentForwarding(0, 776243443128499376L) willReturn shard1
+        one(shard1).append("timeline:4", List(data), None)
+        one(nameServer).findCurrentForwarding(0, 776244542640127587L) willReturn shard1
+        one(shard1).append("timeline:5", List(data), None)
       }
 
       jobs.MultiPushParser(map).entry.toList mustEqual multiPush.entry.toList
