@@ -43,22 +43,22 @@ class TimelineStoreService(val nameServer: NameServer[HaplocheirusShard],
     }
   }
 
-  def append(entry: Array[Byte], timelines: Seq[String]) {
+  def append(entry: Array[Byte], prefix: String, timelines: Seq[Long]) {
     Stats.addTiming("x-timelines-per-append", timelines.size)
     timelines.foreach { timeline =>
-      injectJob(jobs.Append(entry, timeline))
+      injectJob(jobs.Append(entry, prefix + timeline.toString))
     }
   }
 
-  def remove(entry: Array[Byte], timelines: Seq[String]) {
+  def remove(entry: Array[Byte], prefix: String, timelines: Seq[Long]) {
     Stats.addTiming("x-timelines-per-remove", timelines.size)
     timelines.foreach { timeline =>
-      injectJob(jobs.Remove(entry, timeline))
+      injectJob(jobs.Remove(prefix + timeline.toString, List(entry)))
     }
   }
 
-  def filter(timeline: String, entries: Seq[Array[Byte]]) = {
-    shardFor(timeline).filter(timeline, entries)
+  def filter(timeline: String, entries: Seq[Array[Byte]], maxSearch: Int) = {
+    shardFor(timeline).filter(timeline, entries, maxSearch)
   }
 
   def get(timeline: String, offset: Int, length: Int, dedupe: Boolean) = {
@@ -78,8 +78,26 @@ class TimelineStoreService(val nameServer: NameServer[HaplocheirusShard],
   }
 
   def unmerge(timeline: String, entries: Seq[Array[Byte]]) {
-    entries.foreach { entry =>
-      injectJob(jobs.Remove(entry, timeline))
+    injectJob(jobs.Remove(timeline, entries))
+  }
+
+  def mergeIndirect(destTimeline: String, sourceTimeline: String): Boolean = {
+    shardFor(sourceTimeline).getRaw(sourceTimeline) match {
+      case None =>
+        false
+      case Some(entries) =>
+        injectJob(jobs.Merge(destTimeline, entries))
+        true
+    }
+  }
+
+  def unmergeIndirect(destTimeline: String, sourceTimeline: String): Boolean = {
+    shardFor(sourceTimeline).getRaw(sourceTimeline) match {
+      case None =>
+        false
+      case Some(entries) =>
+        injectJob(jobs.Remove(destTimeline, entries))
+        true
     }
   }
 
