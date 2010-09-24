@@ -10,7 +10,7 @@ trait HaplocheirusShard extends Shard {
   @throws(classOf[ShardException]) def append(timeline: String, entries: Seq[Array[Byte]], onError: Option[Throwable => Unit])
   @throws(classOf[ShardException]) def remove(timeline: String, entries: Seq[Array[Byte]], onError: Option[Throwable => Unit])
   @throws(classOf[ShardException]) def merge(timeline: String, entries: Seq[Array[Byte]], onError: Option[Throwable => Unit])
-  @throws(classOf[ShardException]) def filter(timeline: String, entries: Seq[Array[Byte]], maxSearch: Int): Option[Seq[Array[Byte]]]
+  @throws(classOf[ShardException]) def filter(timeline: String, entries: Seq[Long], maxSearch: Int): Option[Seq[Array[Byte]]]
   @throws(classOf[ShardException]) def get(timeline: String, offset: Int, length: Int, dedupe: Boolean): Option[TimelineSegment]
   @throws(classOf[ShardException]) def getRaw(timeline: String): Option[Seq[Array[Byte]]]
   @throws(classOf[ShardException]) def getRange(timeline: String, fromId: Long, toId: Long, dedupe: Boolean): Option[TimelineSegment]
@@ -36,7 +36,7 @@ class HaplocheirusShardAdapter(shard: ReadWriteShard[HaplocheirusShard])
 
   // rebuildable:
 
-  def filter(timeline: String, entries: Seq[Array[Byte]], maxSearch: Int) = {
+  def filter(timeline: String, entries: Seq[Long], maxSearch: Int) = {
     shard.rebuildableReadOperation(_.filter(timeline, entries, maxSearch)) { (shard, destShard) =>
       rebuildTimeline(timeline, shard, destShard)
     }

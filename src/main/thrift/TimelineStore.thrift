@@ -8,19 +8,27 @@ exception TimelineStoreException {
 
 struct TimelineSegment {
   /*
-   * Timeline entries are opaque binary data. Two assumptions are made about the contents of each
-   * entry:
+   * Timeline entries are opaque binary data, with the first 20 bytes defined by the server:
    *
    *   1. The first i64 (little-endian) is a sort key. Two entries with the same sort key will be
    *      considered equivalent (without looking at the rest of the entry) and only one will be
    *      returned.
-   *   2. The second i64 (little-endian) is an optional deduping key if "dedupe=true" is passed
-   *      to get or get_range. It's treated just like the sort key, and if two entries have the
-   *      same dedupe key, only one is returned.
+   *   2. The second i64 (little-endian) is a secondary key. If bit 31 is set in the flags, this
+   *      key will be used as a secondary search key for 'filter', and if "dedupe=true" is passed
+   *      to 'get' or 'get_range', entries will be deduped by the secondary key.
+   *   3. The next i32 (little-endian) is a set of flags. The upper 8 bits are reserved by the
+   *      server; the lower 24 bits may be used by the client.
+   *        bit 31 - secondary key is active (should be used to sort/dedupe)
+   *        bit 30 - reserved
+   *        bit 29 - reserved
+   *        bit 28 - reserved
+   *        bit 27 - reserved
+   *        bit 26 - reserved
+   *        bit 25 - reserved
+   *        bit 24 - reserved
    *
-   * Other than that, haplocheirus will make no assumptions about the content or size of each
-   * timeline entry. Entries can vary by size within the same timeline, and may be as small as a
-   * single i64.
+   * Haplocheirus will make no assumptions about the content of each timeline entry after the first
+   * 20 bytes. Entries can vary by size within the same timeline.
    */
   1: list<binary> entries;
 
@@ -52,7 +60,7 @@ service TimelineStore {
    * that is, returned entries come from the passed-in set, not the actual timeline.
    * Throw "TimelineStoreException" if there's no such timeline in cache.
    */
-  list<binary> filter(1: string timeline_id, 2: list<binary> entry, 3: i32 max_search) throws(1: TimelineStoreException ex)
+  list<binary> filter(1: string timeline_id, 2: list<i64> id, 3: i32 max_search) throws(1: TimelineStoreException ex)
 
   /*
    * Fetch a span of entries from a timeline. The offset & length are counted from most recent to
