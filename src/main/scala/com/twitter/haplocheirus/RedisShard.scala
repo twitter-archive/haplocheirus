@@ -57,36 +57,6 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
     entries.map { entry => EntryWithKey(sortKeyFromEntry(entry), entry) }
   }
 
-  private def dedupeBy(entries: Seq[Array[Byte]], byteOffset: Int): Seq[Array[Byte]] = {
-    // optimization: usually there are no dupes.
-    val uniqs = new mutable.HashSet[Long]()
-    entries.foreach { entry =>
-      if (byteOffset + 8 <= entry.length) {
-        uniqs += sortKeyFromEntry(entry, byteOffset)
-      }
-    }
-
-    if (uniqs.size == entries.size) {
-      entries
-    } else {
-      val seen = new mutable.HashSet[Long]()
-      entries.foldRight(List[Array[Byte]]()) { (entry, newList) =>
-        if (byteOffset + 8 <= entry.length) {
-          val id = sortKeyFromEntry(entry, byteOffset)
-          if (seen contains id) {
-            Stats.incr("timeline-dupes")
-            newList
-          } else {
-            seen += id
-            entry :: newList
-          }
-        } else {
-          entry :: newList
-        }
-      }
-    }
-  }
-
   private def dedupe(entries: Seq[Array[Byte]], useSecondary: Boolean): Seq[Array[Byte]] = {
     val rv = new mutable.ArrayBuffer[Array[Byte]] {
       override def initialSize = entries.size
@@ -180,7 +150,7 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
     }
   }
 
-  def getRange(timeline: String, fromId: Long, toId: Long, dedupe: Boolean): Option[TimelineSegment] = {
+  def getRange(timeline: String, fromId: Long, toId: Long, dedupeSecondary: Boolean): Option[TimelineSegment] = {
     val (entriesSince, size) = readPool.withClient(shardInfo.hostname) { client =>
       val entries = new mutable.ArrayBuffer[Array[Byte]]()
       var cursor = 0
@@ -208,11 +178,7 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
       (entries.take(fromIdIndex).drop(toIdIndex), client.size(timeline))
     }
     if (size > 0) {
-      val entries = if (dedupe) {
-        dedupeBy(dedupeBy(entriesSince, 0), 8)
-      } else {
-        dedupeBy(entriesSince, 0)
-      }
+      val entries = dedupe(entriesSince, dedupeSecondary)
       Stats.incr("timeline-hit")
       Some(TimelineSegment(entries, size))
     } else {
