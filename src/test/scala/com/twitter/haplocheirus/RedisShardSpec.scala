@@ -37,14 +37,16 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
     val data = "hello".getBytes
     val timeline = "t1"
 
-    def packEntry(id: Long, secondary: Long, flags: Int) = {
-      val rv = new Array[Byte](20)
-      val buffer = ByteBuffer.wrap(rv).order(ByteOrder.LITTLE_ENDIAN)
-      buffer.putLong(id)
-      buffer.putLong(secondary)
-      buffer.putInt(flags)
-      rv
-    }
+    val entry23share = TimelineEntry(24L, 23L, TimelineEntry.FLAG_SECONDARY_KEY).data
+    val entry23 = TimelineEntry(23L, 0L, 0).data
+    val entry23a = TimelineEntry(23L, 1L, TimelineEntry.FLAG_SECONDARY_KEY).data
+    val entry20 = TimelineEntry(20L, 15L, TimelineEntry.FLAG_SECONDARY_KEY).data
+    val entry19 = TimelineEntry(19L, 0L, 0).data
+    val entry19a = TimelineEntry(19L, 1L, TimelineEntry.FLAG_SECONDARY_KEY).data
+    val entry19uniq = TimelineEntry(19L, 1L, 0).data
+    val entry17 = TimelineEntry(17L, 0L, 0).data
+    val entry13 = TimelineEntry(13L, 0L, 0).data
+    val entry10 = TimelineEntry(10L, 0L, 0).data
 
     def lrange(timeline: String, start: Int, end: Int, result: Seq[Array[Byte]]) {
       one(jredis).lrange(timeline, start, end) willReturn future
@@ -151,14 +153,6 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
 */
 
     "get" in {
-      val entry23share = packEntry(24L, 23L, TimelineEntry.FLAG_SECONDARY_KEY)
-      val entry23 = packEntry(23L, 0L, 0)
-      val entry23a = packEntry(23L, 1L, TimelineEntry.FLAG_SECONDARY_KEY)
-      val entry20 = packEntry(20L, 15L, TimelineEntry.FLAG_SECONDARY_KEY)
-      val entry19 = packEntry(19L, 0L, 0)
-      val entry19a = packEntry(19L, 1L, TimelineEntry.FLAG_SECONDARY_KEY)
-      val entry19uniq = packEntry(19L, 1L, 0)
-
       "unique entries" in {
         expect {
           one(shardInfo).hostname willReturn "host1"
@@ -242,156 +236,110 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
     }
 
     "getRaw" in {
-      val entry1 = List(23L).pack
-      val entry2 = List(20L).pack
-      val entry3 = List(19L).pack
-
       expect {
         one(shardInfo).hostname willReturn "host1"
-        one(jredis).lrange(timeline, 0, -1) willReturn future
-        one(future).get(1000, TimeUnit.MILLISECONDS) willReturn List(entry1, entry2, entry3).reverse.toJavaList
+        lrange(timeline, 0, -1, List(entry23, entry20, entry19).reverse)
         one(jredis).expire(timeline, 1)
       }
 
-      redisShard.getRaw(timeline) mustEqual Some(List(entry1, entry2, entry3))
+      redisShard.getRaw(timeline) mustEqual Some(List(entry23, entry20, entry19))
       reads mustEqual 1
     }
 
     "getRange" in {
       "with missing fromId" in {
-        val entry1 = List(23L).pack
-        val entry2 = List(20L).pack
-        val entry3 = List(19L).pack
-
         expect {
           one(shardInfo).hostname willReturn "host1"
-          one(jredis).lrange(timeline, -3, -1) willReturn future
-          one(future).get(1000, TimeUnit.MILLISECONDS) willReturn List(entry1, entry2, entry3).reverse.toJavaList
-          one(jredis).llen(timeline) willReturn longFuture
-          one(longFuture).get(1000, TimeUnit.MILLISECONDS) willReturn 3L
+          lrange(timeline, -3, -1, List(entry23, entry20, entry19).reverse)
+          llen(timeline, 3L)
           one(jredis).expire(timeline, 1)
-          one(jredis).lrange(timeline, -6, -4) willReturn future
-          one(future).get(1000, TimeUnit.MILLISECONDS) willReturn List[Array[Byte]]().toJavaList
+          lrange(timeline, -6, -4, List[Array[Byte]]())
         }
 
-        redisShard.getRange(timeline, 10L, 0L, false).get.entries.toList mustEqual List(entry1, entry2, entry3)
+        redisShard.getRange(timeline, 10L, 0L, false).get.entries.toList mustEqual List(entry23, entry20, entry19)
         reads mustEqual 1
       }
 
       "with fromId" in {
         "in the first page" in {
-          val entry1 = List(23L).pack
-          val entry2 = List(20L).pack
-          val entry3 = List(19L).pack
-
           expect {
             one(shardInfo).hostname willReturn "host1"
-            one(jredis).lrange(timeline, -3, -1) willReturn future
-            one(future).get(1000, TimeUnit.MILLISECONDS) willReturn List(entry1, entry2, entry3).reverse.toJavaList
-            one(jredis).llen(timeline) willReturn longFuture
-            one(longFuture).get(1000, TimeUnit.MILLISECONDS) willReturn 3L
+            lrange(timeline, -3, -1, List(entry23, entry20, entry19).reverse)
+            llen(timeline, 3L)
             one(jredis).expire(timeline, 1)
           }
 
-          redisShard.getRange(timeline, 19L, 0L, false).get.entries.toList mustEqual List(entry1, entry2)
+          redisShard.getRange(timeline, 19L, 0L, false).get.entries.toList mustEqual List(entry23, entry20)
           reads mustEqual 1
         }
 
         "in a later page" in {
-          val entry1 = List(23L).pack
-          val entry2 = List(20L).pack
-          val entry3 = List(19L).pack
-          val entry4 = List(17L).pack
-          val entry5 = List(13L).pack
-          val entry6 = List(10L).pack
-
           expect {
             one(shardInfo).hostname willReturn "host1"
-            one(jredis).lrange(timeline, -3, -1) willReturn future
-            one(future).get(1000, TimeUnit.MILLISECONDS) willReturn List(entry1, entry2, entry3).reverse.toJavaList
-            one(jredis).llen(timeline) willReturn longFuture
-            one(longFuture).get(1000, TimeUnit.MILLISECONDS) willReturn 3L
+            lrange(timeline, -3, -1, List(entry23, entry20, entry19).reverse)
+            llen(timeline, 3L)
             one(jredis).expire(timeline, 1)
-            one(jredis).lrange(timeline, -6, -4) willReturn future
-            one(future).get(1000, TimeUnit.MILLISECONDS) willReturn List(entry3, entry4, entry5).reverse.toJavaList
+            lrange(timeline, -6, -4, List(entry17, entry13, entry10).reverse)
             one(jredis).expire(timeline, 1)
           }
 
-          redisShard.getRange(timeline, 13L, 0L, false).get.entries.toList mustEqual List(entry1, entry2, entry3, entry4)
+          redisShard.getRange(timeline, 13L, 0L, false).get.entries.toList mustEqual List(entry23, entry20, entry19, entry17)
           reads mustEqual 1
         }
       }
 
       "with toId" in {
         "in the first page" in {
-          val entry1 = List(23L).pack
-          val entry2 = List(20L).pack
-          val entry3 = List(19L).pack
-
           expect {
             allowing(shardInfo).hostname willReturn "host1"
-            allowing(jredis).lrange(timeline, -3, -1) willReturn future
-            allowing(future).get(1000, TimeUnit.MILLISECONDS) willReturn List(entry1, entry2, entry3).reverse.toJavaList
-            allowing(jredis).llen(timeline) willReturn longFuture
-            allowing(longFuture).get(1000, TimeUnit.MILLISECONDS) willReturn 3L
+            lrange(timeline, -3, -1, List(entry23, entry20, entry19).reverse)
+            llen(timeline, 3L)
+            lrange(timeline, -3, -1, List(entry23, entry20, entry19).reverse)
+            llen(timeline, 3L)
+            lrange(timeline, -3, -1, List(entry23, entry20, entry19).reverse)
+            llen(timeline, 3L)
             allowing(jredis).expire(timeline, 1)
           }
 
-          redisShard.getRange(timeline, 19L, 30L, false).get.entries.toList mustEqual List(entry1, entry2)
-          redisShard.getRange(timeline, 19L, 23L, false).get.entries.toList mustEqual List(entry1, entry2)
-          redisShard.getRange(timeline, 19L, 20L, false).get.entries.toList mustEqual List(entry2)
+          redisShard.getRange(timeline, 19L, 30L, false).get.entries.toList mustEqual List(entry23, entry20)
+          redisShard.getRange(timeline, 19L, 23L, false).get.entries.toList mustEqual List(entry23, entry20)
+          redisShard.getRange(timeline, 19L, 20L, false).get.entries.toList mustEqual List(entry20)
           reads mustEqual 3
         }
 
         "in a later page" in {
-          val entry1 = List(23L).pack
-          val entry2 = List(20L).pack
-          val entry3 = List(19L).pack
-          val entry4 = List(17L).pack
-          val entry5 = List(13L).pack
-          val entry6 = List(10L).pack
-
           expect {
             allowing(shardInfo).hostname willReturn "host1"
-            allowing(jredis).lrange(timeline, -3, -1) willReturn future
-            allowing(future).get(1000, TimeUnit.MILLISECONDS) willReturn List(entry1, entry2, entry3).reverse.toJavaList
-            allowing(jredis).llen(timeline) willReturn longFuture
-            allowing(longFuture).get(1000, TimeUnit.MILLISECONDS) willReturn 3L
             allowing(jredis).expire(timeline, 1)
-            allowing(jredis).lrange(timeline, -6, -4) willReturn future2
-            allowing(future2).get(1000, TimeUnit.MILLISECONDS) willReturn List(entry3, entry4, entry5).reverse.toJavaList
-            allowing(jredis).llen(timeline) willReturn longFuture
-            allowing(longFuture).get(1000, TimeUnit.MILLISECONDS) willReturn 3L
+            lrange(timeline, -3, -1, List(entry23, entry20, entry19).reverse)
+            llen(timeline, 3L)
+            lrange(timeline, -6, -4, List(entry17, entry13, entry10).reverse)
+            lrange(timeline, -3, -1, List(entry23, entry20, entry19).reverse)
+            llen(timeline, 3L)
+            lrange(timeline, -6, -4, List(entry17, entry13, entry10).reverse)
+            lrange(timeline, -3, -1, List(entry23, entry20, entry19).reverse)
+            llen(timeline, 3L)
+            lrange(timeline, -6, -4, List(entry17, entry13, entry10).reverse)
           }
 
-          redisShard.getRange(timeline, 13L, 30L, false).get.entries.toList mustEqual List(entry1, entry2, entry3, entry4)
-          redisShard.getRange(timeline, 13L, 20L, false).get.entries.toList mustEqual List(entry2, entry3, entry4)
-          redisShard.getRange(timeline, 13L, 17L, false).get.entries.toList mustEqual List(entry4)
+          redisShard.getRange(timeline, 13L, 30L, false).get.entries.toList mustEqual List(entry23, entry20, entry19, entry17)
+          redisShard.getRange(timeline, 13L, 20L, false).get.entries.toList mustEqual List(entry20, entry19, entry17)
+          redisShard.getRange(timeline, 13L, 17L, false).get.entries.toList mustEqual List(entry17)
           reads mustEqual 3
         }
       }
 
       "with dupes" in {
-        val entry1 = List(23L).pack
-        val entry2 = List(20L).pack
-        val entry3 = List(20L).pack
-        val entry4 = List(17L).pack
-        val entry5 = List(13L).pack
-        val entry6 = List(10L).pack
-
         expect {
           one(shardInfo).hostname willReturn "host1"
-          one(jredis).lrange(timeline, -3, -1) willReturn future
-          one(future).get(1000, TimeUnit.MILLISECONDS) willReturn List(entry1, entry2, entry3).reverse.toJavaList
-          one(jredis).llen(timeline) willReturn longFuture
-          one(longFuture).get(1000, TimeUnit.MILLISECONDS) willReturn 3L
+          lrange(timeline, -3, -1, List(entry23, entry20, entry20).reverse)
+          llen(timeline, 3L)
           one(jredis).expire(timeline, 1)
-          one(jredis).lrange(timeline, -6, -4) willReturn future2
-          one(future2).get(1000, TimeUnit.MILLISECONDS) willReturn List(entry3, entry4, entry5).reverse.toJavaList
+          lrange(timeline, -6, -4, List(entry20, entry17, entry13).reverse)
           one(jredis).expire(timeline, 1)
         }
 
-        redisShard.getRange(timeline, 13L, 0L, false).get.entries.toList mustEqual List(entry1, entry3, entry4)
+        redisShard.getRange(timeline, 13L, 0L, false).get.entries.toList mustEqual List(entry23, entry20, entry17)
         reads mustEqual 1
       }
     }
@@ -402,8 +350,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
       "no existing timeline" in {
         expect {
           one(shardInfo).hostname willReturn "host1"
-          one(jredis).lrange(timeline, 0, -1) willReturn future
-          one(future).get(1000, TimeUnit.MILLISECONDS) willReturn List[Array[Byte]]().reverse.toJavaList
+          lrange(timeline, 0, -1, List[Array[Byte]]().reverse)
         }
 
         redisShard.merge(timeline, List(List(21L).pack), None)
