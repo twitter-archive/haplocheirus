@@ -1,5 +1,6 @@
 package com.twitter.haplocheirus
 
+import java.nio.{ByteBuffer, ByteOrder}
 import java.util.{List => JList}
 import java.util.concurrent.{Future, TimeUnit}
 import com.twitter.gizzard.scheduler.ErrorHandlingJobQueue
@@ -35,6 +36,25 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
     val timelineTrimConfig = Config.fromString(configString)
     val data = "hello".getBytes
     val timeline = "t1"
+
+    def packEntry(id: Long, secondary: Long, flags: Int) = {
+      val rv = new Array[Byte](20)
+      val buffer = ByteBuffer.wrap(rv).order(ByteOrder.LITTLE_ENDIAN)
+      buffer.putLong(id)
+      buffer.putLong(secondary)
+      buffer.putInt(flags)
+      rv
+    }
+
+    def lrange(timeline: String, start: Int, end: Int, result: Seq[Array[Byte]]) {
+      one(jredis).lrange(timeline, start, end) willReturn future
+      one(future).get(1000, TimeUnit.MILLISECONDS) willReturn result.toJavaList
+    }
+
+    def llen(timeline: String, result: Long) {
+      one(jredis).llen(timeline) willReturn longFuture
+      one(longFuture).get(1000, TimeUnit.MILLISECONDS) willReturn result
+    }
 
     doBefore {
       PipelinedRedisClient.mockedOutJRedisClient = Some(jredis)
@@ -97,6 +117,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
       writes mustEqual 1
     }
 
+/*
     "filter" in {
       val entry1 = List(20L).pack
       val entry2 = List(21L).pack
@@ -127,78 +148,79 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
         redisShard.filter(timeline, List(entry1, entry2), 3).get.toList mustEqual List(entry2)
       }
     }
+*/
 
     "get" in {
-      "unique entries" in {
-        val entry1 = List(23L).pack
-        val entry2 = List(20L).pack
-        val entry3 = List(19L).pack
+      val entry23share = packEntry(24L, 23L, TimelineEntry.FLAG_SECONDARY_KEY)
+      val entry23 = packEntry(23L, 0L, 0)
+      val entry23a = packEntry(23L, 1L, TimelineEntry.FLAG_SECONDARY_KEY)
+      val entry20 = packEntry(20L, 15L, TimelineEntry.FLAG_SECONDARY_KEY)
+      val entry19 = packEntry(19L, 0L, 0)
+      val entry19a = packEntry(19L, 1L, TimelineEntry.FLAG_SECONDARY_KEY)
+      val entry19uniq = packEntry(19L, 1L, 0)
 
+      "unique entries" in {
         expect {
           one(shardInfo).hostname willReturn "host1"
-          one(jredis).lrange(timeline, -10, -1) willReturn future
-          one(future).get(1000, TimeUnit.MILLISECONDS) willReturn List(entry1, entry2, entry3).reverse.toJavaList
-          one(jredis).llen(timeline) willReturn longFuture
-          one(longFuture).get(1000, TimeUnit.MILLISECONDS) willReturn 3L
+          lrange(timeline, -10, -1, List(entry23, entry20, entry19).reverse)
+          llen(timeline, 3L)
           one(jredis).expire(timeline, 1)
         }
 
-        redisShard.get(timeline, 0, 10, false).get.entries.toList mustEqual List(entry1, entry2, entry3)
+        redisShard.get(timeline, 0, 10, false).get.entries.toList mustEqual List(entry23, entry20, entry19)
         reads mustEqual 1
       }
 
       "with duplicates in the sort key" in {
-        val entry1 = List(23L, 1L).pack
-        val entry2 = List(23L, 2L).pack
-        val entry3 = List(19L, 3L).pack
-
         expect {
           one(shardInfo).hostname willReturn "host1"
-          one(jredis).lrange(timeline, -10, -1) willReturn future
-          one(future).get(1000, TimeUnit.MILLISECONDS) willReturn List(entry1, entry2, entry3).reverse.toJavaList
-          one(jredis).llen(timeline) willReturn longFuture
-          one(longFuture).get(1000, TimeUnit.MILLISECONDS) willReturn 3L
+          lrange(timeline, -10, -1, List(entry23, entry23a, entry19).reverse)
+          llen(timeline, 3L)
           one(jredis).expire(timeline, 1)
         }
 
-        redisShard.get(timeline, 0, 10, false).get.entries.toList mustEqual List(entry2, entry3)
+        redisShard.get(timeline, 0, 10, false).get.entries.toList mustEqual List(entry23a, entry19)
         reads mustEqual 1
       }
 
-      "with duplicates in the dedupe key" in {
-        val entry1 = List(23L, 1L).pack
-        val entry2 = List(21L, 2L).pack
-        val entry3 = List(19L, 1L).pack
+      "with duplicates in the secondary key" in {
+        "to be deduped" in {
+          expect {
+            allowing(shardInfo).hostname willReturn "host1"
+            lrange(timeline, -10, -1, List(entry23a, entry20, entry19a).reverse)
+            llen(timeline, 3L)
+            lrange(timeline, -10, -1, List(entry23a, entry20, entry19a).reverse)
+            llen(timeline, 3L)
+            allowing(jredis).expire(timeline, 1)
+          }
 
-        expect {
-          allowing(shardInfo).hostname willReturn "host1"
-          allowing(jredis).lrange(timeline, -10, -1) willReturn future
-          allowing(future).get(1000, TimeUnit.MILLISECONDS) willReturn List(entry1, entry2, entry3).reverse.toJavaList
-          allowing(jredis).llen(timeline) willReturn longFuture
-          allowing(longFuture).get(1000, TimeUnit.MILLISECONDS) willReturn 3L
-          allowing(jredis).expire(timeline, 1)
+          redisShard.get(timeline, 0, 10, false).get.entries.toList mustEqual List(entry23a, entry20, entry19a)
+          redisShard.get(timeline, 0, 10, true).get.entries.toList mustEqual List(entry20, entry19a)
+          reads mustEqual 2
         }
 
-        redisShard.get(timeline, 0, 10, false).get.entries.toList mustEqual List(entry1, entry2, entry3)
-        redisShard.get(timeline, 0, 10, true).get.entries.toList mustEqual List(entry2, entry3)
-        reads mustEqual 2
+        "not marked as having a secondary key" in {
+          expect {
+            allowing(shardInfo).hostname willReturn "host1"
+            lrange(timeline, -10, -1, List(entry23a, entry20, entry19uniq).reverse)
+            llen(timeline, 3L)
+            allowing(jredis).expire(timeline, 1)
+          }
+
+          redisShard.get(timeline, 0, 10, true).get.entries.toList mustEqual List(entry23a, entry20, entry19uniq)
+          reads mustEqual 1
+        }
       }
 
-      "with missing dedupe key" in {
-        val entry1 = List(23L, 1L).pack
-        val entry2 = List(21L).pack
-        val entry3 = List(19L).pack
-
+      "with duplicates between the secondary and primary keys" in {
         expect {
           one(shardInfo).hostname willReturn "host1"
-          one(jredis).lrange(timeline, -10, -1) willReturn future
-          one(future).get(1000, TimeUnit.MILLISECONDS) willReturn List(entry1, entry2, entry3).reverse.toJavaList
-          one(jredis).llen(timeline) willReturn longFuture
-          one(longFuture).get(1000, TimeUnit.MILLISECONDS) willReturn 3L
+          lrange(timeline, -10, -1, List(entry23share, entry23, entry20).reverse)
+          llen(timeline, 3L)
           one(jredis).expire(timeline, 1)
         }
 
-        redisShard.get(timeline, 0, 10, true).get.entries.toList mustEqual List(entry1, entry2, entry3)
+        redisShard.get(timeline, 0, 10, true).get.entries.toList mustEqual List(entry23, entry20)
         reads mustEqual 1
       }
 
@@ -209,10 +231,8 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
 
         expect {
           one(shardInfo).hostname willReturn "host1"
-          one(jredis).lrange(timeline, -10, -1) willReturn future
-          one(future).get(1000, TimeUnit.MILLISECONDS) willReturn List(entry1, entry2, entry3).reverse.toJavaList
-          one(jredis).llen(timeline) willReturn longFuture
-          one(longFuture).get(1000, TimeUnit.MILLISECONDS) willReturn 3L
+          lrange(timeline, -10, -1, List(entry1, entry2, entry3).reverse)
+          llen(timeline, 3L)
           one(jredis).expire(timeline, 1)
         }
 
