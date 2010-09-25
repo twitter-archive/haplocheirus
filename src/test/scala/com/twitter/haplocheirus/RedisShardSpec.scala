@@ -40,7 +40,9 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
     val entry23share = TimelineEntry(24L, 23L, TimelineEntry.FLAG_SECONDARY_KEY).data
     val entry23 = TimelineEntry(23L, 0L, 0).data
     val entry23a = TimelineEntry(23L, 1L, TimelineEntry.FLAG_SECONDARY_KEY).data
-    val entry20 = TimelineEntry(20L, 15L, TimelineEntry.FLAG_SECONDARY_KEY).data
+    val entry22 = TimelineEntry(22L, 0L, 0).data
+    val entry21 = TimelineEntry(21L, 0L, 0).data
+    val entry20 = TimelineEntry(20L, 0L, TimelineEntry.FLAG_SECONDARY_KEY).data
     val entry19 = TimelineEntry(19L, 0L, 0).data
     val entry19a = TimelineEntry(19L, 1L, TimelineEntry.FLAG_SECONDARY_KEY).data
     val entry19uniq = TimelineEntry(19L, 1L, 0).data
@@ -119,7 +121,6 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
       writes mustEqual 1
     }
 
-/*
     "filter" in {
       val entry1 = List(20L).pack
       val entry2 = List(21L).pack
@@ -131,26 +132,23 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
       "with no limit" in {
         expect {
           one(shardInfo).hostname willReturn "host1"
-          one(jredis).lrange(timeline, 0, -1) willReturn future
-          one(future).get(1000, TimeUnit.MILLISECONDS) willReturn List(entry2, entry3).toJavaList
+          lrange(timeline, 0, -1, List(entry20, entry22).reverse)
           one(jredis).expire(timeline, 1)
         }
 
-        redisShard.filter(timeline, List(entry1, entry2), -1).get.toList mustEqual List(entry2)
+        redisShard.filter(timeline, List(20L, 21L), -1).get.toList mustEqual List(entry20)
       }
 
       "with a search limit" in {
         expect {
           one(shardInfo).hostname willReturn "host1"
-          one(jredis).lrange(timeline, -3, -1) willReturn future
-          one(future).get(1000, TimeUnit.MILLISECONDS) willReturn List(entry2, entry3, entry4).toJavaList
+          lrange(timeline, -3, -1, List(entry21, entry22, entry23).reverse)
           one(jredis).expire(timeline, 1)
         }
 
-        redisShard.filter(timeline, List(entry1, entry2), 3).get.toList mustEqual List(entry2)
+        redisShard.filter(timeline, List(20L, 21L), 3).get.toList mustEqual List(entry21)
       }
     }
-*/
 
     "get" in {
       "unique entries" in {
