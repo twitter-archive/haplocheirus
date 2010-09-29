@@ -28,13 +28,10 @@ class RedisCopyFactory(nameServer: NameServer[HaplocheirusShard], scheduler: Job
 }
 
 class RedisCopyParser(nameServer: NameServer[HaplocheirusShard], scheduler: JobScheduler[JsonJob]) extends CopyJobParser[HaplocheirusShard] {
-  def apply(codec: JsonCodec[JsonJob], attributes: Map[String, Any]) = {
-    new RedisCopy(
-      ShardId(attributes("source_shard_hostname").toString, attributes("source_shard_table_prefix").toString),
-      ShardId(attributes("destination_shard_hostname").toString, attributes("destination_shard_table_prefix").toString),
-      attributes("cursor").asInstanceOf[AnyVal].toInt,
-      attributes("count").asInstanceOf[AnyVal].toInt,
-      nameServer, scheduler)
+  def deserialize(attributes: Map[String, Any], sourceId: ShardId,
+                  destinationId: ShardId, count: Int): CopyJob[HaplocheirusShard] = {
+    val cursor = attributes("cursor").asInstanceOf[AnyVal].toInt
+    new RedisCopy(sourceId, destinationId, cursor, count, nameServer, scheduler)
   }
 }
 
