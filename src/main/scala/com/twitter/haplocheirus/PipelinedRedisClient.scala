@@ -5,7 +5,6 @@ import java.util.Random
 import java.util.concurrent.{ExecutionException, Future, TimeoutException, TimeUnit}
 import scala.collection.mutable
 import com.twitter.gizzard.thrift.conversions.Sequences._
-import com.twitter.gizzard.scheduler.ErrorHandlingJobQueue
 import com.twitter.ostrich.Stats
 import com.twitter.xrayspecs.Duration
 import net.lag.logging.Logger

@@ -2,7 +2,7 @@ package com.twitter.haplocheirus
 
 import com.twitter.gizzard.Future
 import com.twitter.gizzard.nameserver.NameServer
-import com.twitter.gizzard.scheduler.{ErrorHandlingJobQueue, JobScheduler, PrioritizingJobScheduler}
+import com.twitter.gizzard.scheduler.{JobQueue, JobScheduler, JsonJob, PrioritizingJobScheduler}
 import org.specs.Specification
 import org.specs.mock.{ClassMocker, JMocker}
 import thrift.conversions.TimelineSegment._
@@ -11,13 +11,14 @@ import thrift.conversions.TimelineSegment._
 object TimelineStoreServiceSpec extends Specification with JMocker with ClassMocker {
   "TimelineStoreService" should {
     val nameServer = mock[NameServer[HaplocheirusShard]]
-    val scheduler = mock[PrioritizingJobScheduler]
-    val jobScheduler = mock[JobScheduler]
-    val queue = mock[ErrorHandlingJobQueue]
+    val scheduler = mock[PrioritizingJobScheduler[JsonJob]]
+    val jobScheduler = mock[JobScheduler[JsonJob]]
+    val queue = mock[JobQueue[JsonJob]]
     val readPool = mock[RedisPool]
     val writePool = mock[RedisPool]
     val shard1 = mock[HaplocheirusShard]
     val shard2 = mock[HaplocheirusShard]
+    val copyFactory = mock[jobs.RedisCopyFactory]
     var service: TimelineStoreService = null
 
     doBefore {
@@ -25,7 +26,7 @@ object TimelineStoreServiceSpec extends Specification with JMocker with ClassMoc
         one(scheduler).apply(Priority.Write.id) willReturn jobScheduler
         one(jobScheduler).queue willReturn queue
       }
-      service = new TimelineStoreService(nameServer, scheduler, jobs.RedisCopyFactory, readPool, writePool)
+      service = new TimelineStoreService(nameServer, scheduler, copyFactory, readPool, writePool)
       service.addOnError = false
     }
 
@@ -34,7 +35,8 @@ object TimelineStoreServiceSpec extends Specification with JMocker with ClassMoc
       val timelines = List("t1", "t2")
 
       expect {
-        one(queue).put(jobs.MultiPush(data, "t", List(1L, 2L)))
+        one(scheduler).apply(Priority.Write.id) willReturn jobScheduler
+        one(queue).put(jobs.MultiPush(data, "t", List(1L, 2L), nameServer, jobScheduler))
       }
 
       service.append(data, "t", List(1L, 2L))

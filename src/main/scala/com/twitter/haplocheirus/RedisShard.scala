@@ -3,7 +3,6 @@ package com.twitter.haplocheirus
 import java.nio.{ByteBuffer, ByteOrder}
 import scala.collection.mutable
 import com.twitter.gizzard.proxy.ExceptionHandlingProxy
-import com.twitter.gizzard.scheduler.ErrorHandlingJobQueue
 import com.twitter.gizzard.shards._
 import com.twitter.ostrich.Stats
 import com.twitter.xrayspecs.Duration

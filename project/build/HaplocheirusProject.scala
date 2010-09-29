@@ -13,7 +13,7 @@ class HaplocheirusProject(info: ProjectInfo) extends StandardProject(info) with 
   val asm = "asm" % "asm" % "1.5.3" % "test"  //--auto--
   val objenesis = "org.objenesis" % "objenesis" % "1.1" % "test"  //--auto--
 
-  val gizzard = "com.twitter" % "gizzard" % "1.4.2-SNAPSHOT"
+  val gizzard = "com.twitter" % "gizzard" % "1.5.0-SNAPSHOT"
   val jredis = "jredis" % "jredis" % "1.0-tw1"
   val codec = "commons-codec" % "commons-codec" % "1.4"
   val ostrich = "com.twitter" % "ostrich" % "1.2.6"

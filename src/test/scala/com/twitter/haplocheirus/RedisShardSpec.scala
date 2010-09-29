@@ -3,7 +3,6 @@ package com.twitter.haplocheirus
 import java.nio.{ByteBuffer, ByteOrder}
 import java.util.{List => JList}
 import java.util.concurrent.{Future, TimeUnit}
-import com.twitter.gizzard.scheduler.ErrorHandlingJobQueue
 import com.twitter.gizzard.shards.{ShardException, ShardInfo}
 import com.twitter.gizzard.thrift.conversions.Sequences._
 import com.twitter.xrayspecs.TimeConversions._
