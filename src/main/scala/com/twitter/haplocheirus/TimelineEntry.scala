@@ -20,9 +20,9 @@ object TimelineEntry {
 final class TimelineEntry(val data: Array[Byte]) {
   private val buffer = ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN)
 
-  def id = buffer.getLong(0)
-  def secondary = buffer.getLong(8)
-  def flags = buffer.getInt(16)
+  val id = if (data.size >= 8) buffer.getLong(0) else 0L
+  val secondary = if (data.size >= 16) buffer.getLong(8) else 0L
+  val flags = if (data.size >= 20) buffer.getInt(16) else 0
 
   override def toString = "TimelineEntry(%d, %d, %d)".format(id, secondary, flags)
 }
