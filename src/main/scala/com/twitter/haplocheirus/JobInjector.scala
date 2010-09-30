@@ -10,7 +10,7 @@ trait JobInjector {
   // can be overridden for tests.
   var addOnError = true
 
-  def injectJob(errorQueue: JobQueue[JsonJob], job: jobs.RedisJob) {
+  def injectJob(errorQueue: JobQueue[JsonJob], job: jobs.FallbackJob) {
     if (addOnError) {
       job.onError { e => errorQueue.put(job) }
     }

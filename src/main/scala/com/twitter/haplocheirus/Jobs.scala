@@ -9,7 +9,7 @@ import com.twitter.xrayspecs.TimeConversions._
 import net.lag.logging.Logger
 import org.apache.commons.codec.binary.Base64
 
-abstract class RedisJob extends JsonJob {
+abstract class FallbackJob extends JsonJob {
   var onErrorCallback: Option[Throwable => Unit] = None
 
   def onError(f: Throwable => Unit) {
@@ -23,7 +23,7 @@ abstract class RedisJob extends JsonJob {
   override def toString = "<%s: %s>".format(getClass.getName, toMap)
 }
 
-case class Append(entry: Array[Byte], timeline: String, nameServer: NameServer[HaplocheirusShard]) extends RedisJob {
+case class Append(entry: Array[Byte], timeline: String, nameServer: NameServer[HaplocheirusShard]) extends FallbackJob {
   def toMap = {
     Map("entry" -> encodeBase64(entry), "timeline" -> timeline)
   }
@@ -33,7 +33,7 @@ case class Append(entry: Array[Byte], timeline: String, nameServer: NameServer[H
   }
 }
 
-case class Merge(timeline: String, entries: Seq[Array[Byte]], nameServer: NameServer[HaplocheirusShard]) extends RedisJob {
+case class Merge(timeline: String, entries: Seq[Array[Byte]], nameServer: NameServer[HaplocheirusShard]) extends FallbackJob {
   def toMap = {
     Map("timeline" -> timeline, "entries" -> entries.map(encodeBase64(_)))
   }
@@ -43,7 +43,7 @@ case class Merge(timeline: String, entries: Seq[Array[Byte]], nameServer: NameSe
   }
 }
 
-case class Remove(timeline: String, entries: Seq[Array[Byte]], nameServer: NameServer[HaplocheirusShard]) extends RedisJob {
+case class Remove(timeline: String, entries: Seq[Array[Byte]], nameServer: NameServer[HaplocheirusShard]) extends FallbackJob {
   def toMap = {
     Map("timeline" -> timeline, "entries" -> entries.map(encodeBase64(_)))
   }
@@ -53,7 +53,7 @@ case class Remove(timeline: String, entries: Seq[Array[Byte]], nameServer: NameS
   }
 }
 
-case class DeleteTimeline(timeline: String, nameServer: NameServer[HaplocheirusShard]) extends RedisJob {
+case class DeleteTimeline(timeline: String, nameServer: NameServer[HaplocheirusShard]) extends FallbackJob {
   def toMap = {
     Map("timeline" -> timeline)
   }

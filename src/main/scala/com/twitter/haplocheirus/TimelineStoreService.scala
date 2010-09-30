@@ -19,7 +19,7 @@ class TimelineStoreService(val nameServer: NameServer[HaplocheirusShard],
 
   val writeQueue = scheduler(Priority.Write.id).queue
 
-  def injectJob(job: jobs.RedisJob) {
+  def injectJob(job: jobs.FallbackJob) {
     injectJob(writeQueue, job)
   }
 
