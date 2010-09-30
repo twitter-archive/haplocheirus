@@ -39,8 +39,9 @@ object Main extends Service {
 
   def shutdown() {
     log.info("Shutting down!")
-    service.shutdown()
+    // stop thrift first, so new work stops arriving.
     stopThrift()
+    service.shutdown()
     deathSwitch.countDown()
     log.info("Goodbye!")
     System.exit(0)
