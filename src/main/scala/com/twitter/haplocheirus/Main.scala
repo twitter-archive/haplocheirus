@@ -2,6 +2,7 @@ package com.twitter.haplocheirus
 
 import java.util.concurrent.CountDownLatch
 import com.twitter.gizzard.proxy.ExceptionHandlingProxy
+import com.twitter.gizzard.scheduler.JsonJob
 import com.twitter.gizzard.thrift.{GizzardServices, TThreadServer}
 import com.twitter.ostrich.{BackgroundProcess, Service, ServiceTracker, Stats}
 import com.twitter.xrayspecs.TimeConversions._
@@ -13,7 +14,7 @@ import org.apache.thrift.transport.TServerSocket
 object Main extends Service {
   val log = Logger.get(getClass.getName)
   var thriftServer: TThreadServer = null
-  var gizzardServices: GizzardServices[HaplocheirusShard] = null
+  var gizzardServices: GizzardServices[HaplocheirusShard, JsonJob] = null
   var service: TimelineStoreService = null
 
   private val deathSwitch = new CountDownLatch(1)
