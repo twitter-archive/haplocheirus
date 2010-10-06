@@ -2,7 +2,7 @@ package com.twitter.haplocheirus
 
 import com.twitter.gizzard.Future
 import com.twitter.gizzard.nameserver.{BasicShardRepository, NameServer}
-import com.twitter.gizzard.scheduler.{JsonCodec, JsonJob, JsonJobLogger, PrioritizingJobScheduler}
+import com.twitter.gizzard.scheduler.{JobScheduler, JsonCodec, JsonJob, JsonJobLogger, PrioritizingJobScheduler}
 import com.twitter.gizzard.shards._
 import com.twitter.ostrich.Stats
 import com.twitter.querulous.StatsCollector
@@ -14,6 +14,7 @@ import net.lag.logging.Logger
 object Priority extends Enumeration {
   val Copy = Value(1)
   val Write = Value(2)
+  val MultiPush = Value(3)
 }
 
 object Haplocheirus {
@@ -25,15 +26,6 @@ object Haplocheirus {
   }
 
   def apply(config: ConfigMap): TimelineStoreService = {
-    val codec = new JsonCodec[JsonJob]({ unparsable: Array[Byte] =>
-      log.error("Unparsable job: %s", unparsable.map { n => "%02x".format(n.toInt & 0xff) }.mkString(", "))
-    })
-
-    val badJobQueue = new JsonJobLogger[JsonJob](Logger.get("bad_jobs"))
-    val scheduler = PrioritizingJobScheduler(config.configMap("queue"), codec,
-      Map(Priority.Write.id -> "write", Priority.Copy.id -> "copy"),
-      badJobQueue)
-
     val readPool = new RedisPool("read", config.configMap("redis.read"))
     val writePool = new RedisPool("write", config.configMap("redis.write"))
 
@@ -48,6 +40,15 @@ object Haplocheirus {
                                 shardRepository, None)
     nameServer.reload()
 
+    val codec = new JsonCodec[JsonJob]({ unparsable: Array[Byte] =>
+      log.error("Unparsable job: %s", unparsable.map { n => "%02x".format(n.toInt & 0xff) }.mkString(", "))
+    })
+
+    val badJobQueue = new JsonJobLogger[JsonJob](Logger.get("bad_jobs"))
+    val scheduler = PrioritizingJobScheduler(config.configMap("queue"), codec,
+      Map(Priority.Write.id -> "write", Priority.Copy.id -> "copy"),
+      Some(badJobQueue))
+
     val errorQueue = scheduler(Priority.Write.id).errorQueue
     codec += ("Append".r, new jobs.AppendParser(errorQueue, nameServer))
     codec += ("Remove".r, new jobs.RemoveParser(errorQueue, nameServer))
@@ -56,8 +57,15 @@ object Haplocheirus {
     codec += ("Copy".r, new jobs.RedisCopyParser(nameServer, scheduler(Priority.Copy.id)))
     codec += ("MultiPush".r, new jobs.MultiPushParser(nameServer, scheduler(Priority.Write.id)))
 
-    scheduler.start()
+    // multipush gets its own queue.
+    val multiPushScheduler =
+      JobScheduler("multipush", config.configMap("queue"),
+                   new jobs.MultiPushCodec(nameServer, scheduler(Priority.Write.id)), None)
 
-    new TimelineStoreService(nameServer, scheduler, new jobs.RedisCopyFactory(nameServer, scheduler(Priority.Copy.id)), readPool, writePool)
+    scheduler.start()
+    multiPushScheduler.start()
+
+    val copyFactory = new jobs.RedisCopyFactory(nameServer, scheduler(Priority.Copy.id))
+    new TimelineStoreService(nameServer, scheduler, multiPushScheduler, copyFactory, readPool, writePool)
   }
 }

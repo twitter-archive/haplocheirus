@@ -2,7 +2,7 @@ package com.twitter.haplocheirus
 
 import com.twitter.gizzard.{Future, Hash}
 import com.twitter.gizzard.nameserver.NameServer
-import com.twitter.gizzard.scheduler.{CopyJobFactory, JsonJob, PrioritizingJobScheduler}
+import com.twitter.gizzard.scheduler.{CopyJobFactory, JobScheduler, JsonJob, PrioritizingJobScheduler}
 import com.twitter.gizzard.thrift.conversions.Sequences._
 import com.twitter.ostrich.Stats
 import net.lag.logging.Logger
@@ -10,6 +10,7 @@ import net.lag.logging.Logger
 
 class TimelineStoreService(val nameServer: NameServer[HaplocheirusShard],
                            val scheduler: PrioritizingJobScheduler[JsonJob],
+                           val multiPushScheduler: JobScheduler[jobs.MultiPush],
                            val copyFactory: CopyJobFactory[HaplocheirusShard],
                            val readPool: RedisPool,
                            val writePool: RedisPool)
@@ -25,6 +26,7 @@ class TimelineStoreService(val nameServer: NameServer[HaplocheirusShard],
 
   def shutdown() {
     scheduler.shutdown()
+    multiPushScheduler.shutdown()
     readPool.shutdown()
     writePool.shutdown()
   }
