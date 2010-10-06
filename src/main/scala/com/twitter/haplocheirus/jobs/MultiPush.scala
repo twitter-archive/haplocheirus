@@ -15,7 +15,8 @@ class MultiPushCodec(nameServer: NameServer[HaplocheirusShard], scheduler: JobSc
   def flatten(job: MultiPush): Array[Byte] = {
     // java. :(
     val stream = new ByteArrayOutputStream()
-    val args = new TimelineStore.append_args().write(new TBinaryProtocol(new TIOStreamTransport(stream)))
+    val args = new TimelineStore.append_args(job.entry, job.timelinePrefix, job.timelineIds.toJavaList)
+    args.write(new TBinaryProtocol(new TIOStreamTransport(stream)))
     stream.toByteArray
   }
 
