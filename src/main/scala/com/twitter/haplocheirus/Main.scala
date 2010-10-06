@@ -2,20 +2,18 @@ package com.twitter.haplocheirus
 
 import java.util.concurrent.CountDownLatch
 import com.twitter.gizzard.proxy.ExceptionHandlingProxy
-import com.twitter.gizzard.scheduler.JsonJob
-import com.twitter.gizzard.thrift.GizzardServices
+import com.twitter.gizzard.thrift.{GizzardServices, TThreadServer}
 import com.twitter.ostrich.{BackgroundProcess, Service, ServiceTracker, Stats}
 import com.twitter.xrayspecs.TimeConversions._
 import net.lag.configgy.{Configgy, ConfigMap, RuntimeEnvironment}
 import net.lag.logging.Logger
 import org.apache.thrift.server.TThreadPoolServer
 import org.apache.thrift.transport.TServerSocket
-import thrift.BetterTThreadPoolServer
 
 object Main extends Service {
   val log = Logger.get(getClass.getName)
-  var thriftServer: BetterTThreadPoolServer = null
-  var gizzardServices: GizzardServices[HaplocheirusShard, JsonJob] = null
+  var thriftServer: TThreadServer = null
+  var gizzardServices: GizzardServices[HaplocheirusShard] = null
   var service: TimelineStoreService = null
 
   private val deathSwitch = new CountDownLatch(1)
@@ -66,9 +64,9 @@ object Main extends Service {
           NuLoggingProxy[thrift.TimelineStore.Iface](Stats, "timelines", new TimelineStore(service))
         )
       )
-      thriftServer = BetterTThreadPoolServer("haplocheirus", config("server_port").toInt,
-                                             config("timeline_store_service.idle_timeout_sec").toInt * 1000,
-                                             processor)
+      thriftServer = TThreadServer("haplocheirus", config("server_port").toInt,
+                                   config("timeline_store_service.idle_timeout_sec").toInt * 1000,
+                                   processor)
       thriftServer.serve()
     } catch {
       case e: Exception =>
