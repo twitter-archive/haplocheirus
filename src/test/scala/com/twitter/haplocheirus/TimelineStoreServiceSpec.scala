@@ -36,7 +36,7 @@ object TimelineStoreServiceSpec extends Specification with JMocker with ClassMoc
       val timelines = List("t1", "t2")
 
       expect {
-        one(scheduler).apply(Priority.Write.id) willReturn jobScheduler
+        one(multiPushScheduler).queue willReturn queue
         one(queue).put(jobs.MultiPush(data, "t", List(1L, 2L), nameServer, jobScheduler))
       }
 

@@ -1,26 +1,29 @@
 package com.twitter.haplocheirus.jobs
 
+import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 import com.twitter.gizzard.nameserver.NameServer
 import com.twitter.gizzard.scheduler.{Codec, JobScheduler, JsonCodec, JsonJob, JsonJobParser}
 import com.twitter.gizzard.thrift.conversions.Sequences._
 import com.twitter.json.JsonQuoted
 import org.apache.commons.codec.binary.Base64
+import org.apache.thrift.protocol.TBinaryProtocol
+import org.apache.thrift.transport.TIOStreamTransport
 import thrift.TimelineStore
 
 class MultiPushCodec(nameServer: NameServer[HaplocheirusShard], scheduler: JobScheduler[JsonJob])
       extends Codec[MultiPush] {
   def flatten(job: MultiPush): Array[Byte] = {
-    //
-    null
+    // java. :(
+    val stream = new ByteArrayOutputStream()
+    val args = new TimelineStore.append_args().write(new TBinaryProtocol(new TIOStreamTransport(stream)))
+    stream.toByteArray
   }
 
   def inflate(data: Array[Byte]): MultiPush = {
-    //
+    // java. :(
     val args = new TimelineStore.append_args()
-    val entry = "".getBytes
-    val timelinePrefix = ""
-    val timelineIds = Array(0L)
-    new MultiPush(entry, timelinePrefix, timelineIds, nameServer, scheduler)
+    args.read(new TBinaryProtocol(new TIOStreamTransport(new ByteArrayInputStream(data))))
+    new MultiPush(args.entry, args.timeline_prefix, args.timeline_ids.toSeq, nameServer, scheduler)
   }
 }
 

@@ -35,18 +35,13 @@ class TimelineStoreService(val nameServer: NameServer[HaplocheirusShard],
     nameServer.findCurrentForwarding(0, Hash.FNV1A_64(timeline))
   }
 
-  val SLICE = 100
   def append(entry: Array[Byte], prefix: String, timelines: Seq[Long]) {
     Stats.addTiming("x-timelines-per-append", timelines.size)
-    var i = 0
-    while (i < timelines.size) {
-      val job = Stats.timeMicros("x-append-job") {
-        jobs.MultiPush(entry, prefix, timelines.slice(i, i + SLICE), nameServer, scheduler(Priority.Write.id))
-      }
-      Stats.timeMicros("x-append-put") {
-        writeQueue.put(job)
-      }
-      i += SLICE
+    val job = Stats.timeMicros("x-append-job") {
+      jobs.MultiPush(entry, prefix, timelines, nameServer, scheduler(Priority.Write.id))
+    }
+    Stats.timeMicros("x-append-put") {
+      multiPushScheduler.queue.put(job)
     }
   }
 
