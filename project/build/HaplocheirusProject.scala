@@ -21,5 +21,5 @@ class HaplocheirusProject(info: ProjectInfo) extends StandardProject(info) with 
   val gizzard = "com.twitter" % "gizzard" % "1.4.3"
   val jredis = "jredis" % "jredis" % "1.0-tw1"
   val codec = "commons-codec" % "commons-codec" % "1.4"
-  val ostrich = "com.twitter" % "ostrich" % "1.2.6"
+  val ostrich = "com.twitter" % "ostrich" % "1.2.7"
 }
