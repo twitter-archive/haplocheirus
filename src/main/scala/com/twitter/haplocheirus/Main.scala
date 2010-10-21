@@ -47,7 +47,6 @@ object Main extends Service {
     stopThrift()
     service.shutdown()
     statsLogger.shutdown()
-    stopThrift()
     deathSwitch.countDown()
     log.info("Goodbye!")
     System.exit(0)
