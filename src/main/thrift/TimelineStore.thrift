@@ -60,7 +60,8 @@ service TimelineStore {
    * that is, returned entries come from the passed-in set, not the actual timeline.
    * Throw "TimelineStoreException" if there's no such timeline in cache.
    */
-  list<binary> filter(1: string timeline_id, 2: list<i64> id, 3: i32 max_search) throws(1: TimelineStoreException ex)
+  list<binary> filter(1: string timeline_id, 2: list<binary> entries, 3: i32 max_search) throws(1: TimelineStoreException ex)
+  list<binary> filter2(1: string timeline_id, 2: list<i64> id, 3: i32 max_search) throws(1: TimelineStoreException ex)
 
   /*
    * Fetch a span of entries from a timeline. The offset & length are counted from most recent to

@@ -128,6 +128,11 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
     }
   }
 
+  // this is really inefficient. we should discourage its use.
+  def oldFilter(timeline: String, entries: Seq[Array[Byte]], maxSearch: Int): Option[Seq[Array[Byte]]] = {
+    filter(timeline, sortKeysFromEntries(entries).map { _.key }, maxSearch)
+  }
+
   def get(timeline: String, offset: Int, length: Int, dedupeSecondary: Boolean): Option[TimelineSegment] = {
     val (entries, size) = readPool.withClient(shardInfo.hostname) { client =>
       (client.get(timeline, offset, length), client.size(timeline))

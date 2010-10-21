@@ -52,7 +52,11 @@ class TimelineStoreService(val nameServer: NameServer[HaplocheirusShard],
     }
   }
 
-  def filter(timeline: String, entries: Seq[Long], maxSearch: Int) = {
+  def filter(timeline: String, entries: Seq[Array[Byte]], maxSearch: Int) = {
+    shardFor(timeline).oldFilter(timeline, entries, maxSearch)
+  }
+
+  def filter2(timeline: String, entries: Seq[Long], maxSearch: Int) = {
     shardFor(timeline).filter(timeline, entries, maxSearch)
   }
 

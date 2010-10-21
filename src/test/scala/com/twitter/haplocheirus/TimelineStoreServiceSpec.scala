@@ -61,13 +61,26 @@ object TimelineStoreServiceSpec extends Specification with JMocker with ClassMoc
     "filter" in {
       val data = "hello".getBytes
       val timeline = "t1"
+      val entries = List(new Array[Byte](0))
+
+      expect {
+        one(nameServer).findCurrentForwarding(0, 632754681242344982L) willReturn shard1
+        one(shard1).oldFilter(timeline, entries, -1) willReturn Some(List(data))
+      }
+
+      service.filter(timeline, entries, -1) mustEqual Some(List(data))
+    }
+
+    "filter2" in {
+      val data = "hello".getBytes
+      val timeline = "t1"
 
       expect {
         one(nameServer).findCurrentForwarding(0, 632754681242344982L) willReturn shard1
         one(shard1).filter(timeline, List(23L), -1) willReturn Some(List(data))
       }
 
-      service.filter(timeline, List(23L), -1) mustEqual Some(List(data))
+      service.filter2(timeline, List(23L), -1) mustEqual Some(List(data))
     }
 
     "get" in {
