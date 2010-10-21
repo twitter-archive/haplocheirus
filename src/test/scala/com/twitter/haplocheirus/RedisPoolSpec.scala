@@ -1,6 +1,5 @@
 package com.twitter.haplocheirus
 
-import com.twitter.gizzard.scheduler.ErrorHandlingJobQueue
 import net.lag.configgy.Configgy
 import org.jredis.ClientRuntimeException
 import org.specs.Specification

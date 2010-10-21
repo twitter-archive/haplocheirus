@@ -2,8 +2,9 @@ package com.twitter.haplocheirus
 
 import java.util.concurrent.{ExecutionException, Future, TimeUnit}
 import java.util.{List => JList}
+import com.twitter.gizzard.nameserver.NameServer
+import com.twitter.gizzard.scheduler.{JobQueue, JsonJob}
 import com.twitter.gizzard.thrift.conversions.Sequences._
-import com.twitter.gizzard.scheduler.ErrorHandlingJobQueue
 import com.twitter.xrayspecs.TimeConversions._
 import org.jredis.protocol.ResponseStatus
 import org.jredis.ri.alphazero.{JRedisFutureSupport, JRedisPipeline}
@@ -14,18 +15,19 @@ import org.specs.mock.{ClassMocker, JMocker}
 object PipelinedRedisClientSpec extends ConfiguredSpecification with JMocker with ClassMocker {
   "PipelinedRedisClient" should {
     val jredis = mock[JRedisPipeline]
-    val queue = mock[ErrorHandlingJobQueue]
+    val queue = mock[JobQueue[JsonJob]]
     val future = mock[JRedisFutureSupport.FutureStatus]
     val future2 = mock[Future[JList[Array[Byte]]]]
     val longFuture = mock[JRedisFutureSupport.FutureLong]
     val booleanFuture = mock[JRedisFutureSupport.FutureBoolean]
     val keyListFuture = mock[Future[JList[String]]]
+    val nameServer = mock[NameServer[HaplocheirusShard]]
     var client: PipelinedRedisClient = null
 
     val timeline = "t1"
     val data = "rus".getBytes
     val data2 = "zim".getBytes
-    val job = jobs.Append(data, timeline)
+    val job = jobs.Append(data, timeline, nameServer)
 
     doBefore {
       client = new PipelinedRedisClient("localhost", 10, 1.second, 1.second, 1.day) {
@@ -35,7 +37,7 @@ object PipelinedRedisClientSpec extends ConfiguredSpecification with JMocker wit
     }
 
     "laterWithErrorHandling" in {
-      val onError = Some({ e: Throwable => queue.putError(job) })
+      val onError = Some({ e: Throwable => queue.put(job) })
 
       "success" in {
         client.laterWithErrorHandling(onError) { }
@@ -45,7 +47,7 @@ object PipelinedRedisClientSpec extends ConfiguredSpecification with JMocker wit
 
       "exception" in {
         expect {
-          one(queue).putError(job)
+          one(queue).put(job)
         }
 
         client.laterWithErrorHandling(onError) { throw new ExecutionException(new Exception("I died.")) }

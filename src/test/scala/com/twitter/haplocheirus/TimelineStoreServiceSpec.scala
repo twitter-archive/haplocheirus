@@ -2,7 +2,7 @@ package com.twitter.haplocheirus
 
 import com.twitter.gizzard.Future
 import com.twitter.gizzard.nameserver.NameServer
-import com.twitter.gizzard.scheduler.{ErrorHandlingJobQueue, JobScheduler, PrioritizingJobScheduler}
+import com.twitter.gizzard.scheduler.{JobQueue, JobScheduler, JsonJob, PrioritizingJobScheduler}
 import org.specs.Specification
 import org.specs.mock.{ClassMocker, JMocker}
 import thrift.conversions.TimelineSegment._
@@ -11,13 +11,15 @@ import thrift.conversions.TimelineSegment._
 object TimelineStoreServiceSpec extends Specification with JMocker with ClassMocker {
   "TimelineStoreService" should {
     val nameServer = mock[NameServer[HaplocheirusShard]]
-    val scheduler = mock[PrioritizingJobScheduler]
-    val jobScheduler = mock[JobScheduler]
-    val queue = mock[ErrorHandlingJobQueue]
+    val scheduler = mock[PrioritizingJobScheduler[JsonJob]]
+    val jobScheduler = mock[JobScheduler[JsonJob]]
+    val multiPushScheduler = mock[JobScheduler[jobs.MultiPush]]
+    val queue = mock[JobQueue[JsonJob]]
     val readPool = mock[RedisPool]
     val writePool = mock[RedisPool]
     val shard1 = mock[HaplocheirusShard]
     val shard2 = mock[HaplocheirusShard]
+    val copyFactory = mock[jobs.RedisCopyFactory]
     var service: TimelineStoreService = null
 
     doBefore {
@@ -25,7 +27,7 @@ object TimelineStoreServiceSpec extends Specification with JMocker with ClassMoc
         one(scheduler).apply(Priority.Write.id) willReturn jobScheduler
         one(jobScheduler).queue willReturn queue
       }
-      service = new TimelineStoreService(nameServer, scheduler, jobs.RedisCopyFactory, readPool, writePool)
+      service = new TimelineStoreService(nameServer, scheduler, multiPushScheduler, copyFactory, readPool, writePool)
       service.addOnError = false
     }
 
@@ -34,7 +36,9 @@ object TimelineStoreServiceSpec extends Specification with JMocker with ClassMoc
       val timelines = List("t1", "t2")
 
       expect {
-        one(queue).put(jobs.MultiPush(data, "t", List(1L, 2L)))
+        one(scheduler).apply(Priority.Write.id) willReturn jobScheduler
+        one(multiPushScheduler).queue willReturn queue
+        one(queue).put(jobs.MultiPush(data, "t", List(1L, 2L), nameServer, jobScheduler))
       }
 
       service.append(data, "t", List(1L, 2L))
@@ -57,13 +61,26 @@ object TimelineStoreServiceSpec extends Specification with JMocker with ClassMoc
     "filter" in {
       val data = "hello".getBytes
       val timeline = "t1"
+      val entries = List(new Array[Byte](0))
 
       expect {
         one(nameServer).findCurrentForwarding(0, 632754681242344982L) willReturn shard1
-        one(shard1).filter(timeline, List(data), -1) willReturn Some(List(data))
+        one(shard1).oldFilter(timeline, entries, -1) willReturn Some(List(data))
       }
 
-      service.filter(timeline, List(data), -1) mustEqual Some(List(data))
+      service.filter(timeline, entries, -1) mustEqual Some(List(data))
+    }
+
+    "filter2" in {
+      val data = "hello".getBytes
+      val timeline = "t1"
+
+      expect {
+        one(nameServer).findCurrentForwarding(0, 632754681242344982L) willReturn shard1
+        one(shard1).filter(timeline, List(23L), -1) willReturn Some(List(data))
+      }
+
+      service.filter2(timeline, List(23L), -1) mustEqual Some(List(data))
     }
 
     "get" in {
@@ -191,6 +208,7 @@ object TimelineStoreServiceSpec extends Specification with JMocker with ClassMoc
     "shutdown" in {
       expect {
         one(scheduler).shutdown()
+        one(multiPushScheduler).shutdown()
         one(readPool).shutdown()
         one(writePool).shutdown()
       }

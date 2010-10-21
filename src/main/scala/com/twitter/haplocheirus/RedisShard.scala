@@ -3,7 +3,6 @@ package com.twitter.haplocheirus
 import java.nio.{ByteBuffer, ByteOrder}
 import scala.collection.mutable
 import com.twitter.gizzard.proxy.ExceptionHandlingProxy
-import com.twitter.gizzard.scheduler.ErrorHandlingJobQueue
 import com.twitter.gizzard.shards._
 import com.twitter.ostrich.Stats
 import com.twitter.xrayspecs.Duration
@@ -39,6 +38,9 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
                  val readPool: RedisPool, val writePool: RedisPool,
                  val trimMap: TimelineTrimMap, val rangeQueryPageSize: Int)
       extends HaplocheirusShard {
+  // do removes the old, painful way. turn this off once everyone is in haplo.
+  val OLD_STYLE = true
+
   private val log = Logger.get(getClass.getName)
 
   case class EntryWithKey(key: Long, entry: Array[Byte])
@@ -57,34 +59,32 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
     entries.map { entry => EntryWithKey(sortKeyFromEntry(entry), entry) }
   }
 
-  private def dedupeBy(entries: Seq[Array[Byte]], byteOffset: Int): Seq[Array[Byte]] = {
-    // optimization: usually there are no dupes.
-    val uniqs = new mutable.HashSet[Long]()
-    entries.foreach { entry =>
-      if (byteOffset + 8 <= entry.length) {
-        uniqs += sortKeyFromEntry(entry, byteOffset)
-      }
+  private def dedupe(entries: Seq[Array[Byte]], useSecondary: Boolean): Seq[Array[Byte]] = {
+    val rv = new mutable.ArrayBuffer[Array[Byte]] {
+      override def initialSize = entries.size
     }
+    val keys = mutable.Set.empty[Long]
+    val secondaryKeys = mutable.Set.empty[Long]
 
-    if (uniqs.size == entries.size) {
-      entries
-    } else {
-      val seen = new mutable.HashSet[Long]()
-      entries.foldRight(List[Array[Byte]]()) { (entry, newList) =>
-        if (byteOffset + 8 <= entry.length) {
-          val id = sortKeyFromEntry(entry, byteOffset)
-          if (seen contains id) {
-            Stats.incr("timeline-dupes")
-            newList
-          } else {
-            seen += id
-            entry :: newList
-          }
+    entries.reverse.foreach { entry =>
+      if (entry.size < 20) {
+        rv += entry
+      } else {
+        val timelineEntry = TimelineEntry(entry)
+        val entryUseSecondary = useSecondary && (timelineEntry.flags & TimelineEntry.FLAG_SECONDARY_KEY) != 0
+        if (keys.contains(timelineEntry.id) ||
+            (entryUseSecondary &&
+              (secondaryKeys.contains(timelineEntry.secondary) || keys.contains(timelineEntry.secondary)))) {
+          // skip
         } else {
-          entry :: newList
+          rv += entry
+          keys += timelineEntry.id
+          if (entryUseSecondary) secondaryKeys += timelineEntry.secondary
         }
       }
     }
+
+    rv.reverse
   }
 
   private def timelineIndexOf(entries: Seq[Array[Byte]], entryId: Long): Int = {
@@ -108,36 +108,53 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
   }
 
   def remove(timeline: String, entries: Seq[Array[Byte]], onError: Option[Throwable => Unit]) {
-    writePool.withClient(shardInfo.hostname) { client =>
-      entries.foreach { entry =>
-        client.pop(timeline, entry, onError)
+    if (OLD_STYLE) {
+      // painful. do it by id because the client doesn't know the entire entry yet.
+      val ids = Set(sortKeysFromEntries(entries).map { _.key }: _*)
+      writePool.withClient(shardInfo.hostname) { client =>
+        val timelineEntries = client.get(timeline, 0, -1).map { TimelineEntry(_) }
+        timelineEntries.foreach { entry =>
+          if (ids contains entry.id) {
+            client.pop(timeline, entry.data, onError)
+          }
+        }
+      }
+    } else {
+      writePool.withClient(shardInfo.hostname) { client =>
+        entries.foreach { entry =>
+          client.pop(timeline, entry, onError)
+        }
       }
     }
   }
 
   // this is really inefficient. we should discourage its use.
-  def filter(timeline: String, entries: Seq[Array[Byte]], maxSearch: Int): Option[Seq[Array[Byte]]] = {
-    val searchKeys = sortKeysFromEntries(entries)
-    val timelineEntries = Set(sortKeysFromEntries(readPool.withClient(shardInfo.hostname) { client =>
+  def filter(timeline: String, entries: Seq[Long], maxSearch: Int): Option[Seq[Array[Byte]]] = {
+    val needle = Set(entries: _*)
+    val timelineEntries = readPool.withClient(shardInfo.hostname) { client =>
       client.get(timeline, 0, maxSearch)
-    }).map { _.key }: _*)
+    }.map { TimelineEntry(_) }
     if (timelineEntries.isEmpty) {
       None
     } else {
-      Some(searchKeys.filter { timelineEntries contains _.key }.map { _.entry })
+      Some(timelineEntries.filter { entry =>
+        needle.contains(entry.id) ||
+          ((entry.flags & TimelineEntry.FLAG_SECONDARY_KEY) != 0 && needle.contains(entry.secondary))
+      }.map { _.data })
     }
   }
 
-  def get(timeline: String, offset: Int, length: Int, dedupe: Boolean): Option[TimelineSegment] = {
+  // this is really inefficient. we should discourage its use.
+  def oldFilter(timeline: String, entries: Seq[Array[Byte]], maxSearch: Int): Option[Seq[Array[Byte]]] = {
+    filter(timeline, sortKeysFromEntries(entries).map { _.key }, maxSearch)
+  }
+
+  def get(timeline: String, offset: Int, length: Int, dedupeSecondary: Boolean): Option[TimelineSegment] = {
     val (entries, size) = readPool.withClient(shardInfo.hostname) { client =>
       (client.get(timeline, offset, length), client.size(timeline))
     }
     if (size > 0) {
-      val dedupedEntries = if (dedupe) {
-        dedupeBy(dedupeBy(entries, 0), 8)
-      } else {
-        dedupeBy(entries, 0)
-      }
+      val dedupedEntries = dedupe(entries, dedupeSecondary)
       Stats.incr("timeline-hit")
       Some(TimelineSegment(dedupedEntries, size))
     } else {
@@ -155,7 +172,7 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
     }
   }
 
-  def getRange(timeline: String, fromId: Long, toId: Long, dedupe: Boolean): Option[TimelineSegment] = {
+  def getRange(timeline: String, fromId: Long, toId: Long, dedupeSecondary: Boolean): Option[TimelineSegment] = {
     val (entriesSince, size) = readPool.withClient(shardInfo.hostname) { client =>
       val entries = new mutable.ArrayBuffer[Array[Byte]]()
       var cursor = 0
@@ -183,11 +200,7 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
       (entries.take(fromIdIndex).drop(toIdIndex), client.size(timeline))
     }
     if (size > 0) {
-      val entries = if (dedupe) {
-        dedupeBy(dedupeBy(entriesSince, 0), 8)
-      } else {
-        dedupeBy(entriesSince, 0)
-      }
+      val entries = dedupe(entriesSince, dedupeSecondary)
       Stats.incr("timeline-hit")
       Some(TimelineSegment(entries, size))
     } else {

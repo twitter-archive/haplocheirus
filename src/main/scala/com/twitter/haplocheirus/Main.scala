@@ -2,6 +2,7 @@ package com.twitter.haplocheirus
 
 import java.util.concurrent.CountDownLatch
 import com.twitter.gizzard.proxy.ExceptionHandlingProxy
+import com.twitter.gizzard.scheduler.JsonJob
 import com.twitter.gizzard.thrift.{GizzardServices, TThreadServer}
 import com.twitter.ostrich.{BackgroundProcess, JsonStatsLogger, Service, ServiceTracker, Stats}
 import com.twitter.xrayspecs.TimeConversions._
@@ -13,7 +14,7 @@ import org.apache.thrift.transport.TServerSocket
 object Main extends Service {
   val log = Logger.get(getClass.getName)
   var thriftServer: TThreadServer = null
-  var gizzardServices: GizzardServices[HaplocheirusShard] = null
+  var gizzardServices: GizzardServices[HaplocheirusShard, JsonJob] = null
   var service: TimelineStoreService = null
   var statsLogger: JsonStatsLogger = null
 
@@ -42,9 +43,10 @@ object Main extends Service {
 
   def shutdown() {
     log.info("Shutting down!")
+    // stop thrift first, so new work stops arriving.
+    stopThrift()
     service.shutdown()
     statsLogger.shutdown()
-    stopThrift()
     deathSwitch.countDown()
     log.info("Goodbye!")
     System.exit(0)
@@ -61,7 +63,7 @@ object Main extends Service {
                                             service.nameServer,
                                             service.copyFactory,
                                             service.scheduler,
-                                            Priority.Copy.id)
+                                            service.scheduler(Priority.Copy.id))
       gizzardServices.start()
 
       val processor = new thrift.TimelineStore.Processor(
