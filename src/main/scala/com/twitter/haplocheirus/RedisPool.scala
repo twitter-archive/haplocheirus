@@ -2,7 +2,6 @@ package com.twitter.haplocheirus
 
 import java.util.concurrent.{LinkedBlockingQueue, TimeoutException, TimeUnit}
 import scala.collection.mutable
-import com.twitter.gizzard.scheduler.ErrorHandlingJobQueue
 import com.twitter.ostrich.Stats
 import com.twitter.xrayspecs.TimeConversions._
 import net.lag.configgy.ConfigMap

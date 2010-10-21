@@ -1,7 +1,7 @@
 package com.twitter.haplocheirus
 
 import com.twitter.gizzard.nameserver.NameServer
-import com.twitter.gizzard.scheduler.ErrorHandlingJobQueue
+import com.twitter.gizzard.scheduler.{JobQueue, JsonJob}
 import net.lag.logging.Logger
 
 trait JobInjector {
@@ -10,17 +10,17 @@ trait JobInjector {
   // can be overridden for tests.
   var addOnError = true
 
-  def injectJob(nameServer: NameServer[HaplocheirusShard], writeQueue: ErrorHandlingJobQueue, job: jobs.RedisJob) {
+  def injectJob(errorQueue: JobQueue[JsonJob], job: jobs.FallbackJob) {
     if (addOnError) {
-      job.onError { e => writeQueue.putError(job) }
+      job.onError { e => errorQueue.put(job) }
     }
 
     try {
-      job(nameServer)
+      job()
     } catch {
       case e: Throwable =>
         log.error(e, "Exception starting job %s: %s", job, e)
-        writeQueue.putError(job)
+        errorQueue.put(job)
     }
   }
 }

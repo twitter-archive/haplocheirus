@@ -1,17 +1,17 @@
 package com.twitter.haplocheirus
 
 import com.twitter.gizzard.{Future, Hash}
-import com.twitter.gizzard.jobs.CopyFactory
 import com.twitter.gizzard.nameserver.NameServer
-import com.twitter.gizzard.scheduler.PrioritizingJobScheduler
+import com.twitter.gizzard.scheduler.{CopyJobFactory, JobScheduler, JsonJob, PrioritizingJobScheduler}
 import com.twitter.gizzard.thrift.conversions.Sequences._
 import com.twitter.ostrich.Stats
 import net.lag.logging.Logger
 
 
 class TimelineStoreService(val nameServer: NameServer[HaplocheirusShard],
-                           val scheduler: PrioritizingJobScheduler,
-                           val copyFactory: CopyFactory[HaplocheirusShard],
+                           val scheduler: PrioritizingJobScheduler[JsonJob],
+                           val multiPushScheduler: JobScheduler[jobs.MultiPush],
+                           val copyFactory: CopyJobFactory[HaplocheirusShard],
                            val readPool: RedisPool,
                            val writePool: RedisPool)
       extends JobInjector {
@@ -20,12 +20,13 @@ class TimelineStoreService(val nameServer: NameServer[HaplocheirusShard],
 
   val writeQueue = scheduler(Priority.Write.id).queue
 
-  def injectJob(job: jobs.RedisJob) {
-    injectJob(nameServer, writeQueue, job)
+  def injectJob(job: jobs.FallbackJob) {
+    injectJob(writeQueue, job)
   }
 
   def shutdown() {
     scheduler.shutdown()
+    multiPushScheduler.shutdown()
     readPool.shutdown()
     writePool.shutdown()
   }
@@ -34,29 +35,28 @@ class TimelineStoreService(val nameServer: NameServer[HaplocheirusShard],
     nameServer.findCurrentForwarding(0, Hash.FNV1A_64(timeline))
   }
 
-  val SLICE = 100
   def append(entry: Array[Byte], prefix: String, timelines: Seq[Long]) {
     Stats.addTiming("x-timelines-per-append", timelines.size)
-    var i = 0
-    while (i < timelines.size) {
-      val job = Stats.timeMicros("x-append-job") {
-        jobs.MultiPush(entry, prefix, timelines.slice(i, i + SLICE))
-      }
-      Stats.timeMicros("x-append-put") {
-        writeQueue.put(job)
-      }
-      i += SLICE
+    val job = Stats.timeMicros("x-append-job") {
+      jobs.MultiPush(entry, prefix, timelines, nameServer, scheduler(Priority.Write.id))
+    }
+    Stats.timeMicros("x-append-put") {
+      multiPushScheduler.queue.put(job)
     }
   }
 
   def remove(entry: Array[Byte], prefix: String, timelines: Seq[Long]) {
     Stats.addTiming("x-timelines-per-remove", timelines.size)
     timelines.foreach { timeline =>
-      injectJob(jobs.Remove(prefix + timeline.toString, List(entry)))
+      injectJob(jobs.Remove(prefix + timeline.toString, List(entry), nameServer))
     }
   }
 
   def filter(timeline: String, entries: Seq[Array[Byte]], maxSearch: Int) = {
+    shardFor(timeline).oldFilter(timeline, entries, maxSearch)
+  }
+
+  def filter2(timeline: String, entries: Seq[Long], maxSearch: Int) = {
     shardFor(timeline).filter(timeline, entries, maxSearch)
   }
 
@@ -73,11 +73,11 @@ class TimelineStoreService(val nameServer: NameServer[HaplocheirusShard],
   }
 
   def merge(timeline: String, entries: Seq[Array[Byte]]) {
-    injectJob(jobs.Merge(timeline, entries))
+    injectJob(jobs.Merge(timeline, entries, nameServer))
   }
 
   def unmerge(timeline: String, entries: Seq[Array[Byte]]) {
-    injectJob(jobs.Remove(timeline, entries))
+    injectJob(jobs.Remove(timeline, entries, nameServer))
   }
 
   def mergeIndirect(destTimeline: String, sourceTimeline: String): Boolean = {
@@ -85,7 +85,7 @@ class TimelineStoreService(val nameServer: NameServer[HaplocheirusShard],
       case None =>
         false
       case Some(entries) =>
-        injectJob(jobs.Merge(destTimeline, entries))
+        injectJob(jobs.Merge(destTimeline, entries, nameServer))
         true
     }
   }
@@ -95,12 +95,12 @@ class TimelineStoreService(val nameServer: NameServer[HaplocheirusShard],
       case None =>
         false
       case Some(entries) =>
-        injectJob(jobs.Remove(destTimeline, entries))
+        injectJob(jobs.Remove(destTimeline, entries, nameServer))
         true
     }
   }
 
   def deleteTimeline(timeline: String) {
-    injectJob(jobs.DeleteTimeline(timeline))
+    injectJob(jobs.DeleteTimeline(timeline, nameServer))
   }
 }

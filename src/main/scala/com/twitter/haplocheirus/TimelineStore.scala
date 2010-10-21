@@ -21,6 +21,12 @@ class TimelineStore(service: TimelineStoreService) extends thrift.TimelineStore.
     }
   }
 
+  def filter2(timeline_id: String, entries: JList[java.lang.Long], max_search: Int) = {
+    service.filter2(timeline_id, entries.toSeq, max_search).map(_.toJavaList).getOrElse {
+      throw new TimelineStoreException("no timeline")
+    }
+  }
+
   def get(timeline_id: String, offset: Int, length: Int, dedupe: Boolean) = {
     service.get(timeline_id, offset, length, dedupe).map(_.toThrift).getOrElse {
       throw new TimelineStoreException("no timeline")

@@ -3,7 +3,7 @@ package com.twitter.haplocheirus
 import java.util.concurrent.{ExecutionException, Future, TimeUnit}
 import java.util.{List => JList}
 import com.twitter.gizzard.nameserver.Forwarding
-import com.twitter.gizzard.scheduler.KestrelMessageQueue
+import com.twitter.gizzard.scheduler.{JsonJob, KestrelJobQueue}
 import com.twitter.gizzard.shards.{Busy, ShardId, ShardInfo}
 import com.twitter.gizzard.thrift.conversions.Sequences._
 import com.twitter.ostrich.Stats
@@ -22,7 +22,7 @@ object IntegrationSpec extends ConfiguredSpecification with JMocker with ClassMo
     var service: TimelineStoreService = null
 
     def errorQueue = {
-      service.scheduler(Priority.Write.id).queue.errorQueue.asInstanceOf[KestrelMessageQueue]
+      service.scheduler(Priority.Write.id).errorQueue.asInstanceOf[KestrelJobQueue[JsonJob]]
     }
 
     val shardId1 = new ShardId("localhost", "dev1a")

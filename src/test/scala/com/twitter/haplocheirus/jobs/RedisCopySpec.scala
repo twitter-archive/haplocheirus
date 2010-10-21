@@ -1,7 +1,7 @@
 package com.twitter.haplocheirus.jobs
 
-import com.twitter.gizzard.scheduler.JobScheduler
 import com.twitter.gizzard.nameserver.NameServer
+import com.twitter.gizzard.scheduler.{JobScheduler, JsonCodec, JsonJob}
 import com.twitter.gizzard.shards.{Busy, ShardId, ShardTimeoutException}
 import com.twitter.gizzard.thrift.conversions.Sequences._
 import com.twitter.xrayspecs.TimeConversions._
@@ -19,12 +19,13 @@ class RedisCopySpec extends ConfiguredSpecification with JMocker with ClassMocke
   "RedisCopy" should {
     val entries = List("1".getBytes, "2".getBytes)
     val nameServer = mock[NameServer[HaplocheirusShard]]
-    val scheduler = mock[JobScheduler]
+    val scheduler = mock[JobScheduler[JsonJob]]
     val shard1 = mock[HaplocheirusShard]
     val shard2 = mock[HaplocheirusShard]
+    val codec = mock[JsonCodec[JsonJob]]
 
     "start" in {
-      val job = RedisCopyFactory(shard1Id, shard2Id)
+      val job = new RedisCopyFactory(nameServer, scheduler)(shard1Id, shard2Id)
 
       "normally" in {
         expect {
@@ -38,10 +39,10 @@ class RedisCopySpec extends ConfiguredSpecification with JMocker with ClassMocke
           one(shard2).startCopy("t2")
           one(shard1).getRaw("t2") willReturn Some(entries)
           one(shard2).doCopy("t2", entries)
-          one(scheduler).apply(new RedisCopy(shard1Id, shard2Id, 2, RedisCopy.COPY_COUNT))
+          one(scheduler).put(new RedisCopy(shard1Id, shard2Id, 2, RedisCopy.COPY_COUNT, nameServer, scheduler))
         }
 
-        job.apply((nameServer, scheduler))
+        job.apply()
       }
 
       "with missing data" in {
@@ -56,15 +57,15 @@ class RedisCopySpec extends ConfiguredSpecification with JMocker with ClassMocke
           one(shard2).startCopy("t2")
           one(shard1).getRaw("t2") willReturn None
           one(shard2).deleteTimeline("t2")
-          one(scheduler).apply(new RedisCopy(shard1Id, shard2Id, 2, RedisCopy.COPY_COUNT))
+          one(scheduler).put(new RedisCopy(shard1Id, shard2Id, 2, RedisCopy.COPY_COUNT, nameServer, scheduler))
         }
 
-        job.apply((nameServer, scheduler))
+        job.apply()
       }
     }
 
     "finish" in {
-      val job = new RedisCopy(shard1Id, shard2Id, 2, RedisCopy.COPY_COUNT)
+      val job = new RedisCopy(shard1Id, shard2Id, 2, RedisCopy.COPY_COUNT, nameServer, scheduler)
 
       expect {
         one(nameServer).markShardBusy(shard2Id, Busy.Busy)
@@ -74,11 +75,11 @@ class RedisCopySpec extends ConfiguredSpecification with JMocker with ClassMocke
         one(nameServer).markShardBusy(shard2Id, Busy.Normal)
       }
 
-      job.apply((nameServer, scheduler))
+      job.apply()
     }
 
     "toJson" in {
-      val job = new RedisCopy(shard1Id, shard2Id, 500, 200)
+      val job = new RedisCopy(shard1Id, shard2Id, 500, 200, nameServer, scheduler)
       val json = job.toJson
       json mustMatch "Copy"
       json mustMatch "\"cursor\":" + 500
@@ -87,12 +88,18 @@ class RedisCopySpec extends ConfiguredSpecification with JMocker with ClassMocke
   }
 
   "RedisCopyParser" should {
+    val nameServer = mock[NameServer[HaplocheirusShard]]
+    val scheduler = mock[JobScheduler[JsonJob]]
+    val codec = mock[JsonCodec[JsonJob]]
+
     "parse" in {
-      RedisCopyParser(Map("source_shard_table_prefix" -> "shard1",
-                          "source_shard_hostname" -> "test",
-                          "destination_shard_table_prefix" -> "shard2",
-                          "destination_shard_hostname" -> "test",
-                          "cursor" -> 500, "count" -> 200)) mustEqual new RedisCopy(shard1Id, shard2Id, 500, 200)
+      val parser = new RedisCopyParser(nameServer, scheduler)
+      val json = Map("source_shard_table_prefix" -> "shard1",
+                     "source_shard_hostname" -> "test",
+                     "destination_shard_table_prefix" -> "shard2",
+                     "destination_shard_hostname" -> "test",
+                     "cursor" -> 500, "count" -> 200)
+      parser(codec, json) mustEqual new RedisCopy(shard1Id, shard2Id, 500, 200, nameServer, scheduler)
     }
   }
 }
