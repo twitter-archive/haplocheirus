@@ -4,7 +4,7 @@ import java.util.concurrent.CountDownLatch
 import com.twitter.gizzard.proxy.ExceptionHandlingProxy
 import com.twitter.gizzard.scheduler.JsonJob
 import com.twitter.gizzard.thrift.{GizzardServices, TThreadServer}
-import com.twitter.ostrich.{BackgroundProcess, Service, ServiceTracker, Stats}
+import com.twitter.ostrich.{BackgroundProcess, JsonStatsLogger, Service, ServiceTracker, Stats}
 import com.twitter.xrayspecs.TimeConversions._
 import net.lag.configgy.{Configgy, ConfigMap, RuntimeEnvironment}
 import net.lag.logging.Logger
@@ -16,6 +16,7 @@ object Main extends Service {
   var thriftServer: TThreadServer = null
   var gizzardServices: GizzardServices[HaplocheirusShard, JsonJob] = null
   var service: TimelineStoreService = null
+  var statsLogger: JsonStatsLogger = null
 
   private val deathSwitch = new CountDownLatch(1)
 
@@ -31,6 +32,10 @@ object Main extends Service {
     ServiceTracker.startAdmin(config, runtime)
 
     log.info("Starting haplocheirus!")
+
+    statsLogger = new JsonStatsLogger(Logger.get("stats"), 1.minute, Some("haplocheirus"))
+    statsLogger.start()
+
     startThrift(config)
 
     deathSwitch.await
@@ -41,6 +46,8 @@ object Main extends Service {
     // stop thrift first, so new work stops arriving.
     stopThrift()
     service.shutdown()
+    statsLogger.shutdown()
+    stopThrift()
     deathSwitch.countDown()
     log.info("Goodbye!")
     System.exit(0)
