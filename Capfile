@@ -61,8 +61,8 @@ namespace :deploy do
 #  end
 end
 
+set :rolling_restart_group_size, 5
 after "deploy:subrestart" do
-  set :rolling_restart_group_size, 5
   sleep 30
   execute_with_hosts("deploy:verify_build", find_task("deploy:subrestart").options[:hosts])
 end
