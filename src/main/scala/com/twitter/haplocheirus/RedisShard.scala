@@ -38,6 +38,9 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
                  val readPool: RedisPool, val writePool: RedisPool,
                  val trimMap: TimelineTrimMap, val rangeQueryPageSize: Int)
       extends HaplocheirusShard {
+  // do removes the old, painful way. turn this off once everyone is in haplo.
+  val OLD_STYLE = true
+
   private val log = Logger.get(getClass.getName)
 
   case class EntryWithKey(key: Long, entry: Array[Byte])
@@ -105,9 +108,22 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
   }
 
   def remove(timeline: String, entries: Seq[Array[Byte]], onError: Option[Throwable => Unit]) {
-    writePool.withClient(shardInfo.hostname) { client =>
-      entries.foreach { entry =>
-        client.pop(timeline, entry, onError)
+    if (OLD_STYLE) {
+      // painful. do it by id because the client doesn't know the entire entry yet.
+      val ids = Set(sortKeysFromEntries(entries).map { _.key }: _*)
+      writePool.withClient(shardInfo.hostname) { client =>
+        val timelineEntries = client.get(timeline, 0, -1).map { TimelineEntry(_) }
+        timelineEntries.foreach { entry =>
+          if (ids contains entry.id) {
+            client.pop(timeline, entry.data, onError)
+          }
+        }
+      }
+    } else {
+      writePool.withClient(shardInfo.hostname) { client =>
+        entries.foreach { entry =>
+          client.pop(timeline, entry, onError)
+        }
       }
     }
   }

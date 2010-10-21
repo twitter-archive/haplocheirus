@@ -111,12 +111,23 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
     }
 
     "remove" in {
+/*
       expect {
         one(shardInfo).hostname willReturn "host1"
         one(jredis).lrem(timeline, data, 0)
       }
 
       redisShard.remove(timeline, List(data), None)
+      writes mustEqual 1
+*/
+      expect {
+        one(shardInfo).hostname willReturn "host1"
+        lrange(timeline, 0, -1, List(entry23a, entry19a).reverse)
+        one(jredis).expire(timeline, 1)
+        one(jredis).lrem(timeline, entry23a, 0)
+      }
+
+      redisShard.remove(timeline, List(entry23), None)
       writes mustEqual 1
     }
 
