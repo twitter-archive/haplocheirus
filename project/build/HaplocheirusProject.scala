@@ -7,6 +7,8 @@ class HaplocheirusProject(info: ProjectInfo) extends StandardProject(info) with 
   val codec = "commons-codec" % "commons-codec" % "1.4"
   val xrayspecs = "com.twitter" % "xrayspecs" % "1.0.7"  //--auto--
 
+  val ostrich = "com.twitter" % "ostrich" % "1.2.10"
+
   val specs = "org.scala-tools.testing" % "specs" % "1.6.2.1" % "test"
   val jmock = "org.jmock" % "jmock" % "2.4.0" % "test"  //--auto--
   val hamcrest_all = "org.hamcrest" % "hamcrest-all" % "1.1" % "test"  //--auto--
