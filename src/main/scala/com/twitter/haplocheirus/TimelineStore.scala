@@ -1,5 +1,6 @@
 package com.twitter.haplocheirus
 
+import java.nio.ByteBuffer
 import java.util.{List => JList}
 import com.twitter.gizzard.thrift.conversions.Sequences._
 import com.twitter.haplocheirus.thrift.conversions.TimelineSegment._
@@ -7,22 +8,22 @@ import thrift.TimelineStoreException
 
 
 class TimelineStore(service: TimelineStoreService) extends thrift.TimelineStore.Iface {
-  def append(entry: Array[Byte], timeline_prefix: String, timeline_ids: JList[java.lang.Long]) {
-    service.append(entry, timeline_prefix, timeline_ids.toSeq)
+  def append(entry: ByteBuffer, timeline_prefix: String, timeline_ids: JList[java.lang.Long]) {
+    service.append(entry.array(), timeline_prefix, timeline_ids.toSeq)
   }
 
-  def remove(entry: Array[Byte], timeline_prefix: String, timeline_ids: JList[java.lang.Long]) {
-    service.remove(entry, timeline_prefix, timeline_ids.toSeq)
+  def remove(entry: ByteBuffer, timeline_prefix: String, timeline_ids: JList[java.lang.Long]) {
+    service.remove(entry.array(), timeline_prefix, timeline_ids.toSeq)
   }
 
-  def filter(timeline_id: String, entries: JList[Array[Byte]], max_search: Int) = {
-    service.filter(timeline_id, entries.toSeq, max_search).map(_.toJavaList).getOrElse {
+  def filter(timeline_id: String, entries: JList[ByteBuffer], max_search: Int) = {
+    service.filter(timeline_id, entries.toSeq.map(_.array()), max_search).map(_.map(ByteBuffer.wrap(_)).toJavaList).getOrElse {
       throw new TimelineStoreException("no timeline")
     }
   }
 
   def filter2(timeline_id: String, entries: JList[java.lang.Long], max_search: Int) = {
-    service.filter2(timeline_id, entries.toSeq, max_search).map(_.toJavaList).getOrElse {
+    service.filter2(timeline_id, entries.toSeq, max_search).map(_.map(ByteBuffer.wrap(_)).toJavaList).getOrElse {
       throw new TimelineStoreException("no timeline")
     }
   }
@@ -39,16 +40,16 @@ class TimelineStore(service: TimelineStoreService) extends thrift.TimelineStore.
     }
   }
 
-  def store(timeline_id: String, entries: JList[Array[Byte]]) {
-    service.store(timeline_id, entries.toSeq)
+  def store(timeline_id: String, entries: JList[ByteBuffer]) {
+    service.store(timeline_id, entries.toSeq.map(_.array()))
   }
 
-  def merge(timeline_id: String, entries: JList[Array[Byte]]) {
-    service.merge(timeline_id, entries.toSeq)
+  def merge(timeline_id: String, entries: JList[ByteBuffer]) {
+    service.merge(timeline_id, entries.toSeq.map(_.array()))
   }
 
-  def unmerge(timeline_id: String, entries: JList[Array[Byte]]) {
-    service.unmerge(timeline_id, entries.toSeq)
+  def unmerge(timeline_id: String, entries: JList[ByteBuffer]) {
+    service.unmerge(timeline_id, entries.toSeq.map(_.array()))
   }
 
   def merge_indirect(dest_timeline_id: String, source_timeline_id: String) = {

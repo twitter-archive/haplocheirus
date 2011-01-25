@@ -1,93 +1,71 @@
 package com.twitter.haplocheirus
 
+import java.io.File
 import java.util.concurrent.CountDownLatch
-import com.twitter.gizzard.proxy.ExceptionHandlingProxy
 import com.twitter.gizzard.scheduler.JsonJob
-import com.twitter.gizzard.thrift.{GizzardServices, TThreadServer}
+import com.twitter.gizzard.thrift.TThreadServer
 import com.twitter.ostrich.{BackgroundProcess, JsonStatsLogger, Service, ServiceTracker, Stats}
+import com.twitter.util.Eval
 import com.twitter.xrayspecs.TimeConversions._
-import net.lag.configgy.{Configgy, ConfigMap, RuntimeEnvironment}
+import net.lag.configgy.{Config => CConfig, RuntimeEnvironment}
 import net.lag.logging.Logger
 import org.apache.thrift.server.TThreadPoolServer
 import org.apache.thrift.transport.TServerSocket
 
 object Main extends Service {
   val log = Logger.get(getClass.getName)
-  var thriftServer: TThreadServer = null
-  var gizzardServices: GizzardServices[HaplocheirusShard, JsonJob] = null
-  var service: TimelineStoreService = null
+  var service: Haplocheirus = null
+  var config: HaplocheirusConfig = null
   var statsLogger: JsonStatsLogger = null
 
-  private val deathSwitch = new CountDownLatch(1)
-
-  object TimelineStoreExceptionWrappingProxy extends ExceptionHandlingProxy({ e =>
-    throw new thrift.TimelineStoreException(e.toString)
-  })
 
   def main(args: Array[String]) {
-    val runtime = new RuntimeEnvironment(getClass)
-    runtime.load(args)
-    val config = Configgy.config
+    try {
+      config  = Eval[HaplocheirusConfig](args.map(new File(_)): _*)
+      service = new Haplocheirus(config)
+
+      start()
+
+      println("Running.")
+    } catch {
+      case e => {
+        println("Exception in initialization: ")
+        Logger.get("").fatal(e, "Exception in initialization.")
+        e.printStackTrace
+        shutdown()
+      }
+    }
+  }
+
+  def start() {
     ServiceTracker.register(this)
-    ServiceTracker.startAdmin(config, runtime)
+    val adminConfig = new CConfig
+    adminConfig.setInt("admin_http_port", config.adminConfig.httpPort)
+    adminConfig.setInt("admin_text_port", config.adminConfig.textPort)
+    adminConfig.setBool("admin_timeseries", config.adminConfig.timeSeries)
+    // TODO(benjy): Add other ServiceTracker config params as needed.
+    ServiceTracker.startAdmin(adminConfig, new RuntimeEnvironment(this.getClass))
 
     log.info("Starting haplocheirus!")
 
     statsLogger = new JsonStatsLogger(Logger.get("stats"), 1.minute, Some("haplocheirus"))
     statsLogger.start()
 
-    startThrift(config)
-
-    deathSwitch.await
+    service.start()
   }
 
   def shutdown() {
     log.info("Shutting down!")
-    // stop thrift first, so new work stops arriving.
-    stopThrift()
-    service.shutdown()
-    statsLogger.shutdown()
-    deathSwitch.countDown()
+    if (service ne null) service.shutdown()
+    service = null
+    ServiceTracker.stopAdmin()
     log.info("Goodbye!")
-    System.exit(0)
   }
 
   def quiesce() {
-    shutdown()
-  }
-
-  def startThrift(config: ConfigMap) {
-    try {
-      service = Haplocheirus(config)
-      gizzardServices = new GizzardServices(config.configMap("gizzard_services"),
-                                            service.nameServer,
-                                            service.copyFactory,
-                                            service.scheduler,
-                                            service.scheduler(Priority.Copy.id))
-      gizzardServices.start()
-
-      val processor = new thrift.TimelineStore.Processor(
-        TimelineStoreExceptionWrappingProxy(
-          NuLoggingProxy[thrift.TimelineStore.Iface](Stats, "timelines", new TimelineStore(service))
-        )
-      )
-      thriftServer = TThreadServer("haplocheirus", config("server_port").toInt,
-                                   config("timeline_store_service.idle_timeout_sec").toInt * 1000,
-                                   processor)
-      thriftServer.serve()
-    } catch {
-      case e: Exception =>
-        e.printStackTrace()
-        log.error(e, "Unexpected exception: %s", e.getMessage)
-        System.exit(0)
-    }
-  }
-
-  def stopThrift() {
-    log.info("Thrift servers shutting down...")
-    gizzardServices.shutdown()
-    gizzardServices = null
-    thriftServer.stop()
-    thriftServer = null
+    log.info("Quiescing!")
+    if (service ne null) service.shutdown(true)
+    service = null
+    ServiceTracker.stopAdmin()
   }
 }

@@ -2,7 +2,10 @@ import sbt._
 import com.twitter.sbt._
 
 class HaplocheirusProject(info: ProjectInfo) extends StandardProject(info) with GithubPublisher {
-  val gizzard = "com.twitter" % "gizzard" % "1.5.1"
+  override def filterScalaJars = false
+
+  val scalaTools = "org.scala-lang" % "scala-compiler" % "2.7.7"  
+  val gizzard = "com.twitter" % "gizzard" % "1.6.1"
   val jredis = "jredis" % "jredis" % "1.0-tw1"
   val codec = "commons-codec" % "commons-codec" % "1.4"
   val xrayspecs = "com.twitter" % "xrayspecs" % "1.0.7"  //--auto--

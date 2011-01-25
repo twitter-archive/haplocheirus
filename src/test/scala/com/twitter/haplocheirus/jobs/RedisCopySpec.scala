@@ -1,8 +1,8 @@
 package com.twitter.haplocheirus.jobs
 
 import com.twitter.gizzard.nameserver.NameServer
-import com.twitter.gizzard.scheduler.{JobScheduler, JsonCodec, JsonJob}
-import com.twitter.gizzard.shards.{Busy, ShardId, ShardTimeoutException}
+import com.twitter.gizzard.scheduler.{JobScheduler, JsonJob}
+import com.twitter.gizzard.shards.{Busy, ShardId, ShardInfo, ShardTimeoutException}
 import com.twitter.gizzard.thrift.conversions.Sequences._
 import com.twitter.xrayspecs.TimeConversions._
 import net.lag.configgy.{Config, Configgy}
@@ -16,19 +16,21 @@ class RedisCopySpec extends ConfiguredSpecification with JMocker with ClassMocke
   val shard1Id = ShardId("test", "shard1")
   val shard2Id = ShardId("test", "shard2")
 
+  val shard2Info = new ShardInfo("", "", "")
+
   "RedisCopy" should {
     val entries = List("1".getBytes, "2".getBytes)
     val nameServer = mock[NameServer[HaplocheirusShard]]
     val scheduler = mock[JobScheduler[JsonJob]]
     val shard1 = mock[HaplocheirusShard]
     val shard2 = mock[HaplocheirusShard]
-    val codec = mock[JsonCodec[JsonJob]]
 
     "start" in {
       val job = new RedisCopyFactory(nameServer, scheduler)(shard1Id, shard2Id)
 
       "normally" in {
         expect {
+          one(nameServer).getShard(shard2Id) willReturn shard2Info
           one(nameServer).markShardBusy(shard2Id, Busy.Busy)
           one(nameServer).findShardById(shard1Id) willReturn shard1
           one(nameServer).findShardById(shard2Id) willReturn shard2
@@ -47,6 +49,7 @@ class RedisCopySpec extends ConfiguredSpecification with JMocker with ClassMocke
 
       "with missing data" in {
         expect {
+          one(nameServer).getShard(shard2Id) willReturn shard2Info
           one(nameServer).markShardBusy(shard2Id, Busy.Busy)
           one(nameServer).findShardById(shard1Id) willReturn shard1
           one(nameServer).findShardById(shard2Id) willReturn shard2
@@ -68,6 +71,7 @@ class RedisCopySpec extends ConfiguredSpecification with JMocker with ClassMocke
       val job = new RedisCopy(shard1Id, shard2Id, 2, RedisCopy.COPY_COUNT, nameServer, scheduler)
 
       expect {
+        one(nameServer).getShard(shard2Id) willReturn shard2Info
         one(nameServer).markShardBusy(shard2Id, Busy.Busy)
         one(nameServer).findShardById(shard1Id) willReturn shard1
         one(nameServer).findShardById(shard2Id) willReturn shard2
@@ -90,7 +94,6 @@ class RedisCopySpec extends ConfiguredSpecification with JMocker with ClassMocke
   "RedisCopyParser" should {
     val nameServer = mock[NameServer[HaplocheirusShard]]
     val scheduler = mock[JobScheduler[JsonJob]]
-    val codec = mock[JsonCodec[JsonJob]]
 
     "parse" in {
       val parser = new RedisCopyParser(nameServer, scheduler)
@@ -99,7 +102,7 @@ class RedisCopySpec extends ConfiguredSpecification with JMocker with ClassMocke
                      "destination_shard_table_prefix" -> "shard2",
                      "destination_shard_hostname" -> "test",
                      "cursor" -> 500, "count" -> 200)
-      parser(codec, json) mustEqual new RedisCopy(shard1Id, shard2Id, 500, 200, nameServer, scheduler)
+      parser(json) mustEqual new RedisCopy(shard1Id, shard2Id, 500, 200, nameServer, scheduler)
     }
   }
 }

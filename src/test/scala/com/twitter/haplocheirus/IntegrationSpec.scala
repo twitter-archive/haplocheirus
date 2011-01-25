@@ -19,10 +19,10 @@ object IntegrationSpec extends ConfiguredSpecification with JMocker with ClassMo
     val future = mock[JRedisFutureSupport.FutureLong]
     val future2 = mock[JRedisFutureSupport.FutureLong]
     val timelineFuture = mock[Future[JList[Array[Byte]]]]
-    var service: TimelineStoreService = null
+    var service: Haplocheirus = null
 
     def errorQueue = {
-      service.scheduler(Priority.Write.id).errorQueue.asInstanceOf[KestrelJobQueue[JsonJob]]
+      service.jobScheduler(Priority.Write.id).errorQueue.asInstanceOf[KestrelJobQueue[JsonJob]]
     }
 
     val shardId1 = new ShardId("localhost", "dev1a")
@@ -31,14 +31,15 @@ object IntegrationSpec extends ConfiguredSpecification with JMocker with ClassMo
 
     doBefore {
       PipelinedRedisClient.mockedOutJRedisClient = Some(jredisClient)
-      service = Haplocheirus(config)
+      service = new Haplocheirus(config)
 
       service.nameServer.createShard(new ShardInfo(shardId1, "com.twitter.haplocheirus.RedisShard", "", "", Busy.Normal))
       service.nameServer.createShard(new ShardInfo(shardId2, "com.twitter.haplocheirus.RedisShard", "", "", Busy.Normal))
       service.nameServer.createShard(new ShardInfo(shardIdR, "com.twitter.gizzard.shards.ReplicatingShard", "", "", Busy.Normal))
       service.nameServer.addLink(shardIdR, shardId1, 1)
       service.nameServer.setForwarding(new Forwarding(0, 0, shardIdR))
-      service.nameServer.reload()
+
+      service.start()
     }
 
     doAfter {
@@ -62,38 +63,38 @@ object IntegrationSpec extends ConfiguredSpecification with JMocker with ClassMo
       // tricksy: since the expectations are met in another thread, we have to manually assert
       // that they happened.
       expect {
-        one(jredisClient).rpushx(timeline1, data) willReturn future
-        one(jredisClient).rpushx(timeline2, data) willReturn future
+        one(jredisClient).rpushx(timeline1, data.array) willReturn future
+        one(jredisClient).rpushx(timeline2, data.array) willReturn future
         one(future).get(200L, TimeUnit.MILLISECONDS) willReturn 1L
         one(future).get(200L, TimeUnit.MILLISECONDS) willReturn 2L
       }
 
       val oldCount = pushAttempts()
-      service.scheduler.size mustEqual 0
-      service.append(data, "home_timeline:", List(109L, 77777L))
+      service.jobScheduler.size mustEqual 0
+      service.haploService.append(data, "home_timeline:", List(109L, 77777L).toJavaList)
       pushAttempts() must eventually(be_==(oldCount + 2))
     }
 
     "write to the error log on failure, and retry successfully" in {
       expect {
-        one(jredisClient).rpushx(timeline1, data) willReturn future
-        one(jredisClient).rpushx(timeline2, data) willReturn future
+        one(jredisClient).rpushx(timeline1, data.array) willReturn future
+        one(jredisClient).rpushx(timeline2, data.array) willReturn future
         one(future).get(200L, TimeUnit.MILLISECONDS) willReturn 1L
         one(future).get(200L, TimeUnit.MILLISECONDS) willThrow new ExecutionException(new Exception("Oups!"))
       }
 
       val oldCount = pushAttempts()
       errorQueue.size mustEqual 0
-      service.append(data, "home_timeline:", List(109L, 77777L))
+      service.haploService.append(data, "home_timeline:", List(109L, 77777L).toJavaList)
       pushAttempts() must eventually(be_==(oldCount + 2))
       errorQueue.size must eventually(be_==(1))
 
       expect {
-        allowing(jredisClient).rpushx(timeline2, data) willReturn future
+        allowing(jredisClient).rpushx(timeline2, data.array) willReturn future
         allowing(future).get(200L, TimeUnit.MILLISECONDS) willReturn 3L
       }
 
-      service.scheduler.retryErrors()
+      service.jobScheduler.retryErrors()
       errorQueue.size mustEqual 0
     }
 
@@ -130,10 +131,10 @@ object IntegrationSpec extends ConfiguredSpecification with JMocker with ClassMo
         allowing(jredisClient).quit()
       }
 
-      val segment = service.get(timeline1, 0, 2, false).get
+      val segment = service.haploService.get(timeline1, 0, 2, false)
       segment.size mustEqual 2
-      segment.entries(0).toList mustEqual "b".getBytes.toList
-      segment.entries(1).toList mustEqual "a".getBytes.toList
+      segment.entries.get(0).array.toList mustEqual "b".getBytes.toList
+      segment.entries.get(1).array.toList mustEqual "a".getBytes.toList
     }
   }
 }
