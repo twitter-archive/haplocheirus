@@ -1,17 +1,17 @@
 package com.twitter.haplocheirus
 
-import net.lag.configgy.{Config, Configgy}
 import org.specs.Specification
 import org.specs.mock.{ClassMocker, JMocker}
 
 
 object TimelineTrimMapSpec extends ConfiguredSpecification with JMocker with ClassMocker {
-  val configString = """
-    user_timeline = [ 1200, 1250 ]
-    home_timeline = [ 3200, 3400 ]
-    default = [ 800, 850 ]
-  """
-  val trimConfig = Config.fromString(configString)
+  val trimConfig =  new TimelineTrimConfig {
+      val bounds = Map(
+        "user_timeline" -> new TimelineTrimBounds { val lower = 1200; val upper = 1250 },
+        "home_timeline" -> new TimelineTrimBounds { val lower = 3200; val upper = 3400 },
+        "default" -> new TimelineTrimBounds { val lower = 800; val upper = 850 }
+      )
+    }
 
   "TimelineTrimMap" should {
     var timelineTrimMap: TimelineTrimMap = null
@@ -33,12 +33,6 @@ object TimelineTrimMapSpec extends ConfiguredSpecification with JMocker with Cla
       timelineTrimMap.getBounds("foobar") mustEqual (800, 850)
       timelineTrimMap.getBounds("") mustEqual (800, 850)
       timelineTrimMap.getBounds("user_timelinx") mustEqual (800, 850)
-    }
-
-    "update on the fly" in {
-      timelineTrimMap.getBounds("user_timeline:30") mustEqual (1200, 1250)
-      trimConfig.setList("user_timeline", List("1300", "1350"))
-      timelineTrimMap.getBounds("user_timeline:30") mustEqual (1300, 1350)
     }
   }
 }

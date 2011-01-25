@@ -11,6 +11,7 @@ trait JobInjector {
   var addOnError = true
 
   def injectJob(errorQueue: JobQueue[JsonJob], job: jobs.FallbackJob) {
+    // Note that we don't really inject the job, but run it synchronously.
     if (addOnError) {
       job.onError { e => errorQueue.put(job) }
     }

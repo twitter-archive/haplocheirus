@@ -4,18 +4,16 @@ import java.util.concurrent.{LinkedBlockingQueue, TimeoutException, TimeUnit}
 import scala.collection.mutable
 import com.twitter.ostrich.Stats
 import com.twitter.xrayspecs.TimeConversions._
-import net.lag.configgy.ConfigMap
 import net.lag.logging.Logger
 import org.jredis.ClientRuntimeException
 
 
-class RedisPool(name: String, config: ConfigMap) {
+class RedisPool(name: String, config: RedisPoolConfig) {
   case class ClientPool(available: LinkedBlockingQueue[PipelinedRedisClient], var count: Int)
 
   val log = Logger(getClass.getName)
 
-  val poolSize = config("pool_size").toInt
-  val poolTimeout = config("pool_timeout_msec").toInt.milliseconds
+  val poolTimeout = config.poolTimeoutMsec.toInt.milliseconds
   val serverMap = new mutable.HashMap[String, ClientPool]
 
   Stats.makeGauge("redis-pool-" + name) {
@@ -25,11 +23,10 @@ class RedisPool(name: String, config: ConfigMap) {
   }
 
   def makeClient(hostname: String) = {
-    val pipelineSize = config("pipeline").toInt
-    val timeout = config("timeout_msec").toInt.milliseconds
-    val keysTimeout = config("keys_timeout_msec").toInt.milliseconds
-    val expiration = config("expiration_hours").toInt.hours
-    new PipelinedRedisClient(hostname, pipelineSize, timeout, keysTimeout, expiration)
+    val timeout = config.timeoutMsec.milliseconds
+    val keysTimeout = config.keysTimeoutMsec.milliseconds
+    val expiration = config.expirationHours.hours
+    new PipelinedRedisClient(hostname, config.pipeline, timeout, keysTimeout, expiration)
   }
 
   def get(hostname: String): PipelinedRedisClient = {
@@ -38,7 +35,7 @@ class RedisPool(name: String, config: ConfigMap) {
         val queue = new LinkedBlockingQueue[PipelinedRedisClient]()
         ClientPool(queue, 0)
       })
-      if (pool.count < poolSize) {
+      if (pool.count < config.poolSize) {
         pool.available.offer(makeClient(hostname))
         pool.count += 1
       }

@@ -1,5 +1,5 @@
 namespace java com.twitter.haplocheirus.thrift
-namespace ruby Haplocheirus
+namespace rb Haplocheirus
 
 
 exception TimelineStoreException {

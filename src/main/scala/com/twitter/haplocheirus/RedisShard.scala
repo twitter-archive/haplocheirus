@@ -7,12 +7,11 @@ import com.twitter.gizzard.shards._
 import com.twitter.ostrich.Stats
 import com.twitter.xrayspecs.Duration
 import com.twitter.xrayspecs.TimeConversions._
-import net.lag.configgy.ConfigMap
 import net.lag.logging.Logger
 
 
 class RedisShardFactory(readPool: RedisPool, writePool: RedisPool, rangeQueryPageSize: Int,
-                        timelineTrimConfig: ConfigMap) extends ShardFactory[HaplocheirusShard] {
+                        timelineTrimConfig: TimelineTrimConfig) extends ShardFactory[HaplocheirusShard] {
   object RedisExceptionWrappingProxy extends ExceptionHandlingProxy({ e =>
     e match {
       case e: ShardException =>

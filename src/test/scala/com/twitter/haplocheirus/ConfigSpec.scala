@@ -1,5 +1,5 @@
 /*
- * Copyright 2010 Twitter, Inc.
+ * Copyright 2011 Twitter, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may
  * not use this file except in compliance with the License. You may obtain
@@ -20,16 +20,29 @@ import java.io.File
 import com.twitter.util.Eval
 import org.specs.Specification
 
-abstract class ConfiguredSpecification extends Specification {
-  lazy val config = {
-    val config = Eval[com.twitter.haplocheirus.HaplocheirusConfig](new File("config/test.scala"))
-    try {
-      config.logging()
-    } catch {
-      case ex: Exception => ex.printStackTrace()
+object ConfigSpec extends Specification {
+  "production config" should {
+    "eval" in {
+      try {
+        val config = Eval[com.twitter.haplocheirus.HaplocheirusConfig](new File("config/production.scala"))
+        config mustNot beNull
+      } catch {
+        case e: Throwable => e.printStackTrace()
+        throw e
+      }
     }
-    config
   }
-  noDetailedDiffs()
+
+  "test config" should {
+    "eval" in {
+      try {
+        val config = Eval[com.twitter.haplocheirus.HaplocheirusConfig](new File("config/test.scala"))
+        config mustNot beNull
+      } catch {
+        case e: Throwable => e.printStackTrace()
+        throw e
+      }
+    }
+  }
 }
 

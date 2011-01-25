@@ -14,7 +14,6 @@ object JobsSpec extends Specification with JMocker with ClassMocker {
     val scheduler = mock[JobScheduler[JsonJob]]
     val shard1 = mock[HaplocheirusShard]
     val shard2 = mock[HaplocheirusShard]
-    val codec = mock[JsonCodec[JsonJob]]
 
     "Append" in {
       val data = "hello".getBytes
@@ -26,7 +25,7 @@ object JobsSpec extends Specification with JMocker with ClassMocker {
         one(shard1).append("t1", List(data), None)
       }
 
-      new jobs.AppendParser(null, nameServer)(codec, map).toString mustEqual append.toString
+      new jobs.AppendParser(null, nameServer)(map).toString mustEqual append.toString
       append.toMap mustEqual map
       append.apply()
     }
@@ -41,7 +40,7 @@ object JobsSpec extends Specification with JMocker with ClassMocker {
         one(shard1).remove("t1", data, None)
       }
 
-      new jobs.RemoveParser(null, nameServer)(codec, map).toString mustEqual remove.toString
+      new jobs.RemoveParser(null, nameServer)(map).toString mustEqual remove.toString
       remove.toMap mustEqual map
       remove.apply()
     }
@@ -56,7 +55,7 @@ object JobsSpec extends Specification with JMocker with ClassMocker {
         one(shard1).merge("t1", data, None)
       }
 
-      new jobs.MergeParser(null, nameServer)(codec, map).toString mustEqual merge.toString
+      new jobs.MergeParser(null, nameServer)(map).toString mustEqual merge.toString
       merge.toMap mustEqual map
       merge.apply()
     }
@@ -70,7 +69,7 @@ object JobsSpec extends Specification with JMocker with ClassMocker {
         one(shard1).deleteTimeline("t1")
       }
 
-      new jobs.DeleteTimelineParser(null, nameServer)(codec, map).toString mustEqual deleteTimeline.toString
+      new jobs.DeleteTimelineParser(null, nameServer)(map).toString mustEqual deleteTimeline.toString
       deleteTimeline.toMap mustEqual map
       deleteTimeline.apply()
     }
@@ -87,7 +86,7 @@ object JobsSpec extends Specification with JMocker with ClassMocker {
         val queue = mock[JobQueue[JsonJob]]
 
         expect {
-          allowing(scheduler).queue willReturn queue
+          allowing(scheduler).errorQueue willReturn queue
           one(nameServer).findCurrentForwarding(0, 776251139709896853L) willReturn shard1
           one(shard1).append("timeline:3", List(data), None)
           one(nameServer).findCurrentForwarding(0, 776243443128499376L) willReturn shard1
@@ -97,9 +96,9 @@ object JobsSpec extends Specification with JMocker with ClassMocker {
         }
 
         val parser = new jobs.MultiPushParser(nameServer, scheduler)
-        parser(codec, map).entry.toList mustEqual multiPush.entry.toList
-        parser(codec, map).timelinePrefix mustEqual multiPush.timelinePrefix
-        parser(codec, map).timelineIds.toList mustEqual multiPush.timelineIds.toList
+        parser(map).entry.toList mustEqual multiPush.entry.toList
+        parser(map).timelinePrefix mustEqual multiPush.timelinePrefix
+        parser(map).timelineIds.toList mustEqual multiPush.timelineIds.toList
         multiPush.toMap mustEqual map
         multiPush.apply()
       }

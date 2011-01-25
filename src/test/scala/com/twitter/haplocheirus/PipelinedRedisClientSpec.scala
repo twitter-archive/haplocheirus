@@ -58,14 +58,14 @@ object PipelinedRedisClientSpec extends ConfiguredSpecification with JMocker wit
     // "isMember" in {
     //   val entry1 = List(23L).pack
     //   val entry2 = List(20L).pack
-    // 
+    //
     //   expect {
     //     one(jredis).lismember(timeline, entry1) willReturn booleanFuture
     //     one(booleanFuture).get(1000, TimeUnit.MILLISECONDS) willReturn true
     //     one(jredis).lismember(timeline, entry2) willReturn booleanFuture
     //     one(booleanFuture).get(1000, TimeUnit.MILLISECONDS) willReturn false
     //   }
-    // 
+    //
     //   client.isMember(timeline, entry1) mustEqual true
     //   client.isMember(timeline, entry2) mustEqual false
     // }
@@ -117,9 +117,9 @@ object PipelinedRedisClientSpec extends ConfiguredSpecification with JMocker wit
     }
 
     "setAtomically" in {
-      val entry1 = List(23L).pack
-      val entry2 = List(20L).pack
-      val entry3 = List(19L).pack
+      val entry1 = List(23L).pack.array
+      val entry2 = List(20L).pack.array
+      val entry3 = List(19L).pack.array
 
       expect {
         one(jredis).rpush(timeline + "~1", entry3) willReturn longFuture
@@ -147,9 +147,9 @@ object PipelinedRedisClientSpec extends ConfiguredSpecification with JMocker wit
     }
 
     "setLive" in {
-      val entry1 = List(23L).pack
-      val entry2 = List(20L).pack
-      val entry3 = List(19L).pack
+      val entry1 = List(23L).pack.array
+      val entry2 = List(20L).pack.array
+      val entry3 = List(19L).pack.array
 
       expect {
         one(jredis).lpushx(timeline, entry1)
