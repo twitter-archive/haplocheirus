@@ -1,7 +1,7 @@
 # Docs at http://confluence.local.twitter.com/display/RELEASE/Twitter-cap-utils+README
 begin
   require 'rubygems'
-  gem 'twitter-cap-utils', "~> 0.6.8"
+  gem 'twitter-cap-utils', '~>0.8.0'
   require "railsless-deploy"
   require 'twitter_cap_utils'
 rescue LoadError
@@ -10,6 +10,7 @@ end
 
 set :user, "haplo"
 set :build_user, "twitter"
+set :loony_host, "nest2.smf1.twitter.com"
 
 set :application, "haplocheirus"
 set :monit_application, "haplo"
@@ -21,7 +22,7 @@ task :production do
 end
 
 task :canary do
-  role :haplo, "sjc1r052.prod.twitter.com"
+  role :haplo, "smf1-aaa-19-sr2.prod.twitter.com"
 end
 
 namespace :deploy do
