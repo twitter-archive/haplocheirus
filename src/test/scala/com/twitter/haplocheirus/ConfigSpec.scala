@@ -21,27 +21,32 @@ import com.twitter.util.Eval
 import org.specs.Specification
 
 object ConfigSpec extends Specification {
+
+  private def evalConfig(config_path: String) {
+    try {
+      val config = Eval[com.twitter.haplocheirus.HaplocheirusConfig](new File(config_path))
+      config mustNot beNull
+    } catch {
+      case e: Throwable => e.printStackTrace()
+      throw e
+    }
+  }
+
   "production config" should {
     "eval" in {
-      try {
-        val config = Eval[com.twitter.haplocheirus.HaplocheirusConfig](new File("config/production.scala"))
-        config mustNot beNull
-      } catch {
-        case e: Throwable => e.printStackTrace()
-        throw e
-      }
+      evalConfig("config/production.scala")
+    }
+  }
+
+  "development config" should {
+    "eval" in {
+      evalConfig("config/development.scala")
     }
   }
 
   "test config" should {
     "eval" in {
-      try {
-        val config = Eval[com.twitter.haplocheirus.HaplocheirusConfig](new File("config/test.scala"))
-        config mustNot beNull
-      } catch {
-        case e: Throwable => e.printStackTrace()
-        throw e
-      }
+      evalConfig("config/test.scala")
     }
   }
 }
