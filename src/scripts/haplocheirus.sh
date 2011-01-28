@@ -12,6 +12,7 @@ VERSION="@VERSION@"
 APP_HOME="/usr/local/$APP_NAME/current"
 AS_USER="daemon"
 DAEMON="/usr/local/bin/daemon"
+CONFIG="$APP_HOME/config/production.scala
 
 HEAP_OPTS="-Xmx4096m -Xms4096m -XX:NewSize=768m"
 JMX_OPTS="-Dcom.sun.management.jmxremote -Dcom.sun.management.jmxremote.port=9999 -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.ssl=false"
@@ -70,10 +71,10 @@ case "$1" in
       echo "already running."
       exit 0
     fi
-    
+
     ulimit -n 32768 || echo -n " (no ulimit)"
     ulimit -c unlimited || echo -n " (no coredump)"
-    $DAEMON $daemon_args $daemon_start_args -- ${JAVA_HOME}/bin/java ${JAVA_OPTS} -jar ${APP_HOME}/${APP_NAME}-${VERSION}.jar
+    $DAEMON $daemon_args $daemon_start_args -- ${JAVA_HOME}/bin/java ${JAVA_OPTS} -jar ${APP_HOME}/${APP_NAME}-${VERSION}.jar ${CONFIG}
     tries=0
     while ! running; do
       tries=$((tries + 1))
@@ -119,7 +120,7 @@ case "$1" in
     done
     echo "done."
   ;;
-  
+
   status)
     if running; then
       echo "$APP_NAME is running."

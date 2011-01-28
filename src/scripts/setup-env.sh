@@ -16,13 +16,16 @@
 
 VERSION="@VERSION@"
 
+CONFIG=./config/development.scala
+JAR=./dist/haplocheirus/haplocheirus-${VERSION}.jar
+
 if java -version 2>&1 | grep "1\.5"; then
   echo "Java must be at least 1.6"
   exit 1
 fi
 
 if gizzmo --help > /dev/null; then
-  gizzmo="gizzmo -H localhost -P 7668"
+  gizzmo="gizzmo -H localhost"
 else
   echo "Make sure you have gizzmo available on your path."
   echo "Find it here: http://github.com/twitter/gizzmo"
@@ -36,7 +39,7 @@ sleep 3
 echo "Launching haplo..."
 
 JAVA_OPTS="-Xms256m -Xmx256m -XX:NewSize=64m -XX:+UseConcMarkSweepGC -XX:+UseParNewGC -server"
-java -Dstage=development $JAVA_OPTS -jar ./dist/haplocheirus/haplocheirus-${VERSION}.jar &
+java -Dstage=development $JAVA_OPTS -jar ${JAR} ${CONFIG} &
 
 sleep 10
 
