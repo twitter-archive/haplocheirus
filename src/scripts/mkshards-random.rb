@@ -78,7 +78,13 @@ class RandomDistribution
   end
 end
 
-distribution = RandomDistribution.new(db_trees.flatten)
+expanded_db_trees = db_trees.flatten.inject([]) do |acc, db|
+ (6379..6385).each do |i|  # Port numbers for 7 redis shards per host.
+   acc << "#{db}:#{i}"
+ end
+ acc
+end
+distribution = RandomDistribution.new(expanded_db_trees)
 
 print "Creating bins"
 STDOUT.flush
