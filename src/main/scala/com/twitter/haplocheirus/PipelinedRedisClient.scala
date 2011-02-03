@@ -44,6 +44,7 @@ class PipelinedRedisClient(hostname: String, pipelineMaxSize: Int, timeout: Dura
   }
 
   val pipeline = new mutable.ListBuffer[() => Unit]
+  var pipelineSize = 0
 
   protected def uniqueTimelineName(name: String): String = {
     val newName = name + "~" + System.currentTimeMillis + "~" + (new Random().nextInt & 0x7fffffff)
@@ -70,19 +71,24 @@ class PipelinedRedisClient(hostname: String, pipelineMaxSize: Int, timeout: Dura
   }
 
   def checkPipeline() {
-    while (pipeline.size > pipelineMaxSize) {
-      finishRequest(pipeline.remove(0))
-    }
+    drainPipeline(pipelineMaxSize)
   }
 
   def flushPipeline() {
-    while (pipeline.size > 0) {
-      finishRequest(pipeline.remove(0))
+    drainPipeline(0)
+  }
+
+  private def drainPipeline(maxSize: int) {
+    while (pipelineSize > maxSize) {
+      var next = pipeline.remove(0)
+      --pipelineSize
+      finishRequest(next)
     }
   }
 
   def later(f: => Unit) {
     pipeline += { () => f }
+    ++pipelineSize
     checkPipeline()
   }
 
