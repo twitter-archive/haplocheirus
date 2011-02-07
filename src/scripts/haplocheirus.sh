@@ -10,7 +10,7 @@ APP_NAME="haplocheirus"
 ADMIN_PORT="7667"
 VERSION="@VERSION@"
 APP_HOME="/usr/local/$APP_NAME/current"
-AS_USER="daemon"
+AS_USER="haplo"
 DAEMON="/usr/local/bin/daemon"
 
 HEAP_OPTS="-Xmx4096m -Xms4096m -XX:NewSize=768m"
