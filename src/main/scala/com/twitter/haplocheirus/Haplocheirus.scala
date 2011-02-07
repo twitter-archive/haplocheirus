@@ -30,14 +30,14 @@ object Haplocheirus {
     val writePool = new RedisPool("write", config.configMap("redis.write"))
 
     val shardRepository = new BasicShardRepository[HaplocheirusShard](
-      new HaplocheirusShardAdapter(_), None)
+      new HaplocheirusShardAdapter(_), None, 6.seconds)
     val shardFactory = new RedisShardFactory(readPool, writePool,
                                              config("redis.range_query_page_size").toInt,
                                              config.configMap("timeline_trim"))
     shardRepository += ("com.twitter.haplocheirus.RedisShard" -> shardFactory)
 
     val nameServer = NameServer(config.configMap("nameservers"), Some(statsCollector),
-                                shardRepository)
+                                shardRepository, None)
     nameServer.reload()
 
     val codec = new JsonCodec[JsonJob]({ unparsable: Array[Byte] =>
