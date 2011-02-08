@@ -2,7 +2,7 @@ package com.twitter.haplocheirus
 
 import java.nio.{ByteBuffer, ByteOrder}
 import scala.collection.mutable
-import com.twitter.gizzard.proxy.ExceptionHandlingProxy
+import com.twitter.gizzard.proxy.ExceptionHandlingProxyFactory
 import com.twitter.gizzard.shards._
 import com.twitter.ostrich.Stats
 import com.twitter.xrayspecs.Duration
@@ -13,7 +13,7 @@ import net.lag.logging.Logger
 
 class RedisShardFactory(readPool: RedisPool, writePool: RedisPool, rangeQueryPageSize: Int,
                         timelineTrimConfig: ConfigMap) extends ShardFactory[HaplocheirusShard] {
-  object RedisExceptionWrappingProxy extends ExceptionHandlingProxy({ e =>
+  object RedisExceptionWrappingProxy extends ExceptionHandlingProxyFactory[RedisShard]({ e =>
     e match {
       case e: ShardException =>
         e
