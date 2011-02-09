@@ -1,6 +1,7 @@
 package com.twitter.haplocheirus
 
-import java.util.concurrent.{LinkedBlockingQueue, TimeoutException, TimeUnit}
+import java.util.concurrent.{LinkedBlockingQueue, TimeoutException, TimeUnit, ConcurrentHashMap}
+import java.util.concurrent.atomic.AtomicInteger
 import scala.collection.mutable
 import com.twitter.ostrich.Stats
 import com.twitter.xrayspecs.TimeConversions._
@@ -10,18 +11,17 @@ import org.jredis.ClientRuntimeException
 
 
 class RedisPool(name: String, config: ConfigMap) {
-  case class ClientPool(available: LinkedBlockingQueue[PipelinedRedisClient], var count: Int)
+  case class ClientPool(available: LinkedBlockingQueue[PipelinedRedisClient], val count: AtomicInteger)
 
   val log = Logger(getClass.getName)
 
   val poolSize = config("pool_size").toInt
   val poolTimeout = config("pool_timeout_msec").toInt.milliseconds
-  val serverMap = new mutable.HashMap[String, ClientPool]
+  val concurrentServerMap = new ConcurrentHashMap[String, ClientPool]
+  val serverMap = scala.collection.jcl.Map(concurrentServerMap)
 
   Stats.makeGauge("redis-pool-" + name) {
-    synchronized {
-      serverMap.values.foldLeft(0) { _ + _.available.size }
-    }
+    serverMap.values.foldLeft(0) { _ + _.available.size }
   }
 
   def makeClient(hostname: String) = {
@@ -33,17 +33,24 @@ class RedisPool(name: String, config: ConfigMap) {
   }
 
   def get(hostname: String): PipelinedRedisClient = {
-    val pool = synchronized {
-      val pool = serverMap.getOrElseUpdate(hostname, {
-        val queue = new LinkedBlockingQueue[PipelinedRedisClient]()
-        ClientPool(queue, 0)
-      })
-      if (pool.count < poolSize) {
-        pool.available.offer(makeClient(hostname))
-        pool.count += 1
-      }
-      pool
+    var pool = concurrentServerMap.get(hostname);
+    if(pool eq null) {
+      pool = concurrentServerMap.putIfAbsent(hostname, ClientPool(
+        new LinkedBlockingQueue[PipelinedRedisClient](), new AtomicInteger()));
     }
+    while({
+      val poolCount = pool.count.get()
+      if(poolCount >= poolSize) {
+        false
+      }
+      else if(pool.count.compareAndSet(poolCount, poolCount + 1)) {
+        pool.available.offer(makeClient(hostname))
+        false
+      }
+      else {
+        true
+      }
+    }) {}
     val client = pool.available.poll(poolTimeout.inMilliseconds, TimeUnit.MILLISECONDS)
     if (client eq null) {
       throw new TimeoutException("Unable to get redis connection to " + hostname)
@@ -58,16 +65,12 @@ class RedisPool(name: String, config: ConfigMap) {
       case e: Throwable =>
         log.warning(e, "Error discarding dead redis client: %s", e)
     }
-    synchronized {
-      serverMap.get(hostname).foreach { _.count -= 1 }
-    }
+    serverMap.get(hostname).foreach { _.count.decrementAndGet() }
   }
 
   def giveBack(hostname: String, client: PipelinedRedisClient) {
     if (client.alive) {
-      synchronized {
-        serverMap(hostname).available.offer(client)
-      }
+      serverMap(hostname).available.offer(client)
     }
   }
 
@@ -86,7 +89,6 @@ class RedisPool(name: String, config: ConfigMap) {
   }
 
   def shutdown() {
-    synchronized {
       serverMap.foreach { case (hostname, pool) =>
         while (pool.available.size > 0) {
           try {
@@ -98,12 +100,11 @@ class RedisPool(name: String, config: ConfigMap) {
         }
       }
       serverMap.clear()
-    }
   }
 
-  override def toString = synchronized {
+  override def toString = {
     "<RedisPool: %s>".format(serverMap.map { case (hostname, pool) =>
-      "%s=(%d available, %d total)".format(hostname, pool.available.size, pool.count)
+      "%s=(%d available, %d total)".format(hostname, pool.available.size, pool.count.get())
     }.mkString(", "))
   }
 }
