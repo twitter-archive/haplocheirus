@@ -13,15 +13,36 @@ APP_HOME="/usr/local/$APP_NAME/current"
 AS_USER="daemon"
 DAEMON="/usr/local/bin/daemon"
 
+PROFILER_DIR="/usr/local/yjp/bin"
+PROFILER_PATH=""
+OS_NAME=`uname`
+if [ $OS_NAME = "Linux" ]; then
+  if [ `uname -i` = "x86_64" ]; then
+    PROFILER_PATH="$PROFILER_DIR/linux-x86-64"
+  else
+    PROFILER_PATH="$PROFILER_DIR/linux-x86-32"
+  fi
+else
+  if [ $OS_NAME = "Darwin" ]; then
+    PROFILER_PATH="$PROFILER_DIR/mac"
+  else
+    echo "Unsupported operating system $OS_NAME for YourKit"
+  fi
+fi
+
 HEAP_OPTS="-Xmx4096m -Xms4096m -XX:NewSize=768m"
 JMX_OPTS="-Dcom.sun.management.jmxremote -Dcom.sun.management.jmxremote.port=9999 -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.ssl=false"
-GC_OPTS="-verbosegc -XX:+PrintGCDetails -XX:+PrintGCTimeStamps -XX:+PrintGCDateStamps -XX:+PrintTenuringDistribution -XX:+UseConcMarkSweepGC -XX:+UseParNewGC"
+GC_OPTS="-verbosegc -XX:+PrintGCDetails -XX:+PrintGCTimeStamps -XX:+PrintGCDateStamps -XX:+PrintTenuringDistribution -XX:+UseParallelOldGC -XX:+HeapDumpOnOutOfMemoryError"
 GC_LOG="-Xloggc:/var/log/$APP_NAME/gc.log"
 DEBUG_OPTS="-XX:ErrorFile=/var/log/$APP_NAME/java_error%p.log"
-JAVA_OPTS="-server $GC_OPTS $GC_LOG $HEAP_OPTS $JMX_OPTS $DEBUG_OPTS"
+PROFILER_OPTS=""
+if [ -a "$PROFILER_PATH/libyjpagent.so" ]; then 
+  PROFILER_OPTS="-agentlib:yjpagent=dir=/var/log/$APP_NAME,disabletracing,builtinprobes=none"
+fi
+JAVA_OPTS="-server $GC_OPTS $GC_LOG $HEAP_OPTS $JMX_OPTS $DEBUG_OPTS $PROFILER_OPTS"
 
 pidfile="/var/run/$APP_NAME/$APP_NAME.pid"
-daemon_args="--name $APP_NAME --pidfile $pidfile --core --chdir /"
+daemon_args="--name $APP_NAME --pidfile $pidfile --core --chdir /var/log/$APP_NAME"
 daemon_start_args="--user $AS_USER --stdout=/var/log/$APP_NAME/stdout --stderr=/var/log/$APP_NAME/error"
 
 function running() {
@@ -73,7 +94,7 @@ case "$1" in
     
     ulimit -n 32768 || echo -n " (no ulimit)"
     ulimit -c unlimited || echo -n " (no coredump)"
-    $DAEMON $daemon_args $daemon_start_args -- ${JAVA_HOME}/bin/java ${JAVA_OPTS} -jar ${APP_HOME}/${APP_NAME}-${VERSION}.jar
+    LD_LIBRARY_PATH=$PROFILER_PATH $DAEMON $daemon_args $daemon_start_args -- ${JAVA_HOME}/bin/java ${JAVA_OPTS} -jar ${APP_HOME}/${APP_NAME}-${VERSION}.jar
     tries=0
     while ! running; do
       tries=$((tries + 1))
