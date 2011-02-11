@@ -35,8 +35,11 @@ class RedisPool(name: String, config: ConfigMap) {
   def get(hostname: String): PipelinedRedisClient = {
     var pool = concurrentServerMap.get(hostname);
     if(pool eq null) {
-      pool = concurrentServerMap.putIfAbsent(hostname, ClientPool(
-        new LinkedBlockingQueue[PipelinedRedisClient](), new AtomicInteger()));
+      val newPool = ClientPool(new LinkedBlockingQueue[PipelinedRedisClient](), new AtomicInteger())
+      pool = concurrentServerMap.putIfAbsent(hostname, newPool);
+      if(pool eq null) {
+        pool = newPool
+      }
     }
     while({
       val poolCount = pool.count.get()
