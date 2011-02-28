@@ -25,7 +25,7 @@ if java -version 2>&1 | grep "1\.5"; then
 fi
 
 if gizzmo --help > /dev/null; then
-  gizzmo="gizzmo -H localhost"
+  gizzmo="gizzmo -H localhost -P 7920"
 else
   echo "Make sure you have gizzmo available on your path."
   echo "Find it here: http://github.com/twitter/gizzmo"
