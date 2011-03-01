@@ -49,6 +49,12 @@ app_port ||= 7668
 
 namespace = config['namespace'] || nil
 db_trees = Array(config['databases'] || 'localhost')
+expanded_db_trees = db_trees.flatten.inject([]) do |acc, db|
+ (6379..6385).each do |i|  # Port numbers for 7 redis shards per host.
+   acc << "#{db}:#{i}"
+ end
+ acc
+end
 
 gizzmo = lambda do |cmd|
   `gizzmo --host=#{app_host} --port=#{app_port} #{cmd}`
@@ -59,7 +65,7 @@ print "Creating bins"
 STDOUT.flush
 options[:count].times do |i|
   table_name = [ namespace, "haplo_%04d" % i ].compact.join("_")
-  hosts = Array(db_trees[i % db_trees.size])
+  hosts = Array(expanded_db_trees[i % expanded_db_trees.size])
   lower_bound = (1 << 60) / options[:count] * i
 
   gizzmo.call "create com.twitter.gizzard.shards.ReplicatingShard localhost/#{table_name}_replicating"

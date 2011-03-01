@@ -5,12 +5,12 @@ class HaplocheirusProject(info: ProjectInfo) extends StandardProject(info) with 
   override def filterScalaJars = false
 
   val scalaTools = "org.scala-lang" % "scala-compiler" % "2.7.7"  
-  val gizzard = "com.twitter" % "gizzard" % "1.6.1"
+  val gizzard = "com.twitter" % "gizzard" % "1.8.0"
   val jredis = "jredis" % "jredis" % "1.0-tw1"
   val codec = "commons-codec" % "commons-codec" % "1.4"
   val xrayspecs = "com.twitter" % "xrayspecs" % "1.0.7"  //--auto--
 
-  val ostrich = "com.twitter" % "ostrich" % "1.2.10"
+  val ostrich = "com.twitter" % "ostrich" % "1.2.15"
 
   val specs = "org.scala-tools.testing" % "specs" % "1.6.2.1" % "test"
   val jmock = "org.jmock" % "jmock" % "2.4.0" % "test"  //--auto--
