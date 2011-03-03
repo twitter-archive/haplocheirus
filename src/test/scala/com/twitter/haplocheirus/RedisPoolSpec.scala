@@ -20,7 +20,7 @@ object RedisPoolSpec extends ConfiguredSpecification with JMocker with ClassMock
       redisPool.serverMap.size mustEqual 0
       redisPool.get("a") mustEqual client
       redisPool.serverMap.keys.toList mustEqual List("a")
-      redisPool.serverMap("a").count mustEqual 1
+      redisPool.serverMap("a").count.get mustEqual 1
       redisPool.serverMap("a").available.size mustEqual 0
     }
 
