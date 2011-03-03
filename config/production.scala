@@ -62,11 +62,7 @@ new HaplocheirusConfig {
 
   val nameServer = new NameServer {
     mappingFunction = Fnv1a64
-    val replicas = Seq(new ProductionNameServerReplica("smf1-aca-27-sr1"))
-    // TODO(benjy): Set these up in production, then use this instead of the temporary
-    // nameserver above.
-    //val replicas = Seq(new ProductionNameServerReplica("smf1-ach-15-sr1"),
-    //                   new ProductionNameServerReplica("smf1-acb-23-sr1"))
+    val replicas = Seq()
   }
 
   val redisConfig = new RedisConfig {
