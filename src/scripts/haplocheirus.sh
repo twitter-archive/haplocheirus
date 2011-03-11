@@ -12,7 +12,7 @@ VERSION="@VERSION@"
 APP_HOME="/usr/local/$APP_NAME/current"
 AS_USER="daemon"
 DAEMON="/usr/local/bin/daemon"
-CONFIG="$APP_HOME/config/production.scala
+CONFIG="$APP_HOME/config/production.scala"
 
 PROFILER_DIR="/usr/local/yjp/bin"
 PROFILER_PATH=""
