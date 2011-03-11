@@ -6,7 +6,7 @@ import java.util.concurrent.{ExecutionException, Future, TimeoutException, TimeU
 import scala.collection.mutable
 import com.twitter.gizzard.thrift.conversions.Sequences._
 import com.twitter.ostrich.Stats
-import com.twitter.xrayspecs.Duration
+import com.twitter.util.Duration
 import net.lag.logging.Logger
 import org.jredis._
 import org.jredis.protocol.ResponseStatus

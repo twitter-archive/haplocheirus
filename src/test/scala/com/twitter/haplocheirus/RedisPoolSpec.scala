@@ -1,5 +1,6 @@
 package com.twitter.haplocheirus
 
+import com.twitter.gizzard.shards.ShardInfo
 import org.jredis.ClientRuntimeException
 import org.specs.Specification
 import org.specs.mock.{ClassMocker, JMocker}
@@ -54,7 +55,7 @@ object RedisPoolSpec extends ConfiguredSpecification with JMocker with ClassMock
           one(client).alive willReturn true
         }
 
-        redisPool.withClient("host1") { client => 3 } mustEqual 3
+        redisPool.withClient(new ShardInfo("RedisShard", "shard1", "host1")) { client => 3 } mustEqual 3
         redisPool.toString mustEqual "<RedisPool: host1=(1 available, 1 total)>"
       }
 
@@ -64,7 +65,7 @@ object RedisPoolSpec extends ConfiguredSpecification with JMocker with ClassMock
           one(client).alive willReturn false
         }
 
-        redisPool.withClient("host1") { client => throw new ClientRuntimeException("rats."); 3 } must throwA[ClientRuntimeException]
+        redisPool.withClient(new ShardInfo("RedisShard", "shard1", "host1")) { client => throw new ClientRuntimeException("rats."); 3 } must throwA[ClientRuntimeException]
         redisPool.toString mustEqual "<RedisPool: host1=(0 available, 0 total)>"
       }
     }

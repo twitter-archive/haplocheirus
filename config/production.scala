@@ -73,6 +73,8 @@ new HaplocheirusConfig {
       val timeoutMsec = 200
       val keysTimeoutMsec = 5000
       val expirationHours = 24 * 21
+      val autoDisableErrorLimit = 200
+      val autoDisableDuration = 60.seconds
     }
 
     val writePoolConfig = new RedisPoolConfig {
@@ -82,6 +84,8 @@ new HaplocheirusConfig {
       val timeoutMsec = 200
       val keysTimeoutMsec = 5000
       val expirationHours = 24 * 21
+      val autoDisableErrorLimit = 200
+      val autoDisableDuration = 60.seconds
     }
 
     val rangeQueryPageSize = 20

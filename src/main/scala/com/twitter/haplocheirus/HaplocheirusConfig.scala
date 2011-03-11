@@ -5,6 +5,7 @@ import net.lag.configgy.{Config => CConfig}
 import com.twitter.gizzard.config.{Future, KestrelScheduler, MemoryScheduler, Scheduler, TServer}
 import com.twitter.gizzard.scheduler.JobScheduler
 import com.twitter.haplocheirus.jobs.MultiPushCodec
+import com.twitter.util.Duration
 import com.twitter.util.TimeConversions._
 
 trait HaplocheirusServer extends TServer {
@@ -29,6 +30,10 @@ trait RedisPoolConfig {
 
   // expiration on timelines
   def expirationHours: Int
+
+  // auto disabling behaviour
+  def autoDisableErrorLimit: Int
+  def autoDisableDuration: Duration
 }
 
 trait RedisConfig {

@@ -4,7 +4,9 @@ import java.util.concurrent.{LinkedBlockingQueue, TimeoutException, TimeUnit, Co
 import java.util.concurrent.atomic.AtomicInteger
 import scala.collection.mutable
 import com.twitter.ostrich.Stats
-import com.twitter.xrayspecs.TimeConversions._
+import com.twitter.util.Time
+import com.twitter.util.TimeConversions._
+import com.twitter.gizzard.shards.{ShardInfo, ShardBlackHoleException}
 import net.lag.logging.Logger
 import org.jredis.ClientRuntimeException
 
@@ -16,6 +18,8 @@ class RedisPool(name: String, config: RedisPoolConfig) {
 
   val poolTimeout = config.poolTimeoutMsec.toInt.milliseconds
   val concurrentServerMap = new ConcurrentHashMap[String, ClientPool]
+  val concurrentErrorMap = new ConcurrentHashMap[String, AtomicInteger]
+  val concurrentDisabledMap = new ConcurrentHashMap[String, Time]
   val serverMap = scala.collection.jcl.Map(concurrentServerMap)
 
   Stats.makeGauge("redis-pool-" + name) {
@@ -74,17 +78,69 @@ class RedisPool(name: String, config: RedisPoolConfig) {
     }
   }
 
-  def withClient[T](hostname: String)(f: PipelinedRedisClient => T): T = {
-    val client = Stats.timeMicros("redis-acquire-usec") { get(hostname) }
+  def countErrorAndThrow(hostname:String, e: Throwable) = {
+    var count = concurrentErrorMap.get(hostname)
+    if (count eq null) {
+      val newCount = new AtomicInteger()
+      count = concurrentErrorMap.putIfAbsent(hostname, newCount)
+      if (count eq null) {
+        count = newCount
+      }
+    }
+    val c = count.incrementAndGet
+    if (c > config.autoDisableErrorLimit) {
+      // TODO: log
+      concurrentDisabledMap.put(hostname, config.autoDisableDuration.fromNow)
+      countNonError(hostname) // To remove from the error map
+    }
+    throw e
+  }
+
+  def countNonError(hostname: String) = {
+    if (concurrentErrorMap.containsKey(hostname)) {
+      try {
+        concurrentErrorMap.remove(hostname)
+      } catch {
+        case e: NullPointerException => {}
+      }
+    }
+  }
+
+  def checkErrorCount(shardInfo: ShardInfo) = {
+    val timeout = concurrentDisabledMap.get(shardInfo.hostname)
+    if (!(timeout eq null)) {
+      if (timeout < Time.now) {
+        throw new ShardBlackHoleException(shardInfo.id)
+      } else {
+        try {
+          concurrentDisabledMap.remove(shardInfo.hostname)
+        } catch {
+          case e: NullPointerException => {}
+        }
+      }
+    }
+  }
+
+  def withClient[T](shardInfo: ShardInfo)(f: PipelinedRedisClient => T): T = {
+    var client: PipelinedRedisClient = null
+    val hostname = shardInfo.hostname
+    checkErrorCount(shardInfo)
+    try {
+      client = Stats.timeMicros("redis-acquire-usec") { get(hostname) }
+    } catch {
+      case e =>
+        countErrorAndThrow(hostname, e)
+    }
     try {
       f(client)
     } catch {
       case e: ClientRuntimeException =>
         log.error(e, "Redis client error: %s", e)
         throwAway(hostname, client)
-        throw e
+        countErrorAndThrow(hostname, e)
     } finally {
       Stats.timeMicros("redis-release-usec") { giveBack(hostname, client) }
+      countNonError(hostname)
     }
   }
 

@@ -4,7 +4,7 @@ import java.util.{List => JList}
 import java.util.concurrent.{Future, TimeUnit}
 import com.twitter.gizzard.shards.{ShardException, ShardInfo}
 import com.twitter.gizzard.thrift.conversions.Sequences._
-import com.twitter.xrayspecs.TimeConversions._
+import com.twitter.util.TimeConversions._
 import org.jredis.ClientRuntimeException
 import org.jredis.ri.alphazero.{JRedisClient, JRedisFutureSupport, JRedisPipeline}
 import org.specs.Specification
@@ -63,15 +63,17 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
       }
       reads = 0
       readPool = new RedisPool("read", config.redisConfig.readPoolConfig) {
-        override def withClient[T](hostname: String)(f: PipelinedRedisClient => T): T = {
+        override def withClient[T](shardInfo: ShardInfo)(f: PipelinedRedisClient => T): T = {
           reads += 1
+          shardInfo.hostname
           f(client)
         }
       }
       writes = 0
       writePool = new RedisPool("write", config.redisConfig.writePoolConfig) {
-        override def withClient[T](hostname: String)(f: PipelinedRedisClient => T): T = {
+        override def withClient[T](shardInfo: ShardInfo)(f: PipelinedRedisClient => T): T = {
           writes += 1
+          shardInfo.hostname
           f(client)
         }
       }

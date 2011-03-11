@@ -99,7 +99,7 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
   }
 
   def append(timeline: String, entries: Seq[Array[Byte]], onError: Option[Throwable => Unit]) {
-    writePool.withClient(shardInfo.hostname) { client =>
+    writePool.withClient(shardInfo) { client =>
       entries.foreach { entry =>
         client.push(timeline, entry, onError) { checkTrim(client, timeline, _) }
       }
@@ -110,7 +110,7 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
     if (OLD_STYLE) {
       // painful. do it by id because the client doesn't know the entire entry yet.
       val ids = Set(sortKeysFromEntries(entries).map { _.key }: _*)
-      writePool.withClient(shardInfo.hostname) { client =>
+      writePool.withClient(shardInfo) { client =>
         val timelineEntries = client.get(timeline, 0, -1).map { TimelineEntry(_) }
         timelineEntries.foreach { entry =>
           if (ids contains entry.id) {
@@ -119,7 +119,7 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
         }
       }
     } else {
-      writePool.withClient(shardInfo.hostname) { client =>
+      writePool.withClient(shardInfo) { client =>
         entries.foreach { entry =>
           client.pop(timeline, entry, onError)
         }
@@ -130,7 +130,7 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
   // this is really inefficient. we should discourage its use.
   def filter(timeline: String, entries: Seq[Long], maxSearch: Int): Option[Seq[Array[Byte]]] = {
     val needle = Set(entries: _*)
-    val timelineEntries = readPool.withClient(shardInfo.hostname) { client =>
+    val timelineEntries = readPool.withClient(shardInfo) { client =>
       client.get(timeline, 0, maxSearch)
     }.map { TimelineEntry(_) }
     if (timelineEntries.isEmpty) {
@@ -149,7 +149,7 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
   }
 
   def get(timeline: String, offset: Int, length: Int, dedupeSecondary: Boolean): Option[TimelineSegment] = {
-    val (entries, size) = readPool.withClient(shardInfo.hostname) { client =>
+    val (entries, size) = readPool.withClient(shardInfo) { client =>
       (client.get(timeline, offset, length), client.size(timeline))
     }
     if (size > 0) {
@@ -163,7 +163,7 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
   }
 
   def getRaw(timeline: String): Option[Seq[Array[Byte]]] = {
-    val rv = readPool.withClient(shardInfo.hostname) { _.get(timeline, 0, -1) }
+    val rv = readPool.withClient(shardInfo) { _.get(timeline, 0, -1) }
     if (rv.isEmpty) {
       None
     } else {
@@ -172,7 +172,7 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
   }
 
   def getRange(timeline: String, fromId: Long, toId: Long, dedupeSecondary: Boolean): Option[TimelineSegment] = {
-    val (entriesSince, size) = readPool.withClient(shardInfo.hostname) { client =>
+    val (entriesSince, size) = readPool.withClient(shardInfo) { client =>
       val entries = new mutable.ArrayBuffer[Array[Byte]]()
       var cursor = 0
       var fromIdIndex = -1
@@ -209,7 +209,7 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
   }
 
   def merge(timeline: String, entries: Seq[Array[Byte]], onError: Option[Throwable => Unit]) {
-    writePool.withClient(shardInfo.hostname) { client =>
+    writePool.withClient(shardInfo) { client =>
       val existing = sortKeysFromEntries(client.get(timeline, 0, -1))
       if (existing.size > 0) {
         var i = 0
@@ -232,15 +232,15 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
   }
 
   def store(timeline: String, entries: Seq[Array[Byte]]) {
-    writePool.withClient(shardInfo.hostname) { _.setAtomically(timeline, entries) }
+    writePool.withClient(shardInfo) { _.setAtomically(timeline, entries) }
   }
 
   def deleteTimeline(timeline: String) {
-    writePool.withClient(shardInfo.hostname) { _.delete(timeline) }
+    writePool.withClient(shardInfo) { _.delete(timeline) }
   }
 
   def getKeys(offset: Int, count: Int) = {
-    readPool.withClient(shardInfo.hostname) { client =>
+    readPool.withClient(shardInfo) { client =>
       if (offset == 0) {
         client.makeKeyList()
       }
@@ -249,10 +249,10 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
   }
 
   def startCopy(timeline: String) {
-    writePool.withClient(shardInfo.hostname) { _.setLiveStart(timeline) }
+    writePool.withClient(shardInfo) { _.setLiveStart(timeline) }
   }
 
   def doCopy(timeline: String, entries: Seq[Array[Byte]]) {
-    writePool.withClient(shardInfo.hostname) { _.setLive(timeline, entries) }
+    writePool.withClient(shardInfo) { _.setLive(timeline, entries) }
   }
 }

@@ -5,7 +5,7 @@ import java.util.{List => JList}
 import com.twitter.gizzard.nameserver.NameServer
 import com.twitter.gizzard.scheduler.{JobQueue, JsonJob}
 import com.twitter.gizzard.thrift.conversions.Sequences._
-import com.twitter.xrayspecs.TimeConversions._
+import com.twitter.util.TimeConversions._
 import org.jredis.protocol.ResponseStatus
 import org.jredis.ri.alphazero.{JRedisFutureSupport, JRedisPipeline}
 import org.specs.Specification
