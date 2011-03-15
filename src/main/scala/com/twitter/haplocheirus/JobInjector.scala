@@ -1,7 +1,9 @@
 package com.twitter.haplocheirus
 
+import com.twitter.ostrich.Stats
 import com.twitter.gizzard.nameserver.NameServer
 import com.twitter.gizzard.scheduler.{JobQueue, JsonJob}
+import com.twitter.gizzard.shards.{ShardBlackHoleException, ShardRejectedOperationException}
 import net.lag.logging.Logger
 
 trait JobInjector {
@@ -18,8 +20,15 @@ trait JobInjector {
 
     try {
       job()
+      Stats.incr("job-success-count")
     } catch {
+      case e: ShardBlackHoleException =>
+        Stats.incr("job-blackholed-count")
+      case e: ShardRejectedOperationException =>
+        Stats.incr("job-darkmoded-count")
+        errorQueue.put(job)
       case e: Throwable =>
+        Stats.incr("job-error-count")
         log.error(e, "Exception starting job %s: %s", job, e)
         errorQueue.put(job)
     }
