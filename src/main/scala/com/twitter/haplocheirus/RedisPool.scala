@@ -89,7 +89,7 @@ class RedisPool(name: String, config: RedisPoolConfig) {
     }
     val c = count.incrementAndGet
     if (c > config.autoDisableErrorLimit) {
-      // TODO: log
+      log.error("Autodisabling %s", hostname)
       concurrentDisabledMap.put(hostname, config.autoDisableDuration.fromNow)
       countNonError(hostname) // To remove from the error map
     }
@@ -137,6 +137,9 @@ class RedisPool(name: String, config: RedisPoolConfig) {
       case e: ClientRuntimeException =>
         log.error(e, "Redis client error: %s", e)
         throwAway(hostname, client)
+        countErrorAndThrow(hostname, e)
+      case e: Throwable =>
+        log.error(e, "Non-redis error: %s", e)
         countErrorAndThrow(hostname, e)
     } finally {
       Stats.timeMicros("redis-release-usec") { giveBack(hostname, client) }
