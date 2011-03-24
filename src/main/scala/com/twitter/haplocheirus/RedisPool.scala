@@ -48,7 +48,13 @@ class RedisPool(name: String, config: RedisPoolConfig) {
         false
       }
       else if(pool.count.compareAndSet(poolCount, poolCount + 1)) {
-        pool.available.offer(makeClient(hostname))
+        try {
+          pool.available.offer(makeClient(hostname))
+        } catch {
+          case e: Throwable =>
+            pool.count.decrementAndGet
+            throw e
+        }
         false
       }
       else {
@@ -78,7 +84,7 @@ class RedisPool(name: String, config: RedisPoolConfig) {
     }
   }
 
-  def countErrorAndThrow(hostname:String, e: Throwable) = {
+  def countError(hostname:String) = {
     var count = concurrentErrorMap.get(hostname)
     if (count eq null) {
       val newCount = new AtomicInteger()
@@ -93,7 +99,6 @@ class RedisPool(name: String, config: RedisPoolConfig) {
       concurrentDisabledMap.put(hostname, config.autoDisableDuration.fromNow)
       countNonError(hostname) // To remove from the error map
     }
-    throw e
   }
 
   def countNonError(hostname: String) = {
@@ -129,18 +134,21 @@ class RedisPool(name: String, config: RedisPoolConfig) {
       client = Stats.timeMicros("redis-acquire-usec") { get(hostname) }
     } catch {
       case e =>
-        countErrorAndThrow(hostname, e)
+        countError(hostname)
+        throw e
     }
     try {
       f(client)
     } catch {
       case e: ClientRuntimeException =>
         log.error(e, "Redis client error: %s", e)
+        countError(hostname)
         throwAway(hostname, client)
-        countErrorAndThrow(hostname, e)
+        throw e
       case e: Throwable =>
         log.error(e, "Non-redis error: %s", e)
-        countErrorAndThrow(hostname, e)
+        countError(hostname)
+        throw e
     } finally {
       Stats.timeMicros("redis-release-usec") { giveBack(hostname, client) }
       countNonError(hostname)
