@@ -33,7 +33,8 @@ class RedisPool(name: String, config: RedisPoolConfig) {
     new PipelinedRedisClient(hostname, config.pipeline, timeout, keysTimeout, expiration)
   }
 
-  def get(hostname: String): PipelinedRedisClient = {
+  def get(shardInfo: ShardInfo): PipelinedRedisClient = {
+    val hostname = shardInfo.hostname
     var pool = concurrentServerMap.get(hostname);
     if(pool eq null) {
       val newPool = ClientPool(new LinkedBlockingQueue[PipelinedRedisClient](), new AtomicInteger())
@@ -49,6 +50,7 @@ class RedisPool(name: String, config: RedisPoolConfig) {
       }
       else if(pool.count.compareAndSet(poolCount, poolCount + 1)) {
         try {
+          checkErrorCount(shardInfo)
           pool.available.offer(makeClient(hostname))
         } catch {
           case e: Throwable =>
@@ -129,10 +131,11 @@ class RedisPool(name: String, config: RedisPoolConfig) {
   def withClient[T](shardInfo: ShardInfo)(f: PipelinedRedisClient => T): T = {
     var client: PipelinedRedisClient = null
     val hostname = shardInfo.hostname
-    checkErrorCount(shardInfo)
     try {
-      client = Stats.timeMicros("redis-acquire-usec") { get(hostname) }
+      client = Stats.timeMicros("redis-acquire-usec") { get(shardInfo) }
     } catch {
+      case e: ShardBlackHoleException =>
+        throw e
       case e =>
         countError(hostname)
         throw e

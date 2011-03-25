@@ -19,7 +19,7 @@ object RedisPoolSpec extends ConfiguredSpecification with JMocker with ClassMock
 
     "get" in {
       redisPool.serverMap.size mustEqual 0
-      redisPool.get("a") mustEqual client
+      redisPool.get(new ShardInfo("RedisShard", "shard1", "a")) mustEqual client
       redisPool.serverMap.keys.toList mustEqual List("a")
       redisPool.serverMap("a").count.get mustEqual 1
       redisPool.serverMap("a").available.size mustEqual 0
@@ -30,7 +30,7 @@ object RedisPoolSpec extends ConfiguredSpecification with JMocker with ClassMock
         one(client).alive willReturn true
       }
 
-      redisPool.get("a") mustEqual client
+      redisPool.get(new ShardInfo("RedisShard", "shard1", "a")) mustEqual client
       redisPool.serverMap.keys.toList mustEqual List("a")
       redisPool.serverMap("a").available.size mustEqual 0
       redisPool.giveBack("a", client)
@@ -43,7 +43,7 @@ object RedisPoolSpec extends ConfiguredSpecification with JMocker with ClassMock
       }
 
       redisPool.toString mustEqual "<RedisPool: >"
-      redisPool.get("a") mustEqual client
+      redisPool.get(new ShardInfo("RedisShard", "shard1", "a")) mustEqual client
       redisPool.toString mustEqual "<RedisPool: a=(0 available, 1 total)>"
       redisPool.giveBack("a", client)
       redisPool.toString mustEqual "<RedisPool: a=(1 available, 1 total)>"
