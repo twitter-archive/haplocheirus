@@ -140,7 +140,7 @@ class RedisPool(name: String, config: RedisPoolConfig) {
         countError(hostname)
         throw e
     }
-    try {
+    val r = try {
       f(client)
     } catch {
       case e: ClientRuntimeException =>
@@ -154,8 +154,9 @@ class RedisPool(name: String, config: RedisPoolConfig) {
         throw e
     } finally {
       Stats.timeMicros("redis-release-usec") { giveBack(hostname, client) }
-      countNonError(hostname)
     }
+    countNonError(hostname)
+    r
   }
 
   def shutdown() {
