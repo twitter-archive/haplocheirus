@@ -38,7 +38,7 @@ class TimelineStoreService(val nameServer: NameServer[HaplocheirusShard],
   def append(entry: Array[Byte], prefix: String, timelines: Seq[Long]) {
     Stats.addTiming("x-timelines-per-append", timelines.size)
     val job = Stats.timeMicros("x-append-job") {
-      jobs.MultiPush(entry, prefix, timelines, nameServer, scheduler(Priority.Write.id))
+      jobs.MultiPush(entry, prefix, timelines.toArray, nameServer, scheduler(Priority.Write.id))
     }
     Stats.timeMicros("x-append-put") {
       multiPushScheduler.queue.put(job)
