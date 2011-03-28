@@ -96,10 +96,9 @@ class RedisPool(name: String, config: RedisPoolConfig) {
       }
     }
     val c = count.incrementAndGet
-    if (c > config.autoDisableErrorLimit) {
+    if (c > config.autoDisableErrorLimit && !concurrentDisabledMap.containsKey(hostname)) {
       log.error("Autodisabling %s", hostname)
       concurrentDisabledMap.put(hostname, config.autoDisableDuration.fromNow)
-      countNonError(hostname) // To remove from the error map
     }
   }
 
@@ -121,6 +120,8 @@ class RedisPool(name: String, config: RedisPoolConfig) {
       } else {
         try {
           concurrentDisabledMap.remove(shardInfo.hostname)
+          log.error("Reenabling %s", shardInfo.hostname)
+          countNonError(shardInfo.hostname) // To remove from the error map
         } catch {
           case e: NullPointerException => {}
         }
