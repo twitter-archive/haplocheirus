@@ -115,7 +115,7 @@ class RedisPool(name: String, config: RedisPoolConfig) {
   def checkErrorCount(shardInfo: ShardInfo) = {
     val timeout = concurrentDisabledMap.get(shardInfo.hostname)
     if (!(timeout eq null)) {
-      if (timeout < Time.now) {
+      if (Time.now < timeout) {
         throw new ShardBlackHoleException(shardInfo.id)
       } else {
         try {
