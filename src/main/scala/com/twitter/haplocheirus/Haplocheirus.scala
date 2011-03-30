@@ -33,7 +33,8 @@ class Haplocheirus(config: HaplocheirusConfig) extends GizzardServer[Haplocheiru
   val copyFactory           = new jobs.RedisCopyFactory(nameServer, jobScheduler(Priority.Copy.id))
   val readPool = new RedisPool("read", config.redisConfig.readPoolConfig)
   val writePool = new RedisPool("write", config.redisConfig.writePoolConfig)
-  val shardFactory = new RedisShardFactory(readPool, writePool,
+  val slowPool = new RedisPool("slow", config.redisConfig.slowPoolConfig)
+  val shardFactory = new RedisShardFactory(readPool, writePool, slowPool,
                                            config.redisConfig.rangeQueryPageSize,
                                            config.timelineTrimConfig)
 

@@ -77,7 +77,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
           f(client)
         }
       }
-      redisShard = new RedisShardFactory(readPool, writePool, 3, timelineTrimConfig).instantiate(shardInfo, 1, Nil)
+      redisShard = new RedisShardFactory(readPool, writePool, writePool, 3, timelineTrimConfig).instantiate(shardInfo, 1, Nil)
     }
 
     doAfter {

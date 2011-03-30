@@ -10,8 +10,8 @@ import com.twitter.xrayspecs.TimeConversions._
 import net.lag.logging.Logger
 
 
-class RedisShardFactory(readPool: RedisPool, writePool: RedisPool, rangeQueryPageSize: Int,
-                        timelineTrimConfig: TimelineTrimConfig) extends ShardFactory[HaplocheirusShard] {
+class RedisShardFactory(readPool: RedisPool, writePool: RedisPool, slowPool: RedisPool,
+                        rangeQueryPageSize: Int, timelineTrimConfig: TimelineTrimConfig) extends ShardFactory[HaplocheirusShard] {
   object RedisExceptionWrappingProxy extends ExceptionHandlingProxyFactory[RedisShard]({ (shard, e) =>
     e match {
       case e: ShardException =>
@@ -25,7 +25,7 @@ class RedisShardFactory(readPool: RedisPool, writePool: RedisPool, rangeQueryPag
 
   def instantiate(shardInfo: ShardInfo, weight: Int, children: Seq[HaplocheirusShard]) = {
     RedisExceptionWrappingProxy[HaplocheirusShard](
-      new RedisShard(shardInfo, weight, children, readPool, writePool, trimMap, rangeQueryPageSize))
+      new RedisShard(shardInfo, weight, children, readPool, writePool, slowPool, trimMap, rangeQueryPageSize))
   }
 
   def materialize(shardInfo: ShardInfo) {
@@ -34,7 +34,7 @@ class RedisShardFactory(readPool: RedisPool, writePool: RedisPool, rangeQueryPag
 }
 
 class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[HaplocheirusShard],
-                 val readPool: RedisPool, val writePool: RedisPool,
+                 val readPool: RedisPool, val writePool: RedisPool, val slowPool: RedisPool,
                  val trimMap: TimelineTrimMap, val rangeQueryPageSize: Int)
       extends HaplocheirusShard {
   // do removes the old, painful way. turn this off once everyone is in haplo.
@@ -209,7 +209,7 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
   }
 
   def merge(timeline: String, entries: Seq[Array[Byte]], onError: Option[Throwable => Unit]) {
-    writePool.withClient(shardInfo) { client =>
+    slowPool.withClient(shardInfo) { client =>
       val existing = sortKeysFromEntries(client.get(timeline, 0, -1))
       if (existing.size > 0) {
         var i = 0
@@ -232,7 +232,7 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
   }
 
   def store(timeline: String, entries: Seq[Array[Byte]]) {
-    writePool.withClient(shardInfo) { _.setAtomically(timeline, entries) }
+    slowPool.withClient(shardInfo) { _.setAtomically(timeline, entries) }
   }
 
   def deleteTimeline(timeline: String) {

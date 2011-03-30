@@ -39,6 +39,7 @@ trait RedisPoolConfig {
 trait RedisConfig {
   def readPoolConfig: RedisPoolConfig
   def writePoolConfig: RedisPoolConfig
+  def slowPoolConfig: RedisPoolConfig
   def rangeQueryPageSize: Int
 }
 

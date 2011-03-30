@@ -50,6 +50,17 @@ new HaplocheirusConfig {
       val autoDisableDuration = 60.seconds
     }
 
+    val slowPoolConfig = new RedisPoolConfig {
+      val poolSize = 1
+      val poolTimeoutMsec = 5000
+      val pipeline = 0  // for tests, force no pipeline, so we can see the results immediately.
+      val timeoutMsec = 200
+      val keysTimeoutMsec = 5000
+      val expirationHours = 24
+      val autoDisableErrorLimit = 200
+      val autoDisableDuration = 60.seconds
+    }
+
     val rangeQueryPageSize = 20
   }
 

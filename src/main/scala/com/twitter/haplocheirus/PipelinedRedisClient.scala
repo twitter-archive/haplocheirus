@@ -176,7 +176,7 @@ class PipelinedRedisClient(hostname: String, pipelineMaxSize: Int, timeout: Dura
           redisClient.rpushx(tempName, entry)
         }
       }.foreach { future =>
-          future.get(timeout.inMillis, TimeUnit.MILLISECONDS)
+        future.get(timeout.inMillis, TimeUnit.MILLISECONDS)
       }
       if (entries.size > 0) {
         redisClient.rename(tempName, timeline).get(timeout.inMillis, TimeUnit.MILLISECONDS)
