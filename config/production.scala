@@ -111,20 +111,6 @@ new HaplocheirusConfig {
     )
   }
 
-  val replicationFuture = new Future {
-    poolSize = 100
-    maxPoolSize = 100
-    keepAlive = 5.seconds
-    timeout = 6.seconds
-  }
-
-  val readFuture = new Future {
-    poolSize = 100
-    maxPoolSize = 100
-    keepAlive = 5.seconds
-    timeout = 6.seconds
-  }
-
   val jobQueues = Map(
     Priority.Copy.id -> new Scheduler {
       val name = "copy"

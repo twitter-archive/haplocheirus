@@ -63,9 +63,6 @@ trait HaplocheirusConfig extends gizzard.config.GizzardServer {
   def redisConfig: RedisConfig
   def timelineTrimConfig: TimelineTrimConfig
 
-  def replicationFuture: Future
-  def readFuture: Future
-
   // Yuck, but JobScheduler.apply() requires an old-style configgy map.
   def convertSchedulerConfig(conf: Scheduler): CConfig = {
     val ret = new CConfig
