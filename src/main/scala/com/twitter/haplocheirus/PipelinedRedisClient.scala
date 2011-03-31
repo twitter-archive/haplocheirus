@@ -178,7 +178,8 @@ class PipelinedRedisClient(hostname: String, pipelineMaxSize: Int, timeout: Dura
       }
       // All we care is that they all completed, not each individual one
       futures.lastOption.foreach { future =>
-        future.get(timeout.inMillis, TimeUnit.MILLISECONDS)
+        // 5x is made up, works well in practice with 1000 element stores
+        future.get(timeout.inMillis * 5, TimeUnit.MILLISECONDS)
       }
       if (entries.size > 0) {
         redisClient.rename(tempName, timeline).get(timeout.inMillis, TimeUnit.MILLISECONDS)
