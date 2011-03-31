@@ -9,10 +9,11 @@ import org.specs.mock.{ClassMocker, JMocker}
 object RedisPoolSpec extends ConfiguredSpecification with JMocker with ClassMocker {
   "RedisPool" should {
     val client = mock[PipelinedRedisClient]
+    val poolHealthTracker = new RedisPoolHealthTracker(config.redisConfig.poolHealthTrackerConfig)
     var redisPool: RedisPool = null
 
     doBefore {
-      redisPool = new RedisPool("test", config.redisConfig.readPoolConfig) {
+      redisPool = new RedisPool("test", poolHealthTracker, config.redisConfig.readPoolConfig) {
         override def makeClient(hostname: String) = client
       }
     }

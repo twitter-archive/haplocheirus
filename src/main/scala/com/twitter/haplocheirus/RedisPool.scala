@@ -10,81 +10,11 @@ import com.twitter.gizzard.shards.{ShardInfo, ShardBlackHoleException}
 import net.lag.logging.Logger
 import org.jredis.ClientRuntimeException
 
-
-class RedisPool(name: String, config: RedisPoolConfig) {
-  case class ClientPool(available: LinkedBlockingQueue[PipelinedRedisClient], val count: AtomicInteger)
-
+class RedisPoolHealthTracker(config: RedisPoolHealthTrackerConfig) {
   val log = Logger(getClass.getName)
 
-  val poolTimeout = config.poolTimeoutMsec.toInt.milliseconds
-  val concurrentServerMap = new ConcurrentHashMap[String, ClientPool]
   val concurrentErrorMap = new ConcurrentHashMap[String, AtomicInteger]
   val concurrentDisabledMap = new ConcurrentHashMap[String, Time]
-  val serverMap = scala.collection.jcl.Map(concurrentServerMap)
-
-  Stats.makeGauge("redis-pool-" + name) {
-    serverMap.values.foldLeft(0) { _ + _.available.size }
-  }
-
-  def makeClient(hostname: String) = {
-    val timeout = config.timeoutMsec.milliseconds
-    val keysTimeout = config.keysTimeoutMsec.milliseconds
-    val expiration = config.expirationHours.hours
-    new PipelinedRedisClient(hostname, config.pipeline, timeout, keysTimeout, expiration)
-  }
-
-  def get(shardInfo: ShardInfo): PipelinedRedisClient = {
-    val hostname = shardInfo.hostname
-    var pool = concurrentServerMap.get(hostname);
-    if(pool eq null) {
-      val newPool = ClientPool(new LinkedBlockingQueue[PipelinedRedisClient](), new AtomicInteger())
-      pool = concurrentServerMap.putIfAbsent(hostname, newPool);
-      if(pool eq null) {
-        pool = newPool
-      }
-    }
-    while({
-      val poolCount = pool.count.get()
-      if(poolCount >= config.poolSize) {
-        false
-      }
-      else if(pool.count.compareAndSet(poolCount, poolCount + 1)) {
-        try {
-          checkErrorCount(shardInfo)
-          pool.available.offer(makeClient(hostname))
-        } catch {
-          case e: Throwable =>
-            pool.count.decrementAndGet
-            throw e
-        }
-        false
-      }
-      else {
-        true
-      }
-    }) {}
-    val client = pool.available.poll(poolTimeout.inMilliseconds, TimeUnit.MILLISECONDS)
-    if (client eq null) {
-      throw new TimeoutException("Unable to get redis connection to " + hostname)
-    }
-    client
-  }
-
-  def throwAway(hostname: String, client: PipelinedRedisClient) {
-    try {
-      client.shutdown()
-    } catch {
-      case e: Throwable =>
-        log.warning(e, "Error discarding dead redis client: %s", e)
-    }
-    serverMap.get(hostname).foreach { _.count.decrementAndGet() }
-  }
-
-  def giveBack(hostname: String, client: PipelinedRedisClient) {
-    if (client.alive) {
-      serverMap(hostname).available.offer(client)
-    }
-  }
 
   def countError(hostname:String) = {
     var count = concurrentErrorMap.get(hostname)
@@ -128,6 +58,80 @@ class RedisPool(name: String, config: RedisPoolConfig) {
       }
     }
   }
+}
+
+class RedisPool(name: String, healthTracker: RedisPoolHealthTracker, config: RedisPoolConfig) {
+  case class ClientPool(available: LinkedBlockingQueue[PipelinedRedisClient], val count: AtomicInteger)
+
+  val log = Logger(getClass.getName)
+
+  val poolTimeout = config.poolTimeoutMsec.toInt.milliseconds
+  val concurrentServerMap = new ConcurrentHashMap[String, ClientPool]
+  val serverMap = scala.collection.jcl.Map(concurrentServerMap)
+
+  Stats.makeGauge("redis-pool-" + name) {
+    serverMap.values.foldLeft(0) { _ + _.available.size }
+  }
+
+  def makeClient(hostname: String) = {
+    val timeout = config.timeoutMsec.milliseconds
+    val keysTimeout = config.keysTimeoutMsec.milliseconds
+    val expiration = config.expirationHours.hours
+    new PipelinedRedisClient(hostname, config.pipeline, timeout, keysTimeout, expiration)
+  }
+
+  def get(shardInfo: ShardInfo): PipelinedRedisClient = {
+    val hostname = shardInfo.hostname
+    var pool = concurrentServerMap.get(hostname);
+    if(pool eq null) {
+      val newPool = ClientPool(new LinkedBlockingQueue[PipelinedRedisClient](), new AtomicInteger())
+      pool = concurrentServerMap.putIfAbsent(hostname, newPool);
+      if(pool eq null) {
+        pool = newPool
+      }
+    }
+    while({
+      val poolCount = pool.count.get()
+      if(poolCount >= config.poolSize) {
+        false
+      }
+      else if(pool.count.compareAndSet(poolCount, poolCount + 1)) {
+        try {
+          healthTracker.checkErrorCount(shardInfo)
+          pool.available.offer(makeClient(hostname))
+        } catch {
+          case e: Throwable =>
+            pool.count.decrementAndGet
+            throw e
+        }
+        false
+      }
+      else {
+        true
+      }
+    }) {}
+    val client = pool.available.poll(poolTimeout.inMilliseconds, TimeUnit.MILLISECONDS)
+    if (client eq null) {
+      throw new TimeoutException("Unable to get redis connection to " + hostname)
+    }
+    client
+  }
+
+  def throwAway(hostname: String, client: PipelinedRedisClient) {
+    try {
+      client.shutdown()
+    } catch {
+      case e: Throwable =>
+        log.warning(e, "Error discarding dead redis client: %s", e)
+    }
+    serverMap.get(hostname).foreach { _.count.decrementAndGet() }
+  }
+
+  def giveBack(hostname: String, client: PipelinedRedisClient) {
+    if (client.alive) {
+      serverMap(hostname).available.offer(client)
+    }
+  }
 
   def withClient[T](shardInfo: ShardInfo)(f: PipelinedRedisClient => T): T = {
     var client: PipelinedRedisClient = null
@@ -138,7 +142,7 @@ class RedisPool(name: String, config: RedisPoolConfig) {
       case e: ShardBlackHoleException =>
         throw e
       case e =>
-        countError(hostname)
+        healthTracker.countError(hostname)
         throw e
     }
     val r = try {
@@ -146,17 +150,17 @@ class RedisPool(name: String, config: RedisPoolConfig) {
     } catch {
       case e: ClientRuntimeException =>
         log.error(e, "Redis client error: %s", e)
-        countError(hostname)
+        healthTracker.countError(hostname)
         throwAway(hostname, client)
         throw e
       case e: Throwable =>
         log.error(e, "Non-redis error: %s", e)
-        countError(hostname)
+        healthTracker.countError(hostname)
         throw e
     } finally {
       Stats.timeMicros("redis-release-usec") { giveBack(hostname, client) }
     }
-    countNonError(hostname)
+    healthTracker.countNonError(hostname)
     r
   }
 

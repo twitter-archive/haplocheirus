@@ -14,6 +14,7 @@ import org.specs.mock.{ClassMocker, JMocker}
 object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMocker {
   "RedisShard" should {
     val shardInfo = mock[ShardInfo]
+    val poolHealthTracker = new RedisPoolHealthTracker(config.redisConfig.poolHealthTrackerConfig)
     var readPool: RedisPool = null
     var writePool: RedisPool = null
     var reads = 0
@@ -62,7 +63,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
         override protected def uniqueTimelineName(name: String): String = "generated-name"
       }
       reads = 0
-      readPool = new RedisPool("read", config.redisConfig.readPoolConfig) {
+      readPool = new RedisPool("read", poolHealthTracker, config.redisConfig.readPoolConfig) {
         override def withClient[T](shardInfo: ShardInfo)(f: PipelinedRedisClient => T): T = {
           reads += 1
           shardInfo.hostname
@@ -70,7 +71,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
         }
       }
       writes = 0
-      writePool = new RedisPool("write", config.redisConfig.writePoolConfig) {
+      writePool = new RedisPool("write", poolHealthTracker, config.redisConfig.writePoolConfig) {
         override def withClient[T](shardInfo: ShardInfo)(f: PipelinedRedisClient => T): T = {
           writes += 1
           shardInfo.hostname

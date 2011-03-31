@@ -19,6 +19,11 @@ trait AdminConfig {
   def timeSeries: Boolean
 }
 
+trait RedisPoolHealthTrackerConfig {
+  def autoDisableErrorLimit: Int
+  def autoDisableDuration: Duration
+}
+
 trait RedisPoolConfig {
   def poolSize: Int
   def poolTimeoutMsec: Int
@@ -30,13 +35,10 @@ trait RedisPoolConfig {
 
   // expiration on timelines
   def expirationHours: Int
-
-  // auto disabling behaviour
-  def autoDisableErrorLimit: Int
-  def autoDisableDuration: Duration
 }
 
 trait RedisConfig {
+  def poolHealthTrackerConfig: RedisPoolHealthTrackerConfig
   def readPoolConfig: RedisPoolConfig
   def writePoolConfig: RedisPoolConfig
   def slowPoolConfig: RedisPoolConfig

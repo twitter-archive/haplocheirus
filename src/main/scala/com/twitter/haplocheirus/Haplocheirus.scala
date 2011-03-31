@@ -31,9 +31,10 @@ class Haplocheirus(config: HaplocheirusConfig) extends GizzardServer[Haplocheiru
   val jobPriorities         = List(Priority.Copy, Priority.Write, Priority.MultiPush).map(_.id)
   val copyPriority          = Priority.Copy.id
   val copyFactory           = new jobs.RedisCopyFactory(nameServer, jobScheduler(Priority.Copy.id))
-  val readPool = new RedisPool("read", config.redisConfig.readPoolConfig)
-  val writePool = new RedisPool("write", config.redisConfig.writePoolConfig)
-  val slowPool = new RedisPool("slow", config.redisConfig.slowPoolConfig)
+  val poolHealthTracker = new RedisPoolHealthTracker(config.redisConfig.poolHealthTrackerConfig)
+  val readPool = new RedisPool("read", poolHealthTracker, config.redisConfig.readPoolConfig)
+  val writePool = new RedisPool("write", poolHealthTracker, config.redisConfig.writePoolConfig)
+  val slowPool = new RedisPool("slow", poolHealthTracker, config.redisConfig.slowPoolConfig)
   val shardFactory = new RedisShardFactory(readPool, writePool, slowPool,
                                            config.redisConfig.rangeQueryPageSize,
                                            config.timelineTrimConfig)
@@ -55,7 +56,7 @@ class Haplocheirus(config: HaplocheirusConfig) extends GizzardServer[Haplocheiru
 
   val haploService = {
     new TimelineStore(new TimelineStoreService(nameServer, jobScheduler, multiPushScheduler,
-                                               copyFactory, readPool, writePool))
+                                               copyFactory, readPool, writePool, slowPool))
   }
 
   lazy val haploThriftServer = {

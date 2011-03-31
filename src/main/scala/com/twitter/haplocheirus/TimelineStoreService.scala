@@ -13,7 +13,8 @@ class TimelineStoreService(val nameServer: NameServer[HaplocheirusShard],
                            val multiPushScheduler: JobScheduler[jobs.MultiPush],
                            val copyFactory: CopyJobFactory[HaplocheirusShard],
                            val readPool: RedisPool,
-                           val writePool: RedisPool)
+                           val writePool: RedisPool,
+                           val slowPool: RedisPool)
       extends JobInjector {
 
   private val log = Logger(getClass.getName)
@@ -29,6 +30,7 @@ class TimelineStoreService(val nameServer: NameServer[HaplocheirusShard],
     multiPushScheduler.shutdown()
     readPool.shutdown()
     writePool.shutdown()
+    slowPool.shutdown()
   }
 
   private def shardFor(timeline: String) = {
