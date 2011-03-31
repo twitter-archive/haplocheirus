@@ -154,10 +154,8 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
     }
     if (size > 0) {
       val dedupedEntries = dedupe(entries, dedupeSecondary)
-      Stats.incr("timeline-hit")
       Some(TimelineSegment(dedupedEntries, size))
     } else {
-      Stats.incr("timeline-miss")
       None
     }
   }
