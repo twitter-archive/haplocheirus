@@ -164,7 +164,7 @@ class PipelinedRedisClient(hostname: String, pipelineMaxSize: Int, timeout: Dura
     Stats.timeMicros("redis-set-usec") {
       val tempName = uniqueTimelineName(timeline)
       var didExpire = false
-      entries.reverse.map { entry =>
+      val futures = entries.reverse.map { entry =>
         if (!didExpire) {
           val f = redisClient.rpush(tempName, entry)
           // bummer: we can't rename a key that has an expiration time, so these have to be permanent.
@@ -175,7 +175,9 @@ class PipelinedRedisClient(hostname: String, pipelineMaxSize: Int, timeout: Dura
         } else {
           redisClient.rpushx(tempName, entry)
         }
-      }.foreach { future =>
+      }
+      // All we care is that they all completed, not each individual one
+      futures.lastOption.foreach { future =>
         future.get(timeout.inMillis, TimeUnit.MILLISECONDS)
       }
       if (entries.size > 0) {

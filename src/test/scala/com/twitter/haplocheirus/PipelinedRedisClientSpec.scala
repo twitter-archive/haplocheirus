@@ -125,9 +125,9 @@ object PipelinedRedisClientSpec extends ConfiguredSpecification with JMocker wit
         one(jredis).rpush(timeline + "~1", entry3) willReturn longFuture
         one(longFuture).get(1000, TimeUnit.MILLISECONDS) willReturn 1L
         one(jredis).rpushx(timeline + "~1", entry2) willReturn longFuture
-        one(longFuture).get(1000, TimeUnit.MILLISECONDS) willReturn 1L
+        //one(longFuture).get(1000, TimeUnit.MILLISECONDS) willReturn 1L
         one(jredis).rpushx(timeline + "~1", entry1) willReturn longFuture
-        one(longFuture).get(1000, TimeUnit.MILLISECONDS) willReturn 1L
+        //one(longFuture).get(1000, TimeUnit.MILLISECONDS) willReturn 1L
         one(jredis).rename(timeline + "~1", timeline) willReturn future
         one(future).get(1000, TimeUnit.MILLISECONDS) willReturn ResponseStatus.STATUS_OK
         one(jredis).expire(timeline, 86400) willReturn future
