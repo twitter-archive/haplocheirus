@@ -25,7 +25,7 @@ class MultiPushCodec(nameServer: NameServer[HaplocheirusShard], scheduler: JobSc
     // java. :(
     val args = new TimelineStore.append_args()
     args.read(new TBinaryProtocol(new TIOStreamTransport(new ByteArrayInputStream(data))))
-    new MultiPush(args.getEntry(), args.timeline_prefix, args.timeline_ids.toSeq, nameServer, scheduler)
+    new MultiPush(args.getEntry(), args.timeline_prefix, args.timeline_ids.toSeq.toArray, nameServer, scheduler)
   }
 }
 
@@ -40,7 +40,7 @@ class MultiPushParser(nameServer: NameServer[HaplocheirusShard], scheduler: JobS
 }
 
 
-case class MultiPush(entry: Array[Byte], timelinePrefix: String, timelineIds: Seq[Long],
+case class MultiPush(entry: Array[Byte], timelinePrefix: String, timelineIds: Array[Long],
                      nameServer: NameServer[HaplocheirusShard], scheduler: JobScheduler[JsonJob])
      extends JsonJob with JobInjector {
   protected def encodeBase64(data: Array[Byte]) = {
