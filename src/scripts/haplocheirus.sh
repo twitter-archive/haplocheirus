@@ -31,13 +31,13 @@ else
   fi
 fi
 
-HEAP_OPTS="-Xmx4096m -Xms4096m -XX:NewSize=768m"
+HEAP_OPTS="-Xmx4096m"
 JMX_OPTS="-Dcom.sun.management.jmxremote -Dcom.sun.management.jmxremote.port=9999 -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.ssl=false"
-GC_OPTS="-verbosegc -XX:+PrintGCDetails -XX:+PrintGCTimeStamps -XX:+PrintGCDateStamps -XX:+PrintTenuringDistribution -XX:+UseParallelOldGC -XX:+HeapDumpOnOutOfMemoryError"
-GC_LOG="-Xloggc:/var/log/$APP_NAME/gc.log"
+GC_OPTS="-XX:+UseParallelOldGC -XX:+UseAdaptiveSizePolicy -XX:MaxGCPauseMillis=1000 -XX:+HeapDumpOnOutOfMemoryError"
+GC_LOG="-verbosegc -XX:+PrintGCDetails -XX:+PrintGCTimeStamps -XX:+PrintGCDateStamps -XX:+PrintTenuringDistribution -Xloggc:/var/log/$APP_NAME/gc.log"
 DEBUG_OPTS="-XX:ErrorFile=/var/log/$APP_NAME/java_error%p.log"
 PROFILER_OPTS=""
-if [ -a "$PROFILER_PATH/libyjpagent.so" ]; then 
+if [ -a "$PROFILER_PATH/libyjpagent.so" ]; then
   PROFILER_OPTS="-agentlib:yjpagent=dir=/var/log/$APP_NAME,disabletracing,builtinprobes=none"
 fi
 JAVA_OPTS="-server $GC_OPTS $GC_LOG $HEAP_OPTS $JMX_OPTS $DEBUG_OPTS $PROFILER_OPTS"
