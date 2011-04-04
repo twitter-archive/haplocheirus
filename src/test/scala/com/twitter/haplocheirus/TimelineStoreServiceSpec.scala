@@ -39,7 +39,7 @@ object TimelineStoreServiceSpec extends Specification with JMocker with ClassMoc
       expect {
         one(scheduler).apply(Priority.Write.id) willReturn jobScheduler
         one(multiPushScheduler).queue willReturn queue
-        one(queue).put(jobs.MultiPush(data, "t", List(1L, 2L), nameServer, jobScheduler))
+        one(queue).put(any)
       }
 
       service.append(data, "t", List(1L, 2L))

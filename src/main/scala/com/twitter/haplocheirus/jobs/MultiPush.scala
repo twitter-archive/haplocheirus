@@ -5,7 +5,6 @@ import java.nio.ByteBuffer
 import com.twitter.gizzard.nameserver.NameServer
 import com.twitter.gizzard.scheduler.{Codec, JobScheduler, JsonCodec, JsonJob, JsonJobParser}
 import com.twitter.gizzard.thrift.conversions.Sequences._
-import com.twitter.json.JsonQuoted
 import org.apache.commons.codec.binary.Base64
 import org.apache.thrift.protocol.TBinaryProtocol
 import org.apache.thrift.transport.TIOStreamTransport
@@ -44,7 +43,7 @@ case class MultiPush(entry: Array[Byte], timelinePrefix: String, timelineIds: Ar
                      nameServer: NameServer[HaplocheirusShard], scheduler: JobScheduler[JsonJob])
      extends JsonJob with JobInjector {
   protected def encodeBase64(data: Array[Byte]) = {
-    JsonQuoted("\"" + Base64.encodeBase64String(data).replaceAll("\r\n", "") + "\"")
+    Base64.encodeBase64String(data).replaceAll("\r\n", "")
   }
 
   def entryByteBuffer: ByteBuffer = ByteBuffer.wrap(entry)

@@ -3,7 +3,6 @@ package com.twitter.haplocheirus
 import com.twitter.gizzard.Future
 import com.twitter.gizzard.nameserver.NameServer
 import com.twitter.gizzard.scheduler.{JobQueue, JobScheduler, JsonCodec, JsonJob, PrioritizingJobScheduler}
-import com.twitter.json.{Json, JsonQuoted}
 import org.specs.Specification
 import org.specs.mock.{ClassMocker, JMocker}
 
@@ -76,11 +75,11 @@ object JobsSpec extends Specification with JMocker with ClassMocker {
 
     "MultiPush" in {
       val data = "hello".getBytes
-      val multiPush = jobs.MultiPush(data, "timeline:", List(3L, 4L, 5L), nameServer, scheduler)
+      val multiPush = jobs.MultiPush(data, "timeline:", Array(3L, 4L, 5L), nameServer, scheduler)
 
       "json" in {
-        val map = Map("entry" -> JsonQuoted("\"aGVsbG8=\""), "timeline_prefix" -> "timeline:",
-                      "timeline_ids" -> JsonQuoted("\"AwAAAAAAAAAEAAAAAAAAAAUAAAAAAAAA\""))
+        val map = Map("entry" -> "aGVsbG8=", "timeline_prefix" -> "timeline:",
+                      "timeline_ids" -> "AwAAAAAAAAAEAAAAAAAAAAUAAAAAAAAA")
 
         multiPush.addOnError = false
         val queue = mock[JobQueue[JsonJob]]
