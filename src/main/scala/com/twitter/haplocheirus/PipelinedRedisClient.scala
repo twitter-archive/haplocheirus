@@ -175,7 +175,7 @@ class PipelinedRedisClient(hostname: String, pipelineMaxSize: Int, timeout: Dura
         } else {
           redisClient.rpushx(tempName, entry)
         }
-      }
+      }.projection.force
       // All we care is that they all completed, not each individual one
       futures.lastOption.foreach { future =>
         // 5x is made up, works well in practice with 1000 element stores
