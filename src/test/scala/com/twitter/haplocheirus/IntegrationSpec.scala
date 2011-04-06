@@ -124,9 +124,7 @@ object IntegrationSpec extends ConfiguredSpecification with JMocker with ClassMo
         one(jredisClient).lrem(timeline1, new Array[Byte](0), 1) willReturn future
         one(future).get(200L, TimeUnit.MILLISECONDS) willReturn 0L
         one(jredisClient).expire(timeline1, 86400) willReturn future2
-        one(future2).get(200L, TimeUnit.MILLISECONDS) willReturn 0L
         one(jredisClient).expire(timeline1, 86400) willReturn future2
-        one(future2).get(200L, TimeUnit.MILLISECONDS) willReturn 0L
 
         allowing(jredisClient).quit()
       }

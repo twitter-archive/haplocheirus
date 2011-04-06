@@ -150,8 +150,7 @@ class PipelinedRedisClient(hostname: String, pipelineMaxSize: Int, timeout: Dura
     Stats.timeMicros("redis-get-usec") {
       val rv = redisClient.lrange(timeline, end, start).get(timeout.inMillis, TimeUnit.MILLISECONDS).toSeq.reverse
       if (rv.size > 0) {
-        val future = redisClient.expire(timeline, expiration.inSeconds)
-        later { future.get(timeout.inMillis, TimeUnit.MILLISECONDS) }
+        redisClient.expire(timeline, expiration.inSeconds)
       }
       rv
     }
