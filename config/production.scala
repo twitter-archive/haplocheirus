@@ -72,8 +72,6 @@ new HaplocheirusConfig {
     }
 
     val readPoolConfig = new RedisPoolConfig {
-      val poolSize = 1
-      val poolTimeoutMsec = 100
       val pipeline = 100
       val timeoutMsec = 5
       val keysTimeoutMsec = 5000
@@ -81,8 +79,6 @@ new HaplocheirusConfig {
     }
 
     val writePoolConfig = new RedisPoolConfig {
-      val poolSize = 1
-      val poolTimeoutMsec = 100
       val pipeline = 100
       val timeoutMsec = 5
       val keysTimeoutMsec = 5000
@@ -90,8 +86,6 @@ new HaplocheirusConfig {
     }
 
     val slowPoolConfig = new RedisPoolConfig {
-      val poolSize = 1
-      val poolTimeoutMsec = 100
       val pipeline = 100
       val timeoutMsec = 50
       val keysTimeoutMsec = 5000
