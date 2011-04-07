@@ -17,10 +17,6 @@ object Priority extends Enumeration {
   val MultiPush = Value(3)
 }
 
-object TimelineStoreExceptionWrappingProxy extends ExceptionHandlingProxy({ e =>
-  throw new thrift.TimelineStoreException(e.toString)
-})
-
 class Haplocheirus(config: HaplocheirusConfig) extends GizzardServer[HaplocheirusShard, JsonJob](config) {
   private val queryStats = new StatsCollector {
     def incr(k: String, c: Int) = Stats.incr(k, c)
@@ -61,10 +57,9 @@ class Haplocheirus(config: HaplocheirusConfig) extends GizzardServer[Haplocheiru
 
   lazy val haploThriftServer = {
     val processor = new thrift.TimelineStore.Processor(
-      TimelineStoreExceptionWrappingProxy(
-        NuLoggingProxy[thrift.TimelineStore.Iface](
-          Stats, "timelines",
-          haploService)))
+      NuLoggingProxy[thrift.TimelineStore.Iface](
+        Stats, "timelines",
+        haploService))
 
     config.server(processor)
   }
