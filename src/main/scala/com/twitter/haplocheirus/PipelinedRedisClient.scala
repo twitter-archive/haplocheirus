@@ -2,7 +2,7 @@ package com.twitter.haplocheirus
 
 import java.io.IOException
 import java.util.Random
-import java.util.concurrent.{ExecutionException, Future, TimeoutException, TimeUnit}
+import java.util.concurrent.{ExecutionException, Future, TimeoutException, TimeUnit, LinkedBlockingQueue}
 import scala.collection.mutable
 import com.twitter.gizzard.thrift.conversions.Sequences._
 import com.twitter.ostrich.Stats
@@ -43,8 +43,7 @@ class PipelinedRedisClient(hostname: String, pipelineMaxSize: Int, timeout: Dura
     PipelinedRedisClient.mockedOutJRedisClient.getOrElse(new JRedisPipeline(connectionSpec))
   }
 
-  val pipeline = new mutable.ListBuffer[() => Unit]
-  var pipelineSize = 0
+  val pipeline = new LinkedBlockingQueue[() => Unit]
 
   protected def uniqueTimelineName(name: String): String = {
     val newName = name + "~" + System.currentTimeMillis + "~" + (new Random().nextInt & 0x7fffffff)
@@ -79,16 +78,16 @@ class PipelinedRedisClient(hostname: String, pipelineMaxSize: Int, timeout: Dura
   }
 
   private def drainPipeline(maxSize: Int) {
-    while (pipelineSize > maxSize) {
-      var next = pipeline.remove(0)
-      pipelineSize -=1
-      finishRequest(next)
+    while (pipeline.size > maxSize) {
+      val next = pipeline.poll
+      if (next != null) {
+        finishRequest(next)
+      }
     }
   }
 
   def later(f: => Unit) {
-    pipeline += { () => f }
-    pipelineSize +=1
+    pipeline.offer( { () => f } )
     checkPipeline()
   }
 

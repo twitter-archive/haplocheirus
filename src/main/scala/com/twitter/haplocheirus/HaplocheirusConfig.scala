@@ -25,8 +25,6 @@ trait RedisPoolHealthTrackerConfig {
 }
 
 trait RedisPoolConfig {
-  def poolSize: Int
-  def poolTimeoutMsec: Int
   def pipeline: Int  //  max outstanding redis operations
 
   // operation timeout

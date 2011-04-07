@@ -22,8 +22,6 @@ object RedisPoolSpec extends ConfiguredSpecification with JMocker with ClassMock
       redisPool.serverMap.size mustEqual 0
       redisPool.get(new ShardInfo("RedisShard", "shard1", "a")) mustEqual client
       redisPool.serverMap.keys.toList mustEqual List("a")
-      redisPool.serverMap("a").count.get mustEqual 1
-      redisPool.serverMap("a").available.size mustEqual 0
     }
 
     "giveBack" in {
@@ -33,9 +31,7 @@ object RedisPoolSpec extends ConfiguredSpecification with JMocker with ClassMock
 
       redisPool.get(new ShardInfo("RedisShard", "shard1", "a")) mustEqual client
       redisPool.serverMap.keys.toList mustEqual List("a")
-      redisPool.serverMap("a").available.size mustEqual 0
       redisPool.giveBack("a", client)
-      redisPool.serverMap("a").available.size mustEqual 1
     }
 
     "toString" in {
@@ -45,9 +41,9 @@ object RedisPoolSpec extends ConfiguredSpecification with JMocker with ClassMock
 
       redisPool.toString mustEqual "<RedisPool: >"
       redisPool.get(new ShardInfo("RedisShard", "shard1", "a")) mustEqual client
-      redisPool.toString mustEqual "<RedisPool: a=(0 available, 1 total)>"
+      redisPool.toString mustEqual "<RedisPool: a>"
       redisPool.giveBack("a", client)
-      redisPool.toString mustEqual "<RedisPool: a=(1 available, 1 total)>"
+      redisPool.toString mustEqual "<RedisPool: a>"
     }
 
     "withClient" in {
@@ -57,7 +53,7 @@ object RedisPoolSpec extends ConfiguredSpecification with JMocker with ClassMock
         }
 
         redisPool.withClient(new ShardInfo("RedisShard", "shard1", "host1")) { client => 3 } mustEqual 3
-        redisPool.toString mustEqual "<RedisPool: host1=(1 available, 1 total)>"
+        redisPool.toString mustEqual "<RedisPool: host1>"
       }
 
       "in bad times" in {
@@ -67,7 +63,7 @@ object RedisPoolSpec extends ConfiguredSpecification with JMocker with ClassMock
         }
 
         redisPool.withClient(new ShardInfo("RedisShard", "shard1", "host1")) { client => throw new ClientRuntimeException("rats."); 3 } must throwA[ClientRuntimeException]
-        redisPool.toString mustEqual "<RedisPool: host1=(0 available, 0 total)>"
+        redisPool.toString mustEqual "<RedisPool: >"
       }
     }
   }
