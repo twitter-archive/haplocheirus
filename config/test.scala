@@ -69,9 +69,7 @@ new HaplocheirusConfig {
   val jobQueues = Map(
     Priority.Copy.id -> new Scheduler {
       val name = "copy"
-      val schedulerType = new KestrelScheduler {
-        path = "/tmp"
-      }
+      val schedulerType = new MemoryScheduler
       threads = 1
       errorLimit = 25
       errorRetryDelay = 900.seconds
@@ -80,9 +78,7 @@ new HaplocheirusConfig {
 
     Priority.Write.id -> new Scheduler {
       val name = "write"
-      val schedulerType = new KestrelScheduler {
-        path = "/tmp"
-      }
+      val schedulerType = new MemoryScheduler
       threads = 1
       errorLimit = 25
       errorRetryDelay = 900.seconds

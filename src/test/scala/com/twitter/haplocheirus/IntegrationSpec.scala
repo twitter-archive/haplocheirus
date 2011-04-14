@@ -3,7 +3,7 @@ package com.twitter.haplocheirus
 import java.util.concurrent.{ExecutionException, Future, TimeUnit}
 import java.util.{List => JList}
 import com.twitter.gizzard.nameserver.Forwarding
-import com.twitter.gizzard.scheduler.{JsonJob, KestrelJobQueue}
+import com.twitter.gizzard.scheduler.{JsonJob, MemoryJobQueue}
 import com.twitter.gizzard.shards.{Busy, ShardId, ShardInfo}
 import com.twitter.gizzard.thrift.conversions.Sequences._
 import com.twitter.ostrich.Stats
@@ -22,7 +22,7 @@ object IntegrationSpec extends ConfiguredSpecification with JMocker with ClassMo
     var service: Haplocheirus = null
 
     def errorQueue = {
-      service.jobScheduler(Priority.Write.id).errorQueue.asInstanceOf[KestrelJobQueue[JsonJob]]
+      service.jobScheduler(Priority.Write.id).errorQueue.asInstanceOf[MemoryJobQueue[JsonJob]]
     }
 
     val shardId1 = new ShardId("localhost", "dev1a")
@@ -64,7 +64,9 @@ object IntegrationSpec extends ConfiguredSpecification with JMocker with ClassMo
       // that they happened.
       expect {
         one(jredisClient).rpushx(timeline1, data.array) willReturn future
+        one(future).isDone willReturn true
         one(jredisClient).rpushx(timeline2, data.array) willReturn future
+        one(future).isDone willReturn true
         one(future).get(200L, TimeUnit.MILLISECONDS) willReturn 1L
         one(future).get(200L, TimeUnit.MILLISECONDS) willReturn 2L
       }
@@ -78,7 +80,9 @@ object IntegrationSpec extends ConfiguredSpecification with JMocker with ClassMo
     "write to the error log on failure, and retry successfully" in {
       expect {
         one(jredisClient).rpushx(timeline1, data.array) willReturn future
+        one(future).isDone willReturn true
         one(jredisClient).rpushx(timeline2, data.array) willReturn future
+        one(future).isDone willReturn true
         one(future).get(200L, TimeUnit.MILLISECONDS) willReturn 1L
         one(future).get(200L, TimeUnit.MILLISECONDS) willThrow new ExecutionException(new Exception("Oups!"))
       }
@@ -91,6 +95,7 @@ object IntegrationSpec extends ConfiguredSpecification with JMocker with ClassMo
 
       expect {
         allowing(jredisClient).rpushx(timeline2, data.array) willReturn future
+        allowing(future).isDone willReturn true
         allowing(future).get(200L, TimeUnit.MILLISECONDS) willReturn 3L
       }
 

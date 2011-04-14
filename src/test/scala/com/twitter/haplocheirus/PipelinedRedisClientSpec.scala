@@ -40,7 +40,7 @@ object PipelinedRedisClientSpec extends ConfiguredSpecification with JMocker wit
       val onError = Some({ e: Throwable => queue.put(job) })
 
       "success" in {
-        client.laterWithErrorHandling(onError) { }
+        client.laterWithErrorHandling(longFuture, onError) { }
         client.flushPipeline()
         client.pipeline.size mustEqual 0
       }
@@ -50,7 +50,7 @@ object PipelinedRedisClientSpec extends ConfiguredSpecification with JMocker wit
           one(queue).put(job)
         }
 
-        client.laterWithErrorHandling(onError) { throw new ExecutionException(new Exception("I died.")) }
+        client.laterWithErrorHandling(longFuture, onError) { throw new ExecutionException(new Exception("I died.")) }
         client.flushPipeline()
       }
     }

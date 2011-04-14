@@ -43,7 +43,7 @@ class PipelinedRedisClient(hostname: String, pipelineMaxSize: Int, timeout: Dura
     PipelinedRedisClient.mockedOutJRedisClient.getOrElse(new JRedisPipeline(connectionSpec))
   }
 
-  val pipeline = new LinkedBlockingQueue[() => Unit]
+  val pipeline = new LinkedBlockingQueue[(Future[java.lang.Long], Option[Throwable => Unit], () => Unit)]
 
   protected def uniqueTimelineName(name: String): String = {
     val newName = name + "~" + System.currentTimeMillis + "~" + (new Random().nextInt & 0x7fffffff)
@@ -60,53 +60,54 @@ class PipelinedRedisClient(hostname: String, pipelineMaxSize: Int, timeout: Dura
     redisClient.quit()
   }
 
-  def finishRequest(f: () => Unit) {
+  def finishRequest(onError: Option[Throwable => Unit], f: () => Unit) {
     try {
       f()
     } catch {
+      case e: ExecutionException =>
+        log.error(e.getCause(), "Error in jredis request from %s: %s", hostname, e.getCause())
+        onError.foreach(_(e))
+      case e: TimeoutException =>
+        log.error(e, "Timeout waiting for redis response from %s: %s", hostname, e.getCause())
+        onError.foreach(_(e))
       case e: Throwable =>
-        log.error(e, "Uncaught throwable in pipeline request: %s (eating it)", e)
+        log.error(e, "Unknown jredis error from %s: %s", hostname, e)
+        onError.foreach(_(e))
     }
   }
 
-  def checkPipeline() {
-    drainPipeline(pipelineMaxSize)
+  def isPipelineFull(): Boolean = {
+    var isFull = false
+    while (!isFull && pipeline.size > pipelineMaxSize) {
+      val head = pipeline.peek
+      if (head != null) {
+        if (head._1.isDone) {
+          if (pipeline.remove(head)) {
+            finishRequest(head._2, head._3)
+          }
+        } else {
+          isFull = true
+          Stats.incr("redis-pipeline-full")
+        }
+      }
+    }
+    isFull
   }
 
   def flushPipeline() {
-    drainPipeline(0)
-  }
-
-  private def drainPipeline(maxSize: Int) {
-    while (pipeline.size > maxSize) {
-      val next = pipeline.poll
-      if (next != null) {
-        finishRequest(next)
-      }
-    }
-  }
-
-  def later(f: => Unit) {
-    pipeline.offer( { () => f } )
-    checkPipeline()
-  }
-
-  def laterWithErrorHandling(onError: Option[Throwable => Unit])(f: => Unit) {
-    later {
+    while (pipeline.size > 0) {
       try {
-        f
+        val (future, onError, next) = pipeline.poll
+        finishRequest(onError, next)
       } catch {
-        case e: ExecutionException =>
-          log.error(e.getCause(), "Error in jredis request from %s: %s", hostname, e.getCause())
-          onError.foreach(_(e))
-        case e: TimeoutException =>
-          log.error(e, "Timeout waiting for redis response from %s: %s", hostname, e.getCause())
-          onError.foreach(_(e))
-        case e: Throwable =>
-          log.error(e, "Unknown jredis error from %s: %s", hostname, e)
-          onError.foreach(_(e))
+        case e: NullPointerException => {}
       }
     }
+  }
+
+  def laterWithErrorHandling(future: Future[java.lang.Long], onError: Option[Throwable => Unit])(f: => Unit) {
+    pipeline.offer((future, onError, () => f))
+    isPipelineFull
   }
 
   // def isMember(timeline: String, entry: Array[Byte]) = {
@@ -116,29 +117,41 @@ class PipelinedRedisClient(hostname: String, pipelineMaxSize: Int, timeout: Dura
   // }
 
   def push(timeline: String, entry: Array[Byte], onError: Option[Throwable => Unit])(f: Long => Unit) {
-    Stats.timeMicros("redis-push-usec") {
-      val future = redisClient.rpushx(timeline, entry)
-      laterWithErrorHandling(onError) {
-        f(future.get(timeout.inMillis, TimeUnit.MILLISECONDS).asInstanceOf[Long])
+    if (isPipelineFull) {
+      onError.foreach(_(new TimeoutException))
+    } else {
+      Stats.timeMicros("redis-push-usec") {
+        val future = redisClient.rpushx(timeline, entry)
+        laterWithErrorHandling(future, onError) {
+          f(future.get(timeout.inMillis, TimeUnit.MILLISECONDS).asInstanceOf[Long])
+        }
       }
     }
   }
 
   def pop(timeline: String, entry: Array[Byte], onError: Option[Throwable => Unit]) {
-    Stats.timeMicros("redis-pop-usec") {
-      val future = redisClient.lrem(timeline, entry, 0)
-      laterWithErrorHandling(onError) {
-        future.get(timeout.inMillis, TimeUnit.MILLISECONDS)
+    if (isPipelineFull) {
+      onError.foreach(_(new TimeoutException))
+    } else {
+      Stats.timeMicros("redis-pop-usec") {
+        val future = redisClient.lrem(timeline, entry, 0)
+        laterWithErrorHandling(future, onError) {
+          future.get(timeout.inMillis, TimeUnit.MILLISECONDS)
+        }
       }
     }
   }
 
   def pushAfter(timeline: String, oldEntry: Array[Byte], newEntry: Array[Byte],
                 onError: Option[Throwable => Unit])(f: Long => Unit) {
-    Stats.timeMicros("redis-pushafter-usec") {
-      val future = redisClient.linsertBefore(timeline, oldEntry, newEntry)
-      laterWithErrorHandling(onError) {
-        f(future.get(timeout.inMillis, TimeUnit.MILLISECONDS).asInstanceOf[Long])
+    if (isPipelineFull) {
+      onError.foreach(_(new TimeoutException))
+    } else {
+      Stats.timeMicros("redis-pushafter-usec") {
+        val future = redisClient.linsertBefore(timeline, oldEntry, newEntry)
+        laterWithErrorHandling(future, onError) {
+          f(future.get(timeout.inMillis, TimeUnit.MILLISECONDS).asInstanceOf[Long])
+        }
       }
     }
   }
@@ -176,9 +189,12 @@ class PipelinedRedisClient(hostname: String, pipelineMaxSize: Int, timeout: Dura
       }.projection.force
       // All we care is that they all completed, not each individual one
       futures.lastOption.foreach { future =>
-        redisClient.rename(tempName, timeline)
         // 5x is made up, works well in practice with 1000 element stores
-        redisClient.expire(timeline, expiration.inSeconds).get(timeout.inMillis * 5, TimeUnit.MILLISECONDS)
+        future.get(timeout.inMillis * 5, TimeUnit.MILLISECONDS)
+      }
+      if (entries.size > 0) {
+        redisClient.rename(tempName, timeline).get(timeout.inMillis, TimeUnit.MILLISECONDS)
+        redisClient.expire(timeline, expiration.inSeconds).get(timeout.inMillis, TimeUnit.MILLISECONDS)
       }
     }
   }

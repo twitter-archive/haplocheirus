@@ -90,6 +90,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
         expect {
           one(shardInfo).hostname willReturn "host1"
           one(jredis).rpushx(timeline, data) willReturn longFuture
+          one(longFuture).isDone willReturn true
           one(longFuture).get(1000, TimeUnit.MILLISECONDS) willReturn 100L
         }
 
@@ -101,6 +102,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
         expect {
           one(shardInfo).hostname willReturn "host1"
           one(jredis).rpushx(timeline, data) willReturn longFuture
+          one(longFuture).isDone willReturn true
           one(longFuture).get(1000, TimeUnit.MILLISECONDS) willReturn 899L
           one(jredis).ltrim(timeline, -800, -1)
         }
@@ -372,7 +374,9 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
           one(jredis).lrange(timeline, 0, -1) willReturn future
           one(future).get(1000, TimeUnit.MILLISECONDS) willReturn existing.map { List(_).pack.array }.reverse.toJavaList
           one(jredis).expire(timeline, 1)
-          one(jredis).linsertBefore(timeline, List(7L).pack.array, insert(0))
+          one(jredis).linsertBefore(timeline, List(7L).pack.array, insert(0)) willReturn longFuture
+          one(longFuture).isDone willReturn true
+          one(longFuture).get(1000, TimeUnit.MILLISECONDS)
           one(jredis).linsertBefore(timeline, insert(0), insert(1))
         }
         redisShard.merge(timeline, insert, None)
@@ -399,8 +403,12 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
           one(jredis).lrange(timeline, 0, -1) willReturn future
           one(future).get(1000, TimeUnit.MILLISECONDS) willReturn existing.map { List(_).pack.array }.reverse.toJavaList
           one(jredis).expire(timeline, 1)
-          one(jredis).rpushx(timeline, List(29L).pack.array)
-          one(jredis).rpushx(timeline, List(28L).pack.array)
+          one(jredis).rpushx(timeline, List(29L).pack.array) willReturn longFuture
+          one(longFuture).isDone willReturn true
+          one(longFuture).get(1000, TimeUnit.MILLISECONDS)
+          one(jredis).rpushx(timeline, List(28L).pack.array) willReturn longFuture
+          one(longFuture).isDone willReturn true
+          one(longFuture).get(1000, TimeUnit.MILLISECONDS)
           one(jredis).rpushx(timeline, List(21L).pack.array)
         }
 
@@ -416,7 +424,9 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
           one(jredis).lrange(timeline, 0, -1) willReturn future
           one(future).get(1000, TimeUnit.MILLISECONDS) willReturn existing.map { List(_).pack.array }.reverse.toJavaList
           one(jredis).expire(timeline, 1)
-          one(jredis).linsertBefore(timeline, List(7L).pack.array, List(5L).pack.array)
+          one(jredis).linsertBefore(timeline, List(7L).pack.array, List(5L).pack.array) willReturn longFuture
+          one(longFuture).isDone willReturn true
+          one(longFuture).get(1000, TimeUnit.MILLISECONDS)
           one(jredis).linsertBefore(timeline, List(5L).pack.array, List(2L).pack.array)
         }
 
@@ -432,8 +442,12 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
           one(jredis).lrange(timeline, 0, -1) willReturn future
           one(future).get(1000, TimeUnit.MILLISECONDS) willReturn existing.map { List(_).pack.array }.reverse.toJavaList
           one(jredis).expire(timeline, 1)
-          one(jredis).linsertBefore(timeline, List(20L).pack.array, List(19L).pack.array)
-          one(jredis).linsertBefore(timeline, List(16L).pack.array, List(14L).pack.array)
+          one(jredis).linsertBefore(timeline, List(20L).pack.array, List(19L).pack.array) willReturn longFuture
+          one(longFuture).isDone willReturn true
+          one(longFuture).get(1000, TimeUnit.MILLISECONDS)
+          one(jredis).linsertBefore(timeline, List(16L).pack.array, List(14L).pack.array) willReturn longFuture
+          one(longFuture).isDone willReturn true
+          one(longFuture).get(1000, TimeUnit.MILLISECONDS)
           one(jredis).linsertBefore(timeline, List(14L).pack.array, List(13L).pack.array)
         }
 
