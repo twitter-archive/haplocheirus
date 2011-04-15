@@ -2,7 +2,7 @@ package com.twitter.haplocheirus
 
 import java.io.IOException
 import java.util.Random
-import java.util.concurrent.{ExecutionException, Future, TimeoutException, TimeUnit, LinkedBlockingQueue}
+import java.util.concurrent.{ExecutionException, Future, TimeoutException, TimeUnit, LinkedBlockingDeque}
 import scala.collection.mutable
 import com.twitter.gizzard.thrift.conversions.Sequences._
 import com.twitter.ostrich.Stats
@@ -43,7 +43,7 @@ class PipelinedRedisClient(hostname: String, pipelineMaxSize: Int, timeout: Dura
     PipelinedRedisClient.mockedOutJRedisClient.getOrElse(new JRedisPipeline(connectionSpec))
   }
 
-  val pipeline = new LinkedBlockingQueue[(Future[java.lang.Long], Option[Throwable => Unit], () => Unit)]
+  val pipeline = new LinkedBlockingDeque[(Future[java.lang.Long], Option[Throwable => Unit], () => Unit)]
 
   protected def uniqueTimelineName(name: String): String = {
     val newName = name + "~" + System.currentTimeMillis + "~" + (new Random().nextInt & 0x7fffffff)
@@ -79,10 +79,13 @@ class PipelinedRedisClient(hostname: String, pipelineMaxSize: Int, timeout: Dura
   def isPipelineFull(): Boolean = {
     var isFull = false
     while (!isFull && pipeline.size > pipelineMaxSize) {
-      val head = pipeline.peek
+      val head = pipeline.peekFirst
       if (head != null) {
         if (head._1.isDone) {
-          if (pipeline.remove(head)) {
+          val removed = pipeline.remove
+          if (removed != head) {
+            pipeline.putFirst(removed)
+          } else {
             finishRequest(head._2, head._3)
           }
         } else {
