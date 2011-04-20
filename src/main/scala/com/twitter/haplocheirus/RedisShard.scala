@@ -15,7 +15,7 @@ class RedisShardFactory(readPool: RedisPool, writePool: RedisPool, slowPool: Red
   object RedisExceptionWrappingProxy extends ExceptionHandlingProxyFactory[RedisShard]({ (shard, e) =>
     e match {
       case e: ShardException =>
-        e
+        throw e
       case e: Throwable =>
         throw new ShardException(e.toString, e)
     }
