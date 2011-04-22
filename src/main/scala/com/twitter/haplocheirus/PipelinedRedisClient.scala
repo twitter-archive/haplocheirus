@@ -79,19 +79,14 @@ class PipelinedRedisClient(hostname: String, pipelineMaxSize: Int, timeout: Dura
   def isPipelineFull(): Boolean = {
     var isFull = false
     while (!isFull && pipeline.size > pipelineMaxSize) {
-      val head = pipeline.peekFirst
-      if (head != null) {
-        if (head._1.isDone) {
-          val removed = pipeline.remove
-          if (removed != head) {
-            pipeline.putFirst(removed)
-          } else {
-            finishRequest(head._2, head._3)
-          }
-        } else {
-          isFull = true
-          Stats.incr("redis-pipeline-full")
-        }
+      val head = pipeline.remove
+      if (head == null) {
+      } else if (head._1.isDone) {
+        finishRequest(head._2, head._3)
+      } else {
+        pipeline.putFirst(head)
+        isFull = true
+        Stats.incr("redis-pipeline-full")
       }
     }
     isFull
