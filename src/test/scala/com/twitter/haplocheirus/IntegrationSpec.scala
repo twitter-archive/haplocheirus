@@ -29,6 +29,8 @@ object IntegrationSpec extends ConfiguredSpecification with JMocker with ClassMo
     val shardId2 = new ShardId("localhost", "dev1b")
     val shardIdR = new ShardId("localhost", "dev1")
 
+    Stats.sampleRate = 1
+
     doBefore {
       PipelinedRedisClient.mockedOutJRedisClient = Some(jredisClient)
       service = new Haplocheirus(config)
