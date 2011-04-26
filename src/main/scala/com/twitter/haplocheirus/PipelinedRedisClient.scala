@@ -119,7 +119,7 @@ class PipelinedRedisClient(hostname: String, pipelineMaxSize: Int, timeout: Dura
       onError.foreach(_(new TimeoutException))
     } else {
       Stats.timeMicros("redis-push-usec") {
-        val future = redisClient.rpushx(timeline, entry)
+        val future = redisClient.rpushx(timeline, Array(entry): _*)
         laterWithErrorHandling(future, onError) {
           f(future.get(timeout.inMillis, TimeUnit.MILLISECONDS).asInstanceOf[Long])
         }
@@ -172,26 +172,15 @@ class PipelinedRedisClient(hostname: String, pipelineMaxSize: Int, timeout: Dura
   def setAtomically(timeline: String, entries: Seq[Array[Byte]]) {
     Stats.timeMicros("redis-set-usec") {
       val tempName = uniqueTimelineName(timeline)
-      var didExpire = false
-      val futures = entries.reverse.map { entry =>
-        if (!didExpire) {
-          val f = redisClient.rpush(tempName, entry)
-          // bummer: we can't rename a key that has an expiration time, so these have to be permanent.
-          // FIXME: salvatore is gonna fix this in redis 2.2. bring this code back then.
-//          redisClient.expire(tempName, 15).get(timeout.inMillis, TimeUnit.MILLISECONDS)
-          didExpire = true
-          f
-        } else {
-          redisClient.rpushx(tempName, entry)
+      if (entries.length > 0) {
+        redisClient.rpush(tempName, entries.last)
+        // bummer: we can't rename a key that has an expiration time, so these have to be permanent.
+        // FIXME: salvatore is gonna fix this in redis 2.2. bring this code back then.
+        // redisClient.expire(tempName, 15).get(timeout.inMillis, TimeUnit.MILLISECONDS)
+        if (entries.length > 1) {
+          redisClient.rpushx(tempName, entries.slice(0, entries.length-1).reverse.toArray: _*)
         }
-      }.projection.force
-      // All we care is that they all completed, not each individual one
-      futures.lastOption.foreach { future =>
-        // 5x is made up, works well in practice with 1000 element stores
-        future.get(timeout.inMillis * 5, TimeUnit.MILLISECONDS)
-      }
-      if (entries.size > 0) {
-        redisClient.rename(tempName, timeline).get(timeout.inMillis, TimeUnit.MILLISECONDS)
+        redisClient.rename(tempName, timeline)
         redisClient.expire(timeline, expiration.inSeconds).get(timeout.inMillis, TimeUnit.MILLISECONDS)
       }
     }
@@ -213,9 +202,7 @@ class PipelinedRedisClient(hostname: String, pipelineMaxSize: Int, timeout: Dura
 
   def setLive(timeline: String, entries: Seq[Array[Byte]]) {
     Stats.timeMicros("redis-setlive-usec") {
-      entries.foreach { entry =>
-        redisClient.lpushx(timeline, entry)
-      }
+      redisClient.lpushx(timeline, entries.toArray: _*)
       redisClient.lrem(timeline, new Array[Byte](0), 1).get(timeout.inMillis, TimeUnit.MILLISECONDS)
       redisClient.expire(timeline, expiration.inSeconds).get(timeout.inMillis, TimeUnit.MILLISECONDS)
       0
@@ -244,10 +231,10 @@ class PipelinedRedisClient(hostname: String, pipelineMaxSize: Int, timeout: Dura
     Stats.timeMicros("redis-keys") {
       val keyList = redisClient.keys().get(keysTimeout.inMillis, TimeUnit.MILLISECONDS).toSeq
       redisClient.ltrim(KEYS_KEY, 1, 0)
-    	keyList.foreach { key =>
-    	  redisClient.rpush(KEYS_KEY, key)
-    	}
-    	// force a pipeline flush too.
+      keyList.foreach { key =>
+    	redisClient.rpush(KEYS_KEY, key)
+      }
+      // force a pipeline flush too.
       size(KEYS_KEY)
     }
   }

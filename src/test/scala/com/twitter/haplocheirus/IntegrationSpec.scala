@@ -65,9 +65,9 @@ object IntegrationSpec extends ConfiguredSpecification with JMocker with ClassMo
       // tricksy: since the expectations are met in another thread, we have to manually assert
       // that they happened.
       expect {
-        one(jredisClient).rpushx(timeline1, data.array) willReturn future
+        one(jredisClient).rpushx(timeline1, Array(data.array): _*) willReturn future
         one(future).isDone willReturn true
-        one(jredisClient).rpushx(timeline2, data.array) willReturn future
+        one(jredisClient).rpushx(timeline2, Array(data.array): _*) willReturn future
         one(future).isDone willReturn true
         one(future).get(200L, TimeUnit.MILLISECONDS) willReturn 1L
         one(future).get(200L, TimeUnit.MILLISECONDS) willReturn 2L
@@ -81,9 +81,9 @@ object IntegrationSpec extends ConfiguredSpecification with JMocker with ClassMo
 
     "write to the error log on failure, and retry successfully" in {
       expect {
-        one(jredisClient).rpushx(timeline1, data.array) willReturn future
+        one(jredisClient).rpushx(timeline1, Array(data.array): _*) willReturn future
         one(future).isDone willReturn true
-        one(jredisClient).rpushx(timeline2, data.array) willReturn future
+        one(jredisClient).rpushx(timeline2, Array(data.array): _*) willReturn future
         one(future).isDone willReturn true
         one(future).get(200L, TimeUnit.MILLISECONDS) willReturn 1L
         one(future).get(200L, TimeUnit.MILLISECONDS) willThrow new ExecutionException(new Exception("Oups!"))
@@ -96,7 +96,7 @@ object IntegrationSpec extends ConfiguredSpecification with JMocker with ClassMo
       errorQueue.size must eventually(be_==(1))
 
       expect {
-        allowing(jredisClient).rpushx(timeline2, data.array) willReturn future
+        allowing(jredisClient).rpushx(timeline2, Array(data.array): _*) willReturn future
         allowing(future).isDone willReturn true
         allowing(future).get(200L, TimeUnit.MILLISECONDS) willReturn 3L
       }
@@ -125,9 +125,7 @@ object IntegrationSpec extends ConfiguredSpecification with JMocker with ClassMo
         one(timelineFuture).get(200L, TimeUnit.MILLISECONDS) willReturn List("a", "b", "c").map { _.getBytes }.toJavaList
         one(jredisClient).del(timeline1)
         one(jredisClient).rpush(timeline1, new Array[Byte](0))
-        one(jredisClient).lpushx(timeline1, "c".getBytes)
-        one(jredisClient).lpushx(timeline1, "b".getBytes)
-        one(jredisClient).lpushx(timeline1, "a".getBytes)
+        one(jredisClient).lpushx(timeline1, Array("c", "b", "a").map(_.getBytes): _*)
         one(jredisClient).lrem(timeline1, new Array[Byte](0), 1) willReturn future
         one(future).get(200L, TimeUnit.MILLISECONDS) willReturn 0L
         one(jredisClient).expire(timeline1, 86400) willReturn future2

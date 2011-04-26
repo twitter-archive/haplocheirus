@@ -72,7 +72,7 @@ object PipelinedRedisClientSpec extends ConfiguredSpecification with JMocker wit
 
     "push" in {
       expect {
-        one(jredis).rpushx(timeline, data) willReturn longFuture
+        one(jredis).rpushx(timeline, Array(data): _*) willReturn longFuture
         one(longFuture).get(1000, TimeUnit.MILLISECONDS) willReturn 23L
       }
 
@@ -123,11 +123,8 @@ object PipelinedRedisClientSpec extends ConfiguredSpecification with JMocker wit
 
       expect {
         one(jredis).rpush(timeline + "~1", entry3) willReturn longFuture
-        one(jredis).rpushx(timeline + "~1", entry2) willReturn longFuture
-        one(jredis).rpushx(timeline + "~1", entry1) willReturn longFuture
-        one(longFuture).get(5000, TimeUnit.MILLISECONDS)
+        one(jredis).rpushx(timeline + "~1", entry2, entry1) willReturn longFuture
         one(jredis).rename(timeline + "~1", timeline) willReturn future
-        one(future).get(1000, TimeUnit.MILLISECONDS)
         one(jredis).expire(timeline, 86400) willReturn future
         one(future).get(1000, TimeUnit.MILLISECONDS) willReturn ResponseStatus.STATUS_OK
       }
@@ -150,10 +147,7 @@ object PipelinedRedisClientSpec extends ConfiguredSpecification with JMocker wit
       val entry3 = List(19L).pack.array
 
       expect {
-        one(jredis).lpushx(timeline, entry1)
-        one(jredis).lpushx(timeline, entry2)
-        one(jredis).lpushx(timeline, entry3)
-
+        one(jredis).lpushx(timeline, entry1, entry2, entry3)
         one(jredis).lrem(timeline, new Array[Byte](0), 1) willReturn longFuture
         one(longFuture).get(1000, TimeUnit.MILLISECONDS) willReturn 0L
         one(jredis).expire(timeline, 86400) willReturn future
@@ -190,7 +184,7 @@ object PipelinedRedisClientSpec extends ConfiguredSpecification with JMocker wit
     }
 
     "makeKeyList" in {
-      val keys = List("a", "b", "c", "d")
+      val keys = List("a", "b", "c", "d").map(_.getBytes)
 
       expect {
         one(jredis).keys() willReturn keyListFuture
