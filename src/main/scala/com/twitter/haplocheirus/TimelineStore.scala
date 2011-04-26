@@ -24,9 +24,9 @@ class TimelineStore(service: TimelineStoreService) extends thrift.TimelineStore.
   }
 
   def filter(timeline_id: String, entries: JList[ByteBuffer], max_search: Int) = {
-    service.filter(timeline_id, entries.toSeq.map(getArray(_)), max_search).map(_.map(ByteBuffer.wrap(_)).toJavaList).getOrElse {
+    service.filter(timeline_id, entries.toSeq.map(getArray(_)), max_search).getOrElse {
       throw new TimelineStoreException("no timeline")
-    }
+    }.map(ByteBuffer.wrap(_)).toJavaList
   }
 
   def filter2(timeline_id: String, entries: JList[java.lang.Long], max_search: Int) = {
@@ -36,15 +36,15 @@ class TimelineStore(service: TimelineStoreService) extends thrift.TimelineStore.
   }
 
   def get(timeline_id: String, offset: Int, length: Int, dedupe: Boolean) = {
-    service.get(timeline_id, offset, length, dedupe).map(_.toThrift).getOrElse {
+    service.get(timeline_id, offset, length, dedupe).getOrElse {
       throw new TimelineStoreException("no timeline")
-    }
+    }.toThrift
   }
 
   def get_range(timeline_id: String, from_id: Long, to_id: Long, dedupe: Boolean) = {
-    service.getRange(timeline_id, from_id, to_id, dedupe).map(_.toThrift).getOrElse {
+    service.getRange(timeline_id, from_id, to_id, dedupe).getOrElse {
       throw new TimelineStoreException("no timeline")
-    }
+    }.toThrift
   }
 
   def store(timeline_id: String, entries: JList[ByteBuffer]) {
