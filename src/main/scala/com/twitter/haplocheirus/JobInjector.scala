@@ -7,7 +7,7 @@ import com.twitter.gizzard.shards.{ShardBlackHoleException, ShardRejectedOperati
 import net.lag.logging.Logger
 
 trait JobInjector {
-  private val log = Logger(getClass.getName)
+  private val exceptionLog = Logger.get("exception")
 
   // can be overridden for tests.
   var addOnError = true
@@ -29,7 +29,7 @@ trait JobInjector {
         errorQueue.put(job)
       case e: Throwable =>
         Stats.incr("job-error-count")
-        log.error(e, "Exception starting job %s: %s", job, e)
+        exceptionLog.error(e, "Exception starting job %s: %s", job, e)
         errorQueue.put(job)
     }
   }

@@ -5,7 +5,7 @@ import net.lag.logging.Logger
 
 
 class TimelineTrimMap(config: TimelineTrimConfig) {
-  private val log = Logger.get(getClass.getName)
+  private val exceptionLog = Logger.get("exception")
 
   case class TrimEntry(prefix: String, lowerBound: Int, upperBound: Int)
 
@@ -25,7 +25,7 @@ class TimelineTrimMap(config: TimelineTrimConfig) {
     }
   } catch {
     case e: Throwable =>
-      log.error(e, "Unable to parse timeline trim map: %s", e.toString)
+      exceptionLog.error(e, "Unable to parse timeline trim map: %s", e.toString)
     throw e
   }
   // atomic:

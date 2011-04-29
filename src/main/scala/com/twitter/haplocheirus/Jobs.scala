@@ -6,7 +6,6 @@ import com.twitter.gizzard.nameserver.NameServer
 import com.twitter.gizzard.scheduler.JsonJob
 import com.twitter.xrayspecs.Time
 import com.twitter.xrayspecs.TimeConversions._
-import net.lag.logging.Logger
 import org.apache.commons.codec.binary.Base64
 
 abstract class FallbackJob extends JsonJob {

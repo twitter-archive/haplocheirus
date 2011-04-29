@@ -1,6 +1,6 @@
 package com.twitter.haplocheirus
 
-import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.{ConcurrentHashMap, TimeoutException}
 import java.util.concurrent.atomic.AtomicInteger
 import scala.collection.mutable
 import com.twitter.ostrich.Stats
@@ -62,6 +62,7 @@ class RedisPoolHealthTracker(config: RedisPoolHealthTrackerConfig) {
 
 class RedisPool(name: String, healthTracker: RedisPoolHealthTracker, config: RedisPoolConfig) {
   val log = Logger(getClass.getName)
+  val exceptionLog = Logger.get("exception")
 
   val concurrentServerMap = new ConcurrentHashMap[String, PipelinedRedisClient]
   val serverMap = scala.collection.jcl.Map(concurrentServerMap)
@@ -93,7 +94,7 @@ class RedisPool(name: String, healthTracker: RedisPoolHealthTracker, config: Red
       client.shutdown()
     } catch {
       case e: Throwable =>
-        log.warning(e, "Error discarding dead redis client: %s", e)
+        exceptionLog.warning(e, "Error discarding dead redis client: %s", e)
     }
     concurrentServerMap.remove(hostname)
   }
@@ -120,12 +121,17 @@ class RedisPool(name: String, healthTracker: RedisPoolHealthTracker, config: Red
       f(client)
     } catch {
       case e: ClientRuntimeException =>
-        log.error(e, "Redis client error: %s", e)
+        exceptionLog.error(e, "Redis client error: %s", e)
         healthTracker.countError(hostname)
         throwAway(hostname, client)
         throw e
+      case e: TimeoutException =>
+        Stats.incr("redis-timeout")
+        exceptionLog.warning(e, "Redis request timeout: %s", e)
+        healthTracker.countError(hostname)
+        throw e
       case e: Throwable =>
-        log.error(e, "Non-redis error: %s", e)
+        exceptionLog.error(e, "Non-redis error: %s", e)
         healthTracker.countError(hostname)
         throw e
     } finally {
@@ -141,7 +147,7 @@ class RedisPool(name: String, healthTracker: RedisPoolHealthTracker, config: Red
         client.shutdown()
       } catch {
         case e: Throwable =>
-          log.error(e, "Failed to shutdown client: %s", e)
+          exceptionLog.error(e, "Failed to shutdown client: %s", e)
       }
     }
     serverMap.clear()

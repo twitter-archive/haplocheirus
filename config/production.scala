@@ -156,6 +156,9 @@ new HaplocheirusConfig {
                                 }
 
                                 exception {
+                                  node = "exception"
+                                  use_parents = false
+                                  level = "error"
                                   filename = "/var/log/haplocheirus/exception.log"
                                   roll = "hourly"
                                   format = "exception_json"

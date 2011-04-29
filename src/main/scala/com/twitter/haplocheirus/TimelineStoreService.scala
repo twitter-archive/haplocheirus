@@ -6,7 +6,6 @@ import com.twitter.gizzard.scheduler.{CopyJobFactory, JobScheduler, JsonJob, Pri
 import com.twitter.gizzard.shards.{ShardBlackHoleException, ShardOfflineException}
 import com.twitter.gizzard.thrift.conversions.Sequences._
 import com.twitter.ostrich.Stats
-import net.lag.logging.Logger
 
 
 class TimelineStoreService(val nameServer: NameServer[HaplocheirusShard],
@@ -17,8 +16,6 @@ class TimelineStoreService(val nameServer: NameServer[HaplocheirusShard],
                            val writePool: RedisPool,
                            val slowPool: RedisPool)
       extends JobInjector {
-
-  private val log = Logger(getClass.getName)
 
   val writeQueue = scheduler(Priority.Write.id).queue
 

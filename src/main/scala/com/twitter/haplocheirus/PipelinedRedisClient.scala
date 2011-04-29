@@ -26,7 +26,7 @@ class PipelinedRedisClient(hostname: String, pipelineMaxSize: Int, timeout: Dura
                            keysTimeout: Duration, expiration: Duration) {
   val DEFAULT_PORT = 6379
   val KEYS_KEY = "%keys"
-  val log = Logger(getClass.getName)
+  val exceptionLog = Logger.get("exception")
 
   val segments = hostname.split(":", 2)
   val connectionSpec = if (segments.length == 2) {
@@ -65,13 +65,14 @@ class PipelinedRedisClient(hostname: String, pipelineMaxSize: Int, timeout: Dura
       f()
     } catch {
       case e: ExecutionException =>
-        log.error(e.getCause(), "Error in jredis request from %s: %s", hostname, e.getCause())
+        exceptionLog.error(e, "Error in jredis request from %s: %s", hostname, e.getCause())
         onError.foreach(_(e))
       case e: TimeoutException =>
-        log.error(e, "Timeout waiting for redis response from %s: %s", hostname, e.getCause())
+        Stats.incr("redis-timeout")
+        exceptionLog.warning(e, "Timeout waiting for redis response from %s: %s", hostname, e.getCause())
         onError.foreach(_(e))
       case e: Throwable =>
-        log.error(e, "Unknown jredis error from %s: %s", hostname, e)
+        exceptionLog.error(e, "Unknown jredis error from %s: %s", hostname, e)
         onError.foreach(_(e))
     }
   }
