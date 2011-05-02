@@ -9,7 +9,7 @@ object NuLoggingProxy {
   def apply[T <: AnyRef](stats: StatsProvider, name: String, obj: T)(implicit manifest: Manifest[T]): T = {
     Proxy(obj) { method =>
       stats.incr("operation-" + name + "-" + method.name)
-      stats.timeMicros("x-operation-" + name + "-" + method.name + "-usec") {
+      stats.timeMicros("operation-" + name + "-" + method.name + "-usec") {
         method()
       }
     }
