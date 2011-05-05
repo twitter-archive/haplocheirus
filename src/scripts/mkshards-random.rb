@@ -21,7 +21,6 @@ require 'yaml'
 options = {
   :config_filename => ENV['HOME'] + "/.shards.yml",
   :count => 500,
-  :replicas => 2,
 }
 
 parser = OptionParser.new do |opts|
@@ -33,9 +32,6 @@ parser = OptionParser.new do |opts|
   end
   opts.on("-n", "--count=N", "create N bins (default: #{options[:count]})") do |count|
     options[:count] = count.to_i
-  end
-  opts.on("-r", "--replicas=N", "create N replicas (default: #{options[:replicas]})") do |replicas|
-    options[:replicas] = replicas.to_i
   end
 end
 
@@ -58,29 +54,103 @@ gizzmo = lambda do |cmd|
   `gizzmo --host=#{app_host} --port=#{app_port} #{cmd}`
 end
 
+# This isn't strictly random. It includes a constraint check to prevent both
+# replicas in the set being either on the same host as each other, on the same
+# pair of hosts as another replica set or part of a hotspot (too many pairs/rack).
+# It also isn't guaranteed to converge and doesn't backtrack when it hits an impossible
+# state.
+#
+# Caveat executor.
+#
 class RandomDistribution
-  def initialize(db_list)
-    @db_list = db_list
-    @shuffled_list = []
+
+  MAX_PER_RACK = 2
+
+  # Array of hostnames and the number of shards per host.
+  # Optionally, and initial shard number. Defaults to 0.
+  def initialize(hosts, shard_count, initial_shard = 0)
+    raise(ArgumentError, "no hosts") if hosts.empty?
+    @hosts  = hosts
+    @shards = @hosts.inject({}) do |acc, h|
+      acc[h] = (initial_shard...(initial_shard + shard_count)).map { |i| "#{h}:#{i}" }
+      acc
+    end
+
+    # poorly named...
+    @forward  = {} # shard => shard
+    @backward = {} # host  => host
+    @racks    = {} # rack  => pair_count
+
+    shuffle
+  end
+
+  def each(&block) #:yields: host:port => host:port
+    @forward.each(&block)
   end
 
   def shuffle
-    @shuffled_list = @db_list.dup
-    (1...@shuffled_list.size).to_a.reverse_each do |i|
-      j = rand(i + 1)
-      @shuffled_list[i], @shuffled_list[j] = @shuffled_list[j], @shuffled_list[i]
+    until shards_empty?
+      @hosts.each do |host|
+        if @shards[host].any?
+          shard = @shards[host].pop
+          pair = nil
+
+          until pair && check_pair(host, pair)
+            pair = random_pair(host)
+          end
+
+          pair_shard = @shards[pair].pop
+
+          @forward[shard] = pair_shard
+          @backward[pair] ||= []
+          @backward[pair] << host
+        end
+      end
     end
   end
 
-  def next
-    shuffle if @shuffled_list.empty?
-    @shuffled_list.pop
+  def random_pair(host)
+    p = host
+    p = @hosts[rand(@hosts.size)] until p != host && @shards[p].any?
+    p
+  end
+
+  def rack_of(hostname)
+    hostname.split(/-/)[2]
+  end
+
+  def cas_rack(a, b)
+    a_rack = rack_of(a)
+    b_rack = rack_of(b)
+
+    if a_rack == b_rack
+      @racks[a_rack] ||= 0 # Number of pairs in this rack
+      return false if @racks[a_rack] > MAX_PER_RACK
+      @racks[a_rack] += 1
+    end
+    true
+  end
+
+  def check_pair(a, b)
+    return false if @backward[a] && @backward[a].include?(b)
+    return false if @backward[b] && @backward[b].include?(a)
+    return cas_rack(a, b)
+  end
+
+  def shards_empty?
+    @shards.each do |_, a|
+      if a.any?
+        @hosts.shuffle!
+        return false
+      end
+    end
+    true
   end
 end
 
-distribution = RandomDistribution.new(db_trees.flatten)
+distribution = RandomDistribution.new(db_trees, 7, 6379)
 
-print "Creating bins"
+puts "Creating bins"
 STDOUT.flush
 options[:count].times do |i|
   table_name = [ namespace, "haplo_%04d" % i ].compact.join("_")
@@ -88,14 +158,14 @@ options[:count].times do |i|
 
   gizzmo.call "create com.twitter.gizzard.shards.ReplicatingShard localhost/#{table_name}_replicating"
 
-  distinct = 1
-  options[:replicas].times do |replica|
-    host = distribution.next
-    host, weight = host.split('/')
-    weight ||= 4
-    gizzmo.call "create com.twitter.haplocheirus.RedisShard #{host}/#{table_name}_#{distinct}"
-    gizzmo.call "addlink localhost/#{table_name}_replicating #{host}/#{table_name}_#{distinct} #{weight}"
-    distinct += 1
+  # FIXME: fixed replication factor of 2
+  distribution.each do |pair_1, pair_2|
+    weight = 4 # FIXME: fixed weight
+    gizzmo.call "create com.twitter.haplocheirus.RedisShard #{pair_1}/#{table_name}_1"
+    gizzmo.call "addlink localhost/#{table_name}_replicating #{pair_1}/#{table_name}_1 #{weight}"
+
+    gizzmo.call "create com.twitter.haplocheirus.RedisShard #{pair_2}/#{table_name}_2"
+    gizzmo.call "addlink localhost/#{table_name}_replicating #{pair_2}/#{table_name}_2 #{weight}"
   end
 
   gizzmo.call "addforwarding -- 0 #{lower_bound} localhost/#{table_name}_replicating"
