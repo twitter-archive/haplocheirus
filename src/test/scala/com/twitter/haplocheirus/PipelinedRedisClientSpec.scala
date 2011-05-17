@@ -40,6 +40,9 @@ object PipelinedRedisClientSpec extends ConfiguredSpecification with JMocker wit
       val onError = Some({ e: Throwable => queue.put(job) })
 
       "success" in {
+        expect {
+          one(longFuture).isDone willReturn true
+        }
         client.laterWithErrorHandling(longFuture, onError) { }
         client.flushPipeline()
         client.pipeline.size mustEqual 0
@@ -48,6 +51,7 @@ object PipelinedRedisClientSpec extends ConfiguredSpecification with JMocker wit
       "exception" in {
         expect {
           one(queue).put(job)
+          one(longFuture).isDone willReturn true
         }
 
         client.laterWithErrorHandling(longFuture, onError) { throw new ExecutionException(new Exception("I died.")) }
@@ -73,6 +77,7 @@ object PipelinedRedisClientSpec extends ConfiguredSpecification with JMocker wit
     "push" in {
       expect {
         one(jredis).rpushx(timeline, Array(data): _*) willReturn longFuture
+        one(longFuture).isDone willReturn true
         one(longFuture).get(1000, TimeUnit.MILLISECONDS) willReturn 23L
       }
 
@@ -85,6 +90,7 @@ object PipelinedRedisClientSpec extends ConfiguredSpecification with JMocker wit
     "pop" in {
       expect {
         one(jredis).lrem(timeline, data, 0) willReturn longFuture
+        one(longFuture).isDone willReturn true
         one(longFuture).get(1000, TimeUnit.MILLISECONDS) willReturn 1L
       }
 
@@ -95,6 +101,7 @@ object PipelinedRedisClientSpec extends ConfiguredSpecification with JMocker wit
     "pushAfter" in {
       expect {
         one(jredis).linsertBefore(timeline, data, data2) willReturn longFuture
+        one(longFuture).isDone willReturn true
         one(longFuture).get(1000, TimeUnit.MILLISECONDS) willReturn 23L
       }
 
