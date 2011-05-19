@@ -129,6 +129,7 @@ class RedisPool(name: String, healthTracker: RedisPoolHealthTracker, config: Red
         healthTracker.countError(hostname)
         throw e
     } finally {
+      // FIXME: Is this even necessary?
       if (!client.alive) {
         log.error("client not alive for %s", hostname)
       }
