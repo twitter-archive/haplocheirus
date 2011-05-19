@@ -130,7 +130,7 @@ class RedisPool(name: String, healthTracker: RedisPoolHealthTracker, config: Red
         throw e
     } finally {
       if (!client.alive) {
-        log.error("giveBack failed %s", hostname)
+        log.error("client not alive for %s", hostname)
       }
     }
     healthTracker.countNonError(hostname)
