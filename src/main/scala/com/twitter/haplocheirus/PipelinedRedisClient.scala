@@ -182,6 +182,7 @@ class PipelinedRedisClient(hostname: String, pipelineMaxSize: Int, timeout: Dura
     Stats.timeMicros("redis-set-usec") {
       val tempName = uniqueTimelineName(timeline)
       if (entries.length > 0) {
+        // FIXME: once RPUSH becomes variadic, do this in a single network call.
         redisClient.rpush(tempName, entries.last)
         // bummer: we can't rename a key that has an expiration time, so these have to be permanent.
         // FIXME: salvatore is gonna fix this in redis 2.2. bring this code back then.
