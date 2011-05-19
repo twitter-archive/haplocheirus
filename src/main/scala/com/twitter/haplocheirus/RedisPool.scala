@@ -117,6 +117,7 @@ class RedisPool(name: String, healthTracker: RedisPoolHealthTracker, config: Red
       case e: ClientRuntimeException =>
         exceptionLog.error(e, "Redis client error: %s", e)
         healthTracker.countError(hostname)
+        // FIXME: Attempt reconnect/retry?
         throwAway(hostname, client)
         throw e
       case e: TimeoutException =>
