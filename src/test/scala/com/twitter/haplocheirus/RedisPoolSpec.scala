@@ -24,25 +24,10 @@ object RedisPoolSpec extends ConfiguredSpecification with JMocker with ClassMock
       redisPool.serverMap.keys.toList mustEqual List("a")
     }
 
-    "giveBack" in {
-      expect {
-        one(client).alive willReturn true
-      }
-
-      redisPool.get(new ShardInfo("RedisShard", "shard1", "a")) mustEqual client
-      redisPool.serverMap.keys.toList mustEqual List("a")
-      redisPool.giveBack("a", client)
-    }
-
     "toString" in {
-      expect {
-        one(client).alive willReturn true
-      }
-
       redisPool.toString mustEqual "<RedisPool: >"
       redisPool.get(new ShardInfo("RedisShard", "shard1", "a")) mustEqual client
       redisPool.toString mustEqual "<RedisPool: a>"
-      redisPool.giveBack("a", client)
       redisPool.toString mustEqual "<RedisPool: a>"
     }
 

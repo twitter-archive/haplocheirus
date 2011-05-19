@@ -99,12 +99,6 @@ class RedisPool(name: String, healthTracker: RedisPoolHealthTracker, config: Red
     concurrentServerMap.remove(hostname)
   }
 
-  def giveBack(hostname: String, client: PipelinedRedisClient) {
-    if (!client.alive) {
-      log.error("giveBack failed %s", hostname)
-    }
-  }
-
   def withClient[T](shardInfo: ShardInfo)(f: PipelinedRedisClient => T): T = {
     var client: PipelinedRedisClient = null
     val hostname = shardInfo.hostname
@@ -135,7 +129,9 @@ class RedisPool(name: String, healthTracker: RedisPoolHealthTracker, config: Red
         healthTracker.countError(hostname)
         throw e
     } finally {
-      Stats.timeMicros("redis-release-usec") { giveBack(hostname, client) }
+      if (!client.alive) {
+        log.error("giveBack failed %s", hostname)
+      }
     }
     healthTracker.countNonError(hostname)
     r
