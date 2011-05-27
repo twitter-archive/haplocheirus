@@ -35,6 +35,7 @@ class PipelinedRedisClient(hostname: String, pipelineMaxSize: Int, timeout: Dura
     DefaultConnectionSpec.newSpec(segments(0), DEFAULT_PORT, 0, null)
   }
   connectionSpec.setHeartbeat(300)
+  connectionSpec.setSocketProperty(connector.Connection.Socket.Property.SO_CONNECT_TIMEOUT, 50)
   val redisClient = makeRedisClient
   var alive = true
 
