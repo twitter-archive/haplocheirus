@@ -1,5 +1,6 @@
 package com.twitter.haplocheirus.jobs
 
+import java.util.concurrent.atomic.AtomicBoolean
 import scala.collection.mutable
 import com.twitter.gizzard.Hash
 import com.twitter.gizzard.nameserver.NameServer
@@ -12,7 +13,12 @@ abstract class FallbackJob extends JsonJob {
   var onErrorCallback: Option[Throwable => Unit] = None
 
   def onError(f: Throwable => Unit) {
-    onErrorCallback = Some(f)
+    val runnable = new AtomicBoolean(true)
+    onErrorCallback = Some { e =>
+      if (runnable.compareAndSet(true, false)) {
+        f(e)
+      }
+    }
   }
 
   protected def encodeBase64(data: Array[Byte]) = {

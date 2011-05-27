@@ -25,7 +25,8 @@ object IntegrationSpec extends ConfiguredSpecification with JMocker with ClassMo
       service.jobScheduler(Priority.Write.id).errorQueue.asInstanceOf[MemoryJobQueue[JsonJob]]
     }
 
-    val shardId1 = new ShardId("localhost", "dev1a")
+    val shardId11 = new ShardId("localhost", "dev11a")
+    val shardId12 = new ShardId("localhost", "dev12a")
     val shardId2 = new ShardId("localhost", "dev1b")
     val shardIdR = new ShardId("localhost", "dev1")
 
@@ -35,10 +36,12 @@ object IntegrationSpec extends ConfiguredSpecification with JMocker with ClassMo
       PipelinedRedisClient.mockedOutJRedisClient = Some(jredisClient)
       service = new Haplocheirus(config)
 
-      service.nameServer.createShard(new ShardInfo(shardId1, "com.twitter.haplocheirus.RedisShard", "", "", Busy.Normal))
+      service.nameServer.createShard(new ShardInfo(shardId11, "com.twitter.haplocheirus.RedisShard", "", "", Busy.Normal))
+      service.nameServer.createShard(new ShardInfo(shardId12, "com.twitter.haplocheirus.RedisShard", "", "", Busy.Normal))
       service.nameServer.createShard(new ShardInfo(shardId2, "com.twitter.haplocheirus.RedisShard", "", "", Busy.Normal))
       service.nameServer.createShard(new ShardInfo(shardIdR, "com.twitter.gizzard.shards.ReplicatingShard", "", "", Busy.Normal))
-      service.nameServer.addLink(shardIdR, shardId1, 1)
+      service.nameServer.addLink(shardIdR, shardId11, 1)
+      service.nameServer.addLink(shardIdR, shardId12, 1)
       service.nameServer.setForwarding(new Forwarding(0, 0, shardIdR))
 
       service.start()
@@ -46,6 +49,7 @@ object IntegrationSpec extends ConfiguredSpecification with JMocker with ClassMo
 
     doAfter {
       expect {
+        one(jredisClient).quit()
         one(jredisClient).quit()
       }
 
@@ -67,8 +71,14 @@ object IntegrationSpec extends ConfiguredSpecification with JMocker with ClassMo
       expect {
         one(jredisClient).rpushx(timeline1, Array(data.array): _*) willReturn future
         one(future).isDone willReturn true
+        one(jredisClient).rpushx(timeline1, Array(data.array): _*) willReturn future
+        one(future).isDone willReturn true
         one(jredisClient).rpushx(timeline2, Array(data.array): _*) willReturn future
         one(future).isDone willReturn true
+        one(jredisClient).rpushx(timeline2, Array(data.array): _*) willReturn future
+        one(future).isDone willReturn true
+        one(future).get(200L, TimeUnit.MILLISECONDS) willReturn 1L
+        one(future).get(200L, TimeUnit.MILLISECONDS) willReturn 2L
         one(future).get(200L, TimeUnit.MILLISECONDS) willReturn 1L
         one(future).get(200L, TimeUnit.MILLISECONDS) willReturn 2L
       }
@@ -76,15 +86,21 @@ object IntegrationSpec extends ConfiguredSpecification with JMocker with ClassMo
       val oldCount = pushAttempts()
       service.jobScheduler.size mustEqual 0
       service.haploService.append(data, "home_timeline:", List(109L, 77777L).toJavaList)
-      pushAttempts() must eventually(be_==(oldCount + 2))
+      pushAttempts() must eventually(be_==(oldCount + 4))
     }
 
     "write to the error log on failure, and retry successfully" in {
       expect {
         one(jredisClient).rpushx(timeline1, Array(data.array): _*) willReturn future
         one(future).isDone willReturn true
+        one(jredisClient).rpushx(timeline1, Array(data.array): _*) willReturn future
+        one(future).isDone willReturn true
         one(jredisClient).rpushx(timeline2, Array(data.array): _*) willReturn future
         one(future).isDone willReturn true
+        one(jredisClient).rpushx(timeline2, Array(data.array): _*) willReturn future
+        one(future).isDone willReturn true
+        one(future).get(200L, TimeUnit.MILLISECONDS) willReturn 1L
+        one(future).get(200L, TimeUnit.MILLISECONDS) willReturn 1L
         one(future).get(200L, TimeUnit.MILLISECONDS) willReturn 1L
         one(future).get(200L, TimeUnit.MILLISECONDS) willThrow new ExecutionException(new Exception("Oups!"))
       }
@@ -92,7 +108,7 @@ object IntegrationSpec extends ConfiguredSpecification with JMocker with ClassMo
       val oldCount = pushAttempts()
       errorQueue.size mustEqual 0
       service.haploService.append(data, "home_timeline:", List(109L, 77777L).toJavaList)
-      pushAttempts() must eventually(be_==(oldCount + 2))
+      pushAttempts() must eventually(be_==(oldCount + 4))
       errorQueue.size must eventually(be_==(1))
 
       expect {
@@ -105,7 +121,34 @@ object IntegrationSpec extends ConfiguredSpecification with JMocker with ClassMo
       errorQueue.size mustEqual 0
     }
 
+    "only call error handler once on multiple failure" in {
+      expect {
+        one(jredisClient).rpushx(timeline1, Array(data.array): _*) willReturn future
+        one(jredisClient).rpushx(timeline1, Array(data.array): _*) willReturn future
+        one(future).isDone willReturn true
+        one(future).isDone willReturn true
+        one(future).get(200L, TimeUnit.MILLISECONDS) willThrow new ExecutionException(new Exception("Oops!"))
+        one(future).get(200L, TimeUnit.MILLISECONDS) willThrow new ExecutionException(new Exception("Oops!"))
+      }
+
+      val oldCount = pushAttempts()
+      errorQueue.size mustEqual 0
+      service.haploService.append(data, "home_timeline:", List(109L).toJavaList)
+      pushAttempts() must eventually(be_==(oldCount + 2))
+      errorQueue.size must eventually(be_==(1))
+
+      expect {
+        allowing(jredisClient).rpushx(timeline1, Array(data.array): _*) willReturn future
+        allowing(future).isDone willReturn true
+        allowing(future).get(200L, TimeUnit.MILLISECONDS) willReturn 3L
+      }
+
+      service.jobScheduler.retryErrors()
+      errorQueue.size mustEqual 0
+    }
+
     "rebuild one shard from another" in {
+      println("r")
       service.nameServer.addLink(shardIdR, shardId2, 1)
       service.nameServer.reload()
 
