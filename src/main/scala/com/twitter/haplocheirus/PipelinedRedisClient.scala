@@ -78,7 +78,7 @@ class PipelinedRedisClient(hostname: String, pipelineMaxSize: Int, timeout: Dura
     }
   }
 
-  def isPipelineFull(): Boolean = {
+  def trimPipeline() {
     var isFull = false
     var drained = false
     while (!isFull && !drained) {
@@ -99,7 +99,15 @@ class PipelinedRedisClient(hostname: String, pipelineMaxSize: Int, timeout: Dura
         case e: NoSuchElementException => {}
       }
     }
-    isFull
+  }
+
+  def isPipelineFull(onError: Option[Throwable => Unit]) {
+    trimPipeline
+    if (pipeline.size > pipelineMaxSize) {
+      val e = new TimeoutException
+      onError.foreach(_(e))
+      throw e
+    }
   }
 
   def flushPipeline() {
@@ -115,7 +123,7 @@ class PipelinedRedisClient(hostname: String, pipelineMaxSize: Int, timeout: Dura
 
   def laterWithErrorHandling(future: Future[java.lang.Long], onError: Option[Throwable => Unit])(f: => Unit) {
     pipeline.offer((future, onError, () => f))
-    isPipelineFull
+    trimPipeline
   }
 
   // def isMember(timeline: String, entry: Array[Byte]) = {
@@ -125,41 +133,32 @@ class PipelinedRedisClient(hostname: String, pipelineMaxSize: Int, timeout: Dura
   // }
 
   def push(timeline: String, entry: Array[Byte], onError: Option[Throwable => Unit])(f: Long => Unit) {
-    if (isPipelineFull) {
-      onError.foreach(_(new TimeoutException))
-    } else {
-      Stats.timeMicros("redis-push-usec") {
-        val future = redisClient.rpushx(timeline, Array(entry): _*)
-        laterWithErrorHandling(future, onError) {
-          f(future.get(timeout.inMillis, TimeUnit.MILLISECONDS).asInstanceOf[Long])
-        }
+    isPipelineFull(onError)
+    Stats.timeMicros("redis-push-usec") {
+      val future = redisClient.rpushx(timeline, Array(entry): _*)
+      laterWithErrorHandling(future, onError) {
+        f(future.get(timeout.inMillis, TimeUnit.MILLISECONDS).asInstanceOf[Long])
       }
     }
   }
 
   def pop(timeline: String, entry: Array[Byte], onError: Option[Throwable => Unit]) {
-    if (isPipelineFull) {
-      onError.foreach(_(new TimeoutException))
-    } else {
-      Stats.timeMicros("redis-pop-usec") {
-        val future = redisClient.lrem(timeline, entry, 0)
-        laterWithErrorHandling(future, onError) {
-          future.get(timeout.inMillis, TimeUnit.MILLISECONDS)
-        }
+    isPipelineFull(onError)
+    Stats.timeMicros("redis-pop-usec") {
+      val future = redisClient.lrem(timeline, entry, 0)
+      laterWithErrorHandling(future, onError) {
+        future.get(timeout.inMillis, TimeUnit.MILLISECONDS)
       }
     }
   }
 
   def pushAfter(timeline: String, oldEntry: Array[Byte], newEntry: Array[Byte],
                 onError: Option[Throwable => Unit])(f: Long => Unit) {
-    if (isPipelineFull) {
-      onError.foreach(_(new TimeoutException))
-    } else {
-      Stats.timeMicros("redis-pushafter-usec") {
-        val future = redisClient.linsertBefore(timeline, oldEntry, newEntry)
-        laterWithErrorHandling(future, onError) {
-          f(future.get(timeout.inMillis, TimeUnit.MILLISECONDS).asInstanceOf[Long])
-        }
+    isPipelineFull(onError)
+    Stats.timeMicros("redis-pushafter-usec") {
+      val future = redisClient.linsertBefore(timeline, oldEntry, newEntry)
+      laterWithErrorHandling(future, onError) {
+        f(future.get(timeout.inMillis, TimeUnit.MILLISECONDS).asInstanceOf[Long])
       }
     }
   }

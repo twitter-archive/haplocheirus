@@ -42,11 +42,11 @@ class RedisPoolHealthTracker(config: RedisPoolHealthTrackerConfig) {
     }
   }
 
-  def checkErrorCount(shardInfo: ShardInfo) = {
+  def isErrored(shardInfo: ShardInfo): Boolean = {
     val timeout = concurrentDisabledMap.get(shardInfo.hostname)
     if (!(timeout eq null)) {
       if (Time.now < timeout) {
-        throw new ShardBlackHoleException(shardInfo.id)
+        true
       } else {
         try {
           concurrentDisabledMap.remove(shardInfo.hostname)
@@ -55,7 +55,10 @@ class RedisPoolHealthTracker(config: RedisPoolHealthTrackerConfig) {
         } catch {
           case e: NullPointerException => {}
         }
+        false
       }
+    } else {
+      false
     }
   }
 }
@@ -75,10 +78,16 @@ class RedisPool(name: String, healthTracker: RedisPoolHealthTracker, config: Red
   }
 
   def get(shardInfo: ShardInfo): PipelinedRedisClient = {
-    healthTracker.checkErrorCount(shardInfo)
-
     val hostname = shardInfo.hostname
     var client = concurrentServerMap.get(hostname);
+
+    if (healthTracker.isErrored(shardInfo)) {
+      if (client ne null) {
+        throwAway(hostname, client)
+      }
+      throw new ShardBlackHoleException(shardInfo.id)
+    }
+
     if(client eq null) {
       val newClient = makeClient(hostname)
       client = concurrentServerMap.putIfAbsent(hostname, newClient);
@@ -96,7 +105,11 @@ class RedisPool(name: String, healthTracker: RedisPoolHealthTracker, config: Red
       case e: Throwable =>
         exceptionLog.warning(e, "Error discarding dead redis client: %s", e)
     }
-    concurrentServerMap.remove(hostname)
+    try {
+      concurrentServerMap.remove(hostname)
+    } catch {
+      case e: NullPointerException => {}
+    }
   }
 
   def giveBack(hostname: String, client: PipelinedRedisClient) {
