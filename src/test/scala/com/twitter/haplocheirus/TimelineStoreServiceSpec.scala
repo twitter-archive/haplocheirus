@@ -27,6 +27,8 @@ object TimelineStoreServiceSpec extends Specification with JMocker with ClassMoc
       expect {
         one(scheduler).apply(Priority.Write.id) willReturn jobScheduler
         one(jobScheduler).queue willReturn queue
+        one(scheduler).apply(Priority.Write.id) willReturn jobScheduler
+        one(jobScheduler).errorLimit willReturn 10
       }
       service = new TimelineStoreService(nameServer, scheduler, multiPushScheduler, copyFactory, readPool, writePool, slowPool)
       service.addOnError = false

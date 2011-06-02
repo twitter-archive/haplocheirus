@@ -12,10 +12,15 @@ trait JobInjector {
   // can be overridden for tests.
   var addOnError = true
 
-  def injectJob(errorQueue: JobQueue[JsonJob], job: jobs.FallbackJob) {
+  def injectJob(errorQueue: JobQueue[JsonJob], errorLimit: Int, job: jobs.FallbackJob) {
     // Note that we don't really inject the job, but run it synchronously.
     if (addOnError) {
-      job.onError { e => errorQueue.put(job) }
+      job.onError { e =>
+        job.errorCount += 1
+        if (job.errorCount <= errorLimit) {
+          errorQueue.put(job)
+        }
+      }
     }
 
     try {
@@ -30,7 +35,7 @@ trait JobInjector {
       case e: Throwable =>
         Stats.incr("job-error-count")
         exceptionLog.error(e, "Exception starting job %s: %s", job, e)
-        errorQueue.put(job)
+        job.onErrorCallback.foreach(_(e))
     }
   }
 }

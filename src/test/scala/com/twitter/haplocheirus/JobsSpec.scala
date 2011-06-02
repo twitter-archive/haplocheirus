@@ -86,6 +86,7 @@ object JobsSpec extends Specification with JMocker with ClassMocker {
 
         expect {
           allowing(scheduler).errorQueue willReturn queue
+          allowing(scheduler).errorLimit willReturn 10
           one(nameServer).findCurrentForwarding(0, 776251139709896853L) willReturn shard1
           one(shard1).append("timeline:3", List(data), None)
           one(nameServer).findCurrentForwarding(0, 776243443128499376L) willReturn shard1

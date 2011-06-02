@@ -18,9 +18,10 @@ class TimelineStoreService(val nameServer: NameServer[HaplocheirusShard],
       extends JobInjector {
 
   val writeQueue = scheduler(Priority.Write.id).queue
+  val errorLimit = scheduler(Priority.Write.id).errorLimit
 
   def injectJob(job: jobs.FallbackJob) {
-    injectJob(writeQueue, job)
+    injectJob(writeQueue, errorLimit, job)
   }
 
   def shutdown() {

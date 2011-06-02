@@ -56,7 +56,7 @@ case class MultiPush(entry: Array[Byte], timelinePrefix: String, timelineIds: Ar
   def apply() {
     timelineIds.foreach { id =>
       val job = Append(entry, timelinePrefix + id.toString, nameServer)
-      injectJob(scheduler.errorQueue, job)
+      injectJob(scheduler.errorQueue, scheduler.errorLimit, job)
     }
   }
 }
