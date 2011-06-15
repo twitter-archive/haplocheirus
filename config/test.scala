@@ -29,6 +29,7 @@ new HaplocheirusConfig {
 
   val redisConfig = new RedisConfig {
     val poolHealthTrackerConfig = new RedisPoolHealthTrackerConfig {
+      val clientErrorLimit = 100
       val autoDisableErrorLimit = 200
       val autoDisableDuration = 60.seconds
     }

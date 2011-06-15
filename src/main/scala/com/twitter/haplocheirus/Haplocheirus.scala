@@ -30,7 +30,8 @@ class Haplocheirus(config: HaplocheirusConfig) extends GizzardServer[Haplocheiru
   val poolHealthTracker = new RedisPoolHealthTracker(config.redisConfig.poolHealthTrackerConfig)
   val readPool = new RedisPool("read", poolHealthTracker, config.redisConfig.readPoolConfig)
   val writePool = new RedisPool("write", poolHealthTracker, config.redisConfig.writePoolConfig)
-  val slowPool = new RedisPool("slow", poolHealthTracker, config.redisConfig.slowPoolConfig)
+  //val slowPool = new RedisPool("slow", poolHealthTracker, config.redisConfig.slowPoolConfig)
+  val slowPool = writePool
   val shardFactory = new RedisShardFactory(readPool, writePool, slowPool,
                                            config.redisConfig.rangeQueryPageSize,
                                            config.timelineTrimConfig)

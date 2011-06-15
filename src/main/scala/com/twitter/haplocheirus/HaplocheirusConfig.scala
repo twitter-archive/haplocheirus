@@ -20,6 +20,7 @@ trait AdminConfig {
 }
 
 trait RedisPoolHealthTrackerConfig {
+  def clientErrorLimit: Int
   def autoDisableErrorLimit: Int
   def autoDisableDuration: Duration
 }

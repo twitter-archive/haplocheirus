@@ -1,5 +1,6 @@
 package com.twitter.haplocheirus
 
+import java.util.concurrent.atomic.AtomicInteger
 import com.twitter.gizzard.shards.ShardInfo
 import org.jredis.ClientRuntimeException
 import org.specs.Specification
@@ -49,6 +50,7 @@ object RedisPoolSpec extends ConfiguredSpecification with JMocker with ClassMock
     "withClient" in {
       "in good times" in {
         expect {
+          one(client).errorCount willReturn new AtomicInteger()
           one(client).alive willReturn true
         }
 
@@ -58,6 +60,7 @@ object RedisPoolSpec extends ConfiguredSpecification with JMocker with ClassMock
 
       "in bad times" in {
         expect {
+          one(client).errorCount willReturn new AtomicInteger()
           one(client).shutdown()
           one(client).alive willReturn false
         }

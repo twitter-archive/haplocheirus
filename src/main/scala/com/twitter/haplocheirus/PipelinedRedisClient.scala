@@ -3,6 +3,7 @@ package com.twitter.haplocheirus
 import java.io.IOException
 import java.util.Random
 import java.util.concurrent.{ExecutionException, Future, TimeoutException, TimeUnit, LinkedBlockingDeque}
+import java.util.concurrent.atomic.AtomicInteger
 import scala.collection.mutable
 import com.twitter.gizzard.thrift.conversions.Sequences._
 import com.twitter.ostrich.Stats
@@ -37,6 +38,7 @@ class PipelinedRedisClient(hostname: String, pipelineMaxSize: Int, timeout: Dura
   connectionSpec.setHeartbeat(300)
   connectionSpec.setSocketProperty(connector.Connection.Socket.Property.SO_CONNECT_TIMEOUT, 50)
   val redisClient = makeRedisClient
+  val errorCount = new AtomicInteger()
   var alive = true
 
   // allow tests to override.
