@@ -169,11 +169,7 @@ class PipelinedRedisClient(hostname: String, pipelineMaxSize: Int, timeout: Dura
     val start = -1 - offset
     val end = if (length > 0) (start - length + 1) else 0
     Stats.timeMicros("redis-get-usec") {
-      val rv = redisClient.lrange(timeline, end, start).get(timeout.inMillis, TimeUnit.MILLISECONDS).toSeq.reverse
-      if (rv.size > 0) {
-        redisClient.expire(timeline, expiration.inSeconds)
-      }
-      rv
+      redisClient.lrange(timeline, end, start).get(timeout.inMillis, TimeUnit.MILLISECONDS).toSeq.reverse
     }
   }
 
@@ -185,14 +181,10 @@ class PipelinedRedisClient(hostname: String, pipelineMaxSize: Int, timeout: Dura
       val tempName = uniqueTimelineName(timeline)
       if (entries.length > 0) {
         redisClient.rpush(tempName, entries.last)
-        // bummer: we can't rename a key that has an expiration time, so these have to be permanent.
-        // FIXME: salvatore is gonna fix this in redis 2.2. bring this code back then.
-        // redisClient.expire(tempName, 15).get(timeout.inMillis, TimeUnit.MILLISECONDS)
         if (entries.length > 1) {
           redisClient.rpushx(tempName, entries.slice(0, entries.length-1).reverse.toArray: _*)
         }
-        redisClient.rename(tempName, timeline)
-        redisClient.expire(timeline, expiration.inSeconds).get(timeout.inMillis, TimeUnit.MILLISECONDS)
+        redisClient.rename(tempName, timeline).get(timeout.inMillis, TimeUnit.MILLISECONDS)
       }
     }
   }
@@ -215,7 +207,6 @@ class PipelinedRedisClient(hostname: String, pipelineMaxSize: Int, timeout: Dura
     Stats.timeMicros("redis-setlive-usec") {
       redisClient.lpushx(timeline, entries.toArray: _*)
       redisClient.lrem(timeline, new Array[Byte](0), 1).get(timeout.inMillis, TimeUnit.MILLISECONDS)
-      redisClient.expire(timeline, expiration.inSeconds).get(timeout.inMillis, TimeUnit.MILLISECONDS)
       0
     }
   }

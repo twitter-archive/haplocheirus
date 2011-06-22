@@ -17,7 +17,6 @@ object IntegrationSpec extends ConfiguredSpecification with JMocker with ClassMo
   "Haplocheirus" should {
     val jredisClient = mock[JRedisPipeline]
     val future = mock[JRedisFutureSupport.FutureLong]
-    val future2 = mock[JRedisFutureSupport.FutureLong]
     val timelineFuture = mock[Future[JList[Array[Byte]]]]
     var service: Haplocheirus = null
 
@@ -148,7 +147,6 @@ object IntegrationSpec extends ConfiguredSpecification with JMocker with ClassMo
     }
 
     "rebuild one shard from another" in {
-      println("r")
       service.nameServer.addLink(shardIdR, shardId2, 1)
       service.nameServer.reload()
 
@@ -161,8 +159,6 @@ object IntegrationSpec extends ConfiguredSpecification with JMocker with ClassMo
         one(jredisClient).llen(timeline1) willReturn future
         one(timelineFuture).get(200L, TimeUnit.MILLISECONDS) willReturn List("a", "b").map { _.getBytes }.toJavaList
         one(future).get(200L, TimeUnit.MILLISECONDS) willReturn 2L
-        one(jredisClient).expire(timeline1, 86400) willReturn future2
-        one(future2).get(200L, TimeUnit.MILLISECONDS) willReturn 0L
 
         one(jredisClient).lrange(timeline1, 0, -1) willReturn timelineFuture
         one(timelineFuture).get(200L, TimeUnit.MILLISECONDS) willReturn List("a", "b", "c").map { _.getBytes }.toJavaList
@@ -171,8 +167,6 @@ object IntegrationSpec extends ConfiguredSpecification with JMocker with ClassMo
         one(jredisClient).lpushx(timeline1, Array("c", "b", "a").map(_.getBytes): _*)
         one(jredisClient).lrem(timeline1, new Array[Byte](0), 1) willReturn future
         one(future).get(200L, TimeUnit.MILLISECONDS) willReturn 0L
-        one(jredisClient).expire(timeline1, 86400) willReturn future2
-        one(jredisClient).expire(timeline1, 86400) willReturn future2
 
         allowing(jredisClient).quit()
       }
