@@ -149,8 +149,17 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
   }
 
   def get(timeline: String, offset: Int, length: Int, dedupeSecondary: Boolean): Option[TimelineSegment] = {
-    val (entries, size) = readPool.withClient(shardInfo) { client =>
-      (client.get(timeline, offset, length), client.size(timeline))
+    val (entries, size) = Stats.timeMicros("redisshard-get-usec") {
+      readPool.withClient(shardInfo) { client =>
+        val tl = client.get(timeline, offset, length)
+        // heuristics for detecting a request for the entire timeline
+        val size = if (offset == 0 && (length == 800 || length == 3200)) {
+          tl.size
+        } else {
+          client.size(timeline)
+        }
+        (tl, size)
+      }
     }
     if (size > 0) {
       val dedupedEntries = dedupe(entries, dedupeSecondary)
