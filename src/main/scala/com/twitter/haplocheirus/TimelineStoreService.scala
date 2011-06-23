@@ -80,9 +80,16 @@ class TimelineStoreService(val nameServer: NameServer[HaplocheirusShard],
 
   def get(timeline: String, offset: Int, length: Int, dedupe: Boolean) = {
     val tm = noShardOffline(shardFor(timeline).get(timeline, offset, length, dedupe))
+    val timelineType = timeline.split(":")(0)
     tm match {
-      case None    => Stats.incr("timeline-miss")
-      case Some(_) => Stats.incr("timeline-hit")
+      case None    => {
+        Stats.incr("timeline-miss")
+        Stats.incr("timeline-" + timelineType + "-miss")
+      }
+      case Some(_) => {
+        Stats.incr("timeline-hit")
+        Stats.incr("timeline-" + timelineType + "-hit")
+      }
     }
     tm
   }
