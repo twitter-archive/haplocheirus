@@ -151,14 +151,14 @@ object IntegrationSpec extends ConfiguredSpecification with JMocker with ClassMo
       service.nameServer.reload()
 
       expect {
-        one(jredisClient).lrange(timeline1, -2, -1) willReturn timelineFuture
+        one(jredisClient).lrange(timeline1, -3, -1) willReturn timelineFuture
         one(jredisClient).llen(timeline1) willReturn future
         one(timelineFuture).get(200L, TimeUnit.MILLISECONDS) willReturn List[Array[Byte]]().toJavaList
         one(future).get(200L, TimeUnit.MILLISECONDS) willReturn 0L
-        one(jredisClient).lrange(timeline1, -2, -1) willReturn timelineFuture
+        one(jredisClient).lrange(timeline1, -3, -1) willReturn timelineFuture
         one(jredisClient).llen(timeline1) willReturn future
         one(timelineFuture).get(200L, TimeUnit.MILLISECONDS) willReturn List("a", "b").map { _.getBytes }.toJavaList
-        one(future).get(200L, TimeUnit.MILLISECONDS) willReturn 2L
+        one(future).get(200L, TimeUnit.MILLISECONDS) willReturn 3L
 
         one(jredisClient).lrange(timeline1, 0, -1) willReturn timelineFuture
         one(timelineFuture).get(200L, TimeUnit.MILLISECONDS) willReturn List("a", "b", "c").map { _.getBytes }.toJavaList

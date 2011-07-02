@@ -34,6 +34,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
     val data = "hello".getBytes
     val timeline = "t1"
 
+    val sentinel = "SENTINEL".getBytes
     val entry23share = TimelineEntry(24L, 23L, TimelineEntry.FLAG_SECONDARY_KEY).data
     val entry23 = TimelineEntry(23L, 0L, 0).data
     val entry23a = TimelineEntry(23L, 1L, TimelineEntry.FLAG_SECONDARY_KEY).data
@@ -49,7 +50,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
 
     def lrange(timeline: String, start: Int, end: Int, result: Seq[Array[Byte]]) {
       one(jredis).lrange(timeline, start, end) willReturn future
-      one(future).get(1000, TimeUnit.MILLISECONDS) willReturn result.toJavaList
+      one(future).get(1000, TimeUnit.MILLISECONDS) willReturn (Seq(sentinel) ++ result).toJavaList
     }
 
     def llen(timeline: String, result: Long) {
@@ -163,7 +164,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
       "unique entries" in {
         expect {
           one(shardInfo).hostname willReturn "host1"
-          lrange(timeline, -10, -1, List(entry23, entry20, entry19).reverse)
+          lrange(timeline, -11, -1, List(entry23, entry20, entry19).reverse)
           llen(timeline, 3L)
         }
 
@@ -174,7 +175,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
       "with duplicates in the sort key" in {
         expect {
           one(shardInfo).hostname willReturn "host1"
-          lrange(timeline, -10, -1, List(entry23, entry23a, entry19).reverse)
+          lrange(timeline, -11, -1, List(entry23, entry23a, entry19).reverse)
           llen(timeline, 3L)
         }
 
@@ -186,9 +187,9 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
         "to be deduped" in {
           expect {
             allowing(shardInfo).hostname willReturn "host1"
-            lrange(timeline, -10, -1, List(entry23a, entry20, entry19a).reverse)
+            lrange(timeline, -11, -1, List(entry23a, entry20, entry19a).reverse)
             llen(timeline, 3L)
-            lrange(timeline, -10, -1, List(entry23a, entry20, entry19a).reverse)
+            lrange(timeline, -11, -1, List(entry23a, entry20, entry19a).reverse)
             llen(timeline, 3L)
           }
 
@@ -200,7 +201,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
         "not marked as having a secondary key" in {
           expect {
             allowing(shardInfo).hostname willReturn "host1"
-            lrange(timeline, -10, -1, List(entry23a, entry20, entry19uniq).reverse)
+            lrange(timeline, -11, -1, List(entry23a, entry20, entry19uniq).reverse)
             llen(timeline, 3L)
           }
 
@@ -212,7 +213,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
       "with duplicates between the secondary and primary keys" in {
         expect {
           one(shardInfo).hostname willReturn "host1"
-          lrange(timeline, -10, -1, List(entry23share, entry23, entry20).reverse)
+          lrange(timeline, -11, -1, List(entry23share, entry23, entry20).reverse)
           llen(timeline, 3L)
         }
 
@@ -227,7 +228,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
 
         expect {
           one(shardInfo).hostname willReturn "host1"
-          lrange(timeline, -10, -1, List(entry1, entry2, entry3).reverse)
+          lrange(timeline, -11, -1, List(entry1, entry2, entry3).reverse)
           llen(timeline, 3L)
         }
 
@@ -251,8 +252,9 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
         expect {
           one(shardInfo).hostname willReturn "host1"
           lrange(timeline, -3, -1, List(entry23, entry20, entry19).reverse)
+          one(jredis).lrange(timeline, -7, -5) willReturn future
+          one(future).get(1000, TimeUnit.MILLISECONDS) willReturn List[Array[Byte]]().toJavaList
           llen(timeline, 3L)
-          lrange(timeline, -6, -4, List[Array[Byte]]())
         }
 
         redisShard.getRange(timeline, 10L, 0L, false).get.entries.toList mustEqual List(entry23, entry20, entry19)
@@ -276,7 +278,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
             one(shardInfo).hostname willReturn "host1"
             lrange(timeline, -3, -1, List(entry23, entry20, entry19).reverse)
             llen(timeline, 3L)
-            lrange(timeline, -6, -4, List(entry17, entry13, entry10).reverse)
+            lrange(timeline, -7, -5, List(entry17, entry13, entry10).reverse)
           }
 
           redisShard.getRange(timeline, 13L, 0L, false).get.entries.toList mustEqual List(entry23, entry20, entry19, entry17)
@@ -307,13 +309,13 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
             allowing(shardInfo).hostname willReturn "host1"
             lrange(timeline, -3, -1, List(entry23, entry20, entry19).reverse)
             llen(timeline, 3L)
-            lrange(timeline, -6, -4, List(entry17, entry13, entry10).reverse)
+            lrange(timeline, -7, -5, List(entry17, entry13, entry10).reverse)
             lrange(timeline, -3, -1, List(entry23, entry20, entry19).reverse)
             llen(timeline, 3L)
-            lrange(timeline, -6, -4, List(entry17, entry13, entry10).reverse)
+            lrange(timeline, -7, -5, List(entry17, entry13, entry10).reverse)
             lrange(timeline, -3, -1, List(entry23, entry20, entry19).reverse)
             llen(timeline, 3L)
-            lrange(timeline, -6, -4, List(entry17, entry13, entry10).reverse)
+            lrange(timeline, -7, -5, List(entry17, entry13, entry10).reverse)
           }
 
           redisShard.getRange(timeline, 13L, 30L, false).get.entries.toList mustEqual List(entry23, entry20, entry19, entry17)
@@ -328,7 +330,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
           one(shardInfo).hostname willReturn "host1"
           lrange(timeline, -3, -1, List(entry23, entry20, entry20).reverse)
           llen(timeline, 3L)
-          lrange(timeline, -6, -4, List(entry20, entry17, entry13).reverse)
+          lrange(timeline, -7, -5, List(entry20, entry17, entry13).reverse)
         }
 
         redisShard.getRange(timeline, 13L, 0L, false).get.entries.toList mustEqual List(entry23, entry20, entry17)
@@ -342,7 +344,8 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
       "no existing timeline" in {
         expect {
           one(shardInfo).hostname willReturn "host1"
-          lrange(timeline, 0, -1, List[Array[Byte]]().reverse)
+          one(jredis).lrange(timeline, 0, -1) willReturn future
+          one(future).get(1000, TimeUnit.MILLISECONDS) willReturn List[Array[Byte]]().toJavaList
         }
         redisShard.merge(timeline, List(List(21L).pack.array), None)
         writes mustEqual 1
@@ -454,8 +457,8 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
 
       expect {
         one(shardInfo).hostname willReturn "host1"
-        one(jredis).rpush("generated-name", entry3)
-        one(jredis).rpushx("generated-name", entry2, entry1)
+        one(jredis).rpush("generated-name", sentinel)
+        one(jredis).rpushx("generated-name", entry3, entry2, entry1)
         one(jredis).rename("generated-name", timeline)
       }
 

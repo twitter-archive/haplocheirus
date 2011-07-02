@@ -1,6 +1,7 @@
 package com.twitter.haplocheirus
 
 import java.nio.{ByteBuffer, ByteOrder}
+import java.util.Arrays
 import scala.collection.mutable
 import com.twitter.gizzard.proxy.ExceptionHandlingProxyFactory
 import com.twitter.gizzard.shards._
@@ -127,16 +128,21 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
     }
   }
 
+  val sentinel = "SENTINEL".getBytes
+
   // this is really inefficient. we should discourage its use.
   def filter(timeline: String, entries: Seq[Long], maxSearch: Int): Option[Seq[Array[Byte]]] = {
     val needle = Set(entries: _*)
     val timelineEntries = readPool.withClient(shardInfo) { client =>
       client.get(timeline, 0, maxSearch)
-    }.map { TimelineEntry(_) }
+    }
     if (timelineEntries.isEmpty) {
       None
     } else {
-      Some(timelineEntries.filter { entry =>
+      Some(timelineEntries
+           .filter { !Arrays.equals(_, sentinel) }
+           .map { TimelineEntry(_) }
+           .filter { entry =>
         needle.contains(entry.id) ||
           ((entry.flags & TimelineEntry.FLAG_SECONDARY_KEY) != 0 && needle.contains(entry.secondary))
       }.map { _.data })
@@ -148,20 +154,32 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
     filter(timeline, sortKeysFromEntries(entries).map { _.key }, maxSearch)
   }
 
+  private def getAndFilterSentinel(client: PipelinedRedisClient, timeline: String, offset: Int, length: Int) = {
+    val sentinelLength = if (length > 0) { length + 1 } else { length }
+    var entries = client.get(timeline, offset, sentinelLength)
+    val hit = if (entries.size > 0) { true } else { false }
+    entries = entries.filter { !Arrays.equals(_, sentinel) }
+    if (length > 0 && entries.size > length) {
+      entries.slice(0, entries.size-1) // remove the last element because of the sentinel
+    }
+    (entries, hit)
+  }
+
   def get(timeline: String, offset: Int, length: Int, dedupeSecondary: Boolean): Option[TimelineSegment] = {
-    val (entries, size) = Stats.timeMicros("redisshard-get-usec") {
+    val (entries, hit, size) = Stats.timeMicros("redisshard-get-usec") {
       readPool.withClient(shardInfo) { client =>
-        val tl = client.get(timeline, offset, length)
+        val (tl, hit) = getAndFilterSentinel(client, timeline, offset, length)
         // heuristics for detecting a request for the entire timeline
         val size = if (offset == 0 && (length == 800 || length == 3200)) {
           tl.size
         } else {
-          client.size(timeline)
+          // -1 for sentinel, might be off by 1
+          client.size(timeline) - 1
         }
-        (tl, size)
+        (tl, hit, size)
       }
     }
-    if (size > 0) {
+    if (hit) {
       val dedupedEntries = dedupe(entries, dedupeSecondary)
       Some(TimelineSegment(dedupedEntries, size))
     } else {
@@ -170,16 +188,18 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
   }
 
   def getRaw(timeline: String): Option[Seq[Array[Byte]]] = {
-    val rv = readPool.withClient(shardInfo) { _.get(timeline, 0, -1) }
-    if (rv.isEmpty) {
-      None
-    } else {
+    val (rv, hit) = readPool.withClient(shardInfo) { client =>
+      getAndFilterSentinel(client, timeline, 0, -1)
+    }
+    if (hit) {
       Some(rv)
+    } else {
+      None
     }
   }
 
   def getRange(timeline: String, fromId: Long, toId: Long, dedupeSecondary: Boolean): Option[TimelineSegment] = {
-    val (entriesSince, size) = readPool.withClient(shardInfo) { client =>
+    val (entriesSince, hit, size) = readPool.withClient(shardInfo) { client =>
       val entries = new mutable.ArrayBuffer[Array[Byte]]()
       var cursor = 0
       var fromIdIndex = -1
@@ -203,9 +223,10 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
         val i = timelineIndexOf(entries, toId)
         if (i >= 0) i else 0
       } else 0
-      (entries.take(fromIdIndex).drop(toIdIndex), client.size(timeline))
+      val size = client.size(timeline)
+      (entries.take(fromIdIndex).drop(toIdIndex).filter { !Arrays.equals(_, sentinel) }, (size > 0), size-1)
     }
-    if (size > 0) {
+    if (hit) {
       val entries = dedupe(entriesSince, dedupeSecondary)
       Some(TimelineSegment(entries, size))
     } else {
@@ -237,7 +258,7 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
   }
 
   def store(timeline: String, entries: Seq[Array[Byte]]) {
-    slowPool.withClient(shardInfo) { _.setAtomically(timeline, entries) }
+    slowPool.withClient(shardInfo) { _.setAtomically(timeline, entries ++ Seq(sentinel)) }
   }
 
   def deleteTimeline(timeline: String) {
