@@ -456,8 +456,8 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
 
       expect {
         one(shardInfo).hostname willReturn "host1"
-        one(jredis).rpush("generated-name", TimelineEntry.EmptySentinel)
-        one(jredis).rpushx("generated-name", entry3, entry2, entry1)
+        one(jredis).rpush("generated-name", entry3)
+        one(jredis).rpushx("generated-name", entry2, entry1)
         one(jredis).rename("generated-name", timeline)
       }
 
@@ -540,7 +540,8 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
 
       expect {
         one(shardInfo).hostname willReturn "host1"
-        one(jredis).lpushx(timeline, entry1, entry2) willReturn longFuture
+        one(jredis).lpushx(timeline, entry1, entry2)
+        one(jredis).lrem(timeline, TimelineEntry.EmptySentinel, 1) willReturn longFuture
         one(longFuture).get(1000, TimeUnit.MILLISECONDS) willReturn 1L
       }
 

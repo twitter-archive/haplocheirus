@@ -205,7 +205,8 @@ class PipelinedRedisClient(hostname: String, pipelineMaxSize: Int, timeout: Dura
 
   def setLive(timeline: String, entries: Seq[Array[Byte]]) {
     Stats.timeMicros("redis-setlive-usec") {
-      redisClient.lpushx(timeline, entries.toArray: _*).get(timeout.inMillis, TimeUnit.MILLISECONDS)
+      redisClient.lpushx(timeline, entries.toArray: _*)
+      redisClient.lrem(timeline, TimelineEntry.EmptySentinel, 1).get(timeout.inMillis, TimeUnit.MILLISECONDS)
       0
     }
   }

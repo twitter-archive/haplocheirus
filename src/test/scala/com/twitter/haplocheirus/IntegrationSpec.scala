@@ -166,6 +166,7 @@ object IntegrationSpec extends ConfiguredSpecification with JMocker with ClassMo
         one(jredisClient).del(timeline1)
         one(jredisClient).rpush(timeline1, TimelineEntry.EmptySentinel)
         one(jredisClient).lpushx(timeline1, Array("c", "b", "a").map(_.getBytes): _*)
+        one(jredisClient).lrem(timeline1, TimelineEntry.EmptySentinel, 1)
 
         allowing(jredisClient).quit()
       }

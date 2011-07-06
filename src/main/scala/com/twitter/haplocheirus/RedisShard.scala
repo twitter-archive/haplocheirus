@@ -272,7 +272,7 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
   }
 
   def store(timeline: String, entries: Seq[Array[Byte]]) {
-    slowPool.withClient(shardInfo) { _.setAtomically(timeline, entries ++ Seq(EmptySentinel)) }
+    slowPool.withClient(shardInfo) { _.setAtomically(timeline, entries) }
   }
 
   def deleteTimeline(timeline: String) {
