@@ -34,7 +34,6 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
     val data = "hello".getBytes
     val timeline = "t1"
 
-    val sentinel = "SENTINEL".getBytes
     val entry23share = TimelineEntry(24L, 23L, TimelineEntry.FLAG_SECONDARY_KEY).data
     val entry23 = TimelineEntry(23L, 0L, 0).data
     val entry23a = TimelineEntry(23L, 1L, TimelineEntry.FLAG_SECONDARY_KEY).data
@@ -50,7 +49,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
 
     def lrange(timeline: String, start: Int, end: Int, result: Seq[Array[Byte]]) {
       one(jredis).lrange(timeline, start, end) willReturn future
-      one(future).get(1000, TimeUnit.MILLISECONDS) willReturn (Seq(sentinel) ++ result).toJavaList
+      one(future).get(1000, TimeUnit.MILLISECONDS) willReturn (Seq(TimelineEntry.EmptySentinel) ++ result).toJavaList
     }
 
     def llen(timeline: String, result: Long) {
@@ -457,7 +456,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
 
       expect {
         one(shardInfo).hostname willReturn "host1"
-        one(jredis).rpush("generated-name", sentinel)
+        one(jredis).rpush("generated-name", TimelineEntry.EmptySentinel)
         one(jredis).rpushx("generated-name", entry3, entry2, entry1)
         one(jredis).rename("generated-name", timeline)
       }

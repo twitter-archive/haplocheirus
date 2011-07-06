@@ -6,7 +6,7 @@ import java.nio.{ByteBuffer, ByteOrder}
 object TimelineEntry {
   val FLAG_SECONDARY_KEY = (1 << 31)
 
-  val EmptySentinel = "SENTINEL".getBytes
+  val EmptySentinel = new Array[Byte](0)
 
   def isSentinel(arr: Array[Byte]) = !Arrays.equals(arr, EmptySentinel)
 
