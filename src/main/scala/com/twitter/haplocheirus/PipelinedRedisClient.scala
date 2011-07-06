@@ -199,14 +199,13 @@ class PipelinedRedisClient(hostname: String, pipelineMaxSize: Int, timeout: Dura
   def setLiveStart(timeline: String) {
     Stats.timeMicros("redis-setlivestart-usec") {
       redisClient.del(timeline)
-      redisClient.rpush(timeline, new Array[Byte](0))
+      redisClient.rpush(timeline, TimelineEntry.EmptySentinel)
     }
   }
 
   def setLive(timeline: String, entries: Seq[Array[Byte]]) {
     Stats.timeMicros("redis-setlive-usec") {
-      redisClient.lpushx(timeline, entries.toArray: _*)
-      redisClient.lrem(timeline, new Array[Byte](0), 1).get(timeout.inMillis, TimeUnit.MILLISECONDS)
+      redisClient.lpushx(timeline, entries.toArray: _*).get(timeout.inMillis, TimeUnit.MILLISECONDS)
       0
     }
   }

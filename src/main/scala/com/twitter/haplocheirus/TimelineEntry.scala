@@ -1,9 +1,14 @@
 package com.twitter.haplocheirus
 
+import java.util.Arrays
 import java.nio.{ByteBuffer, ByteOrder}
 
 object TimelineEntry {
   val FLAG_SECONDARY_KEY = (1 << 31)
+
+  val EmptySentinel = "SENTINEL".getBytes
+
+  def isSentinel(arr: Array[Byte]) = !Arrays.equals(arr, EmptySentinel)
 
   def apply(id: Long, secondary: Long, flags: Int) = {
     val data = new Array[Byte](20)

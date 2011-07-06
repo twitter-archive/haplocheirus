@@ -1,7 +1,6 @@
 package com.twitter.haplocheirus
 
 import java.nio.{ByteBuffer, ByteOrder}
-import java.util.Arrays
 import scala.collection.mutable
 import com.twitter.gizzard.proxy.ExceptionHandlingProxyFactory
 import com.twitter.gizzard.shards._
@@ -38,6 +37,9 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
                  val readPool: RedisPool, val writePool: RedisPool, val slowPool: RedisPool,
                  val trimMap: TimelineTrimMap, val rangeQueryPageSize: Int)
       extends HaplocheirusShard {
+
+  import TimelineEntry.{isSentinel, EmptySentinel}
+
   // do removes the old, painful way. turn this off once everyone is in haplo.
   val OLD_STYLE = true
 
@@ -46,6 +48,8 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
   case class EntryWithKey(key: Long, entry: Array[Byte])
 
   private def sortKeyFromEntry(entry: Array[Byte], offset: Int): Long = {
+    // XXX: why does sorting the sentinel out affect this?
+    //if (entry.size < offset + 8 || isSentinel(entry)) {
     if (entry.size < offset + 8) {
       0
     } else {
@@ -128,24 +132,23 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
     }
   }
 
-  val sentinel = "SENTINEL".getBytes
-
   // this is really inefficient. we should discourage its use.
   def filter(timeline: String, entries: Seq[Long], maxSearch: Int): Option[Seq[Array[Byte]]] = {
     val needle = Set(entries: _*)
     val timelineEntries = readPool.withClient(shardInfo) { client =>
       client.get(timeline, 0, maxSearch)
     }
+
     if (timelineEntries.isEmpty) {
       None
     } else {
-      Some(timelineEntries
-           .filter { !Arrays.equals(_, sentinel) }
-           .map { TimelineEntry(_) }
-           .filter { entry =>
-        needle.contains(entry.id) ||
-          ((entry.flags & TimelineEntry.FLAG_SECONDARY_KEY) != 0 && needle.contains(entry.secondary))
-      }.map { _.data })
+      Some(
+        timelineEntries filter isSentinel map { TimelineEntry(_) } filter { entry =>
+          needle.contains(entry.id) ||
+          (entry.flags & TimelineEntry.FLAG_SECONDARY_KEY) != 0 &&
+          needle.contains(entry.secondary)
+        } map { _.data }
+      )
     }
   }
 
@@ -155,82 +158,93 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
   }
 
   private def getAndFilterSentinel(client: PipelinedRedisClient, timeline: String, offset: Int, length: Int) = {
+    // since 0 is a magic number, leave it alone.
     val sentinelLength = if (length > 0) { length + 1 } else { length }
-    var entries = client.get(timeline, offset, sentinelLength)
-    val hit = if (entries.size > 0) { true } else { false }
-    entries = entries.filter { !Arrays.equals(_, sentinel) }
-    if (length > 0 && entries.size > length) {
-      entries.slice(0, entries.size-1) // remove the last element because of the sentinel
+    val entries = client.get(timeline, offset, sentinelLength)
+
+    if (entries.isEmpty) {
+      None
+    } else {
+      val filtered = entries filter isSentinel
+
+      // if we fetched too many nodes because we didn't get a sentinel
+      // value, throw away the last element.
+      if (length > 0 && filtered.size > length) {
+        Some(filtered.slice(0, filtered.size - 1))
+      } else {
+        Some(filtered)
+      }
     }
-    (entries, hit)
   }
 
   def get(timeline: String, offset: Int, length: Int, dedupeSecondary: Boolean): Option[TimelineSegment] = {
-    val (entries, hit, size) = Stats.timeMicros("redisshard-get-usec") {
+    Stats.timeMicros("redisshard-get-usec") {
       readPool.withClient(shardInfo) { client =>
-        val (tl, hit) = getAndFilterSentinel(client, timeline, offset, length)
-        // heuristics for detecting a request for the entire timeline
-        val size = if (offset == 0 && (length == 800 || length == 3200)) {
-          tl.size
-        } else {
-          // -1 for sentinel, might be off by 1
-          client.size(timeline) - 1
+        getAndFilterSentinel(client, timeline, offset, length) map { entries =>
+
+          // heuristics for detecting a request for the entire timeline
+          val size = if (offset == 0 && (length == 800 || length == 3200)) {
+            entries.size
+          } else {
+            // -1 for sentinel, might be off by 1
+            client.size(timeline) - 1
+
+          }
+
+          TimelineSegment(dedupe(entries, dedupeSecondary), size)
         }
-        (tl, hit, size)
       }
-    }
-    if (hit) {
-      val dedupedEntries = dedupe(entries, dedupeSecondary)
-      Some(TimelineSegment(dedupedEntries, size))
-    } else {
-      None
     }
   }
 
   def getRaw(timeline: String): Option[Seq[Array[Byte]]] = {
-    val (rv, hit) = readPool.withClient(shardInfo) { client =>
+    readPool.withClient(shardInfo) { client =>
       getAndFilterSentinel(client, timeline, 0, -1)
-    }
-    if (hit) {
-      Some(rv)
-    } else {
-      None
     }
   }
 
   def getRange(timeline: String, fromId: Long, toId: Long, dedupeSecondary: Boolean): Option[TimelineSegment] = {
-    val (entriesSince, hit, size) = readPool.withClient(shardInfo) { client =>
+    readPool.withClient(shardInfo) { client =>
       val entries = new mutable.ArrayBuffer[Array[Byte]]()
       var cursor = 0
       var fromIdIndex = -1
-      while (fromIdIndex < 0) {
-        val newEntries = client.get(timeline, cursor, rangeQueryPageSize)
-        cursor += newEntries.size
-        if (newEntries.size == 0) {
-          // never found the requested id, so return the entire timeline.
-          fromIdIndex = entries.size
-        } else {
-          entries ++= newEntries
-          fromIdIndex = timelineIndexOf(entries, fromId)
-        }
-      }
-      if (entries.size > rangeQueryPageSize) {
-        Stats.incr("timeline-range-page-miss")
-      } else {
-        Stats.incr("timeline-range-page-hit")
-      }
-      val toIdIndex = if (toId > 0) {
-        val i = timelineIndexOf(entries, toId)
-        if (i >= 0) i else 0
-      } else 0
+
       val size = client.size(timeline)
-      (entries.take(fromIdIndex).drop(toIdIndex).filter { !Arrays.equals(_, sentinel) }, (size > 0), size-1)
-    }
-    if (hit) {
-      val entries = dedupe(entriesSince, dedupeSecondary)
-      Some(TimelineSegment(entries, size))
-    } else {
-      None
+
+      if (size <= 0) {
+        None
+      } else {
+        while (fromIdIndex < 0) {
+          val newEntries = client.get(timeline, cursor, rangeQueryPageSize)
+
+          cursor += newEntries.size
+
+          if (newEntries.size == 0) {
+            // never found the requested id, so return the entire timeline.
+            fromIdIndex = entries.size
+          } else {
+            entries ++= newEntries
+            fromIdIndex = timelineIndexOf(entries, fromId)
+          }
+        }
+
+        if (entries.size > rangeQueryPageSize) {
+          Stats.incr("timeline-range-page-miss")
+        } else {
+          Stats.incr("timeline-range-page-hit")
+        }
+
+        val toIdIndex = if (toId > 0) {
+          val i = timelineIndexOf(entries, toId)
+          if (i >= 0) i else 0
+        } else {
+          0
+        }
+
+        val filteredEntries = entries.take(fromIdIndex).drop(toIdIndex) filter isSentinel
+
+        Some(TimelineSegment(dedupe(filteredEntries, dedupeSecondary), size - 1))
+      }
     }
   }
 
@@ -258,7 +272,7 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
   }
 
   def store(timeline: String, entries: Seq[Array[Byte]]) {
-    slowPool.withClient(shardInfo) { _.setAtomically(timeline, entries ++ Seq(sentinel)) }
+    slowPool.withClient(shardInfo) { _.setAtomically(timeline, entries ++ Seq(EmptySentinel)) }
   }
 
   def deleteTimeline(timeline: String) {
@@ -279,6 +293,6 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
   }
 
   def doCopy(timeline: String, entries: Seq[Array[Byte]]) {
-    writePool.withClient(shardInfo) { _.setLive(timeline, entries) }
+    writePool.withClient(shardInfo) { _.setLive(timeline, entries filter isSentinel) }
   }
 }

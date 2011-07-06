@@ -140,7 +140,7 @@ object PipelinedRedisClientSpec extends ConfiguredSpecification with JMocker wit
     "setLiveStart" in {
       expect {
         one(jredis).del(timeline)
-        one(jredis).rpush(timeline, new Array[Byte](0))
+        one(jredis).rpush(timeline, TimelineEntry.EmptySentinel)
       }
 
       client.setLiveStart(timeline)
@@ -153,8 +153,6 @@ object PipelinedRedisClientSpec extends ConfiguredSpecification with JMocker wit
 
       expect {
         one(jredis).lpushx(timeline, entry1, entry2, entry3)
-        one(jredis).lrem(timeline, new Array[Byte](0), 1) willReturn longFuture
-        one(longFuture).get(1000, TimeUnit.MILLISECONDS) willReturn 0L
       }
 
       client.setLive(timeline, List(entry1, entry2, entry3))

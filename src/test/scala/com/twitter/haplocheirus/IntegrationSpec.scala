@@ -152,21 +152,24 @@ object IntegrationSpec extends ConfiguredSpecification with JMocker with ClassMo
 
       expect {
         one(jredisClient).lrange(timeline1, -3, -1) willReturn timelineFuture
-        one(jredisClient).llen(timeline1) willReturn future
         one(timelineFuture).get(200L, TimeUnit.MILLISECONDS) willReturn List[Array[Byte]]().toJavaList
-        one(future).get(200L, TimeUnit.MILLISECONDS) willReturn 0L
+
+        // one(jredisClient).llen(timeline1) willReturn future
+        // one(future).get(200L, TimeUnit.MILLISECONDS) willReturn 0L
+
         one(jredisClient).lrange(timeline1, -3, -1) willReturn timelineFuture
-        one(jredisClient).llen(timeline1) willReturn future
         one(timelineFuture).get(200L, TimeUnit.MILLISECONDS) willReturn List("a", "b").map { _.getBytes }.toJavaList
+
+        one(jredisClient).llen(timeline1) willReturn future
         one(future).get(200L, TimeUnit.MILLISECONDS) willReturn 3L
 
         one(jredisClient).lrange(timeline1, 0, -1) willReturn timelineFuture
         one(timelineFuture).get(200L, TimeUnit.MILLISECONDS) willReturn List("a", "b", "c").map { _.getBytes }.toJavaList
+
         one(jredisClient).del(timeline1)
-        one(jredisClient).rpush(timeline1, new Array[Byte](0))
+        one(jredisClient).rpush(timeline1, TimelineEntry.EmptySentinel)
         one(jredisClient).lpushx(timeline1, Array("c", "b", "a").map(_.getBytes): _*)
-        one(jredisClient).lrem(timeline1, new Array[Byte](0), 1) willReturn future
-        one(future).get(200L, TimeUnit.MILLISECONDS) willReturn 0L
+        //one(future).get(200L, TimeUnit.MILLISECONDS) willReturn 0L
 
         allowing(jredisClient).quit()
       }
