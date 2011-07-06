@@ -154,9 +154,6 @@ object IntegrationSpec extends ConfiguredSpecification with JMocker with ClassMo
         one(jredisClient).lrange(timeline1, -3, -1) willReturn timelineFuture
         one(timelineFuture).get(200L, TimeUnit.MILLISECONDS) willReturn List[Array[Byte]]().toJavaList
 
-        // one(jredisClient).llen(timeline1) willReturn future
-        // one(future).get(200L, TimeUnit.MILLISECONDS) willReturn 0L
-
         one(jredisClient).lrange(timeline1, -3, -1) willReturn timelineFuture
         one(timelineFuture).get(200L, TimeUnit.MILLISECONDS) willReturn List("a", "b").map { _.getBytes }.toJavaList
 
@@ -169,7 +166,6 @@ object IntegrationSpec extends ConfiguredSpecification with JMocker with ClassMo
         one(jredisClient).del(timeline1)
         one(jredisClient).rpush(timeline1, TimelineEntry.EmptySentinel)
         one(jredisClient).lpushx(timeline1, Array("c", "b", "a").map(_.getBytes): _*)
-        //one(future).get(200L, TimeUnit.MILLISECONDS) willReturn 0L
 
         allowing(jredisClient).quit()
       }
