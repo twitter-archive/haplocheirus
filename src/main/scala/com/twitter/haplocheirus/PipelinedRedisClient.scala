@@ -181,9 +181,19 @@ class PipelinedRedisClient(hostname: String, pipelineMaxSize: Int, timeout: Dura
       val tempName = uniqueTimelineName(timeline)
       if (entries.length > 0) {
         redisClient.rpush(tempName, entries.last)
+
         if (entries.length > 1) {
-          redisClient.rpushx(tempName, entries.slice(0, entries.length-1).reverse.toArray: _*)
+          val slice = new Array[Array[Byte]](entries.length - 1)
+          var idx = slice.length
+
+          for (entry <- entries) {
+            idx = idx - 1 // from slice.length - 1 to 0
+            if (idx >= 0) slice(idx) = entry
+          }
+
+          redisClient.rpushx(tempName, slice: _*)
         }
+
         redisClient.rename(tempName, timeline).get(timeout.inMillis, TimeUnit.MILLISECONDS)
       }
     }
