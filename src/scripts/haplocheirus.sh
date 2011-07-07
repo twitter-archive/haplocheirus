@@ -31,9 +31,9 @@ else
   fi
 fi
 
-HEAP_OPTS="-Xmx8192m -Xms8192m -XX:NewSize=6G -XX:PermSize=160m and -XX:MaxPermSize=160m"
+HEAP_OPTS="-Xmx8192m -Xms8192m -XX:NewSize=6G -XX:PermSize=160m -XX:MaxPermSize=160m"
 JMX_OPTS="-Dcom.sun.management.jmxremote -Dcom.sun.management.jmxremote.port=9999 -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.ssl=false"
-GC_OPTS="-XX:+UseParallelOldGC -XX:+UseAdaptiveSizePolicy -XX:MaxGCPauseMillis=1000 -XX:+HeapDumpOnOutOfMemoryError"
+GC_OPTS="-XX:+UseConcMarkSweepGC -XX:+HeapDumpOnOutOfMemoryError"
 GC_LOG="-verbosegc -XX:+PrintGCDetails -XX:+PrintGCTimeStamps -XX:+PrintGCDateStamps -XX:+PrintTenuringDistribution -Xloggc:/var/log/$APP_NAME/gc.log"
 DEBUG_OPTS="-XX:ErrorFile=/var/log/$APP_NAME/java_error%p.log"
 PROFILER_OPTS=""
