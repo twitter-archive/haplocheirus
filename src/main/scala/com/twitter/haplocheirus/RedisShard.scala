@@ -75,7 +75,7 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
 
     sorted.foreach { entry =>
       if (entry.size < 20) {
-        rv.prepend(entry)
+        rv += entry
       } else {
         val timelineEntry = TimelineEntry(entry)
         val entryUseSecondary = useSecondary && (timelineEntry.flags & TimelineEntry.FLAG_SECONDARY_KEY) != 0
@@ -84,14 +84,14 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
               (secondaryKeys.contains(timelineEntry.secondary) || keys.contains(timelineEntry.secondary)))) {
           // skip
         } else {
-          rv.prepend(entry)
+          rv += entry
           keys += timelineEntry.id
           if (entryUseSecondary) secondaryKeys += timelineEntry.secondary
         }
       }
     }
 
-    rv
+    rv.reverse
   }
 
   private def compareEntries(a: Array[Byte], b: Array[Byte]) : Boolean = {
