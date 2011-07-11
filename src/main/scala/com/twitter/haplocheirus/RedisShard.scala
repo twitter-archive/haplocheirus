@@ -2,6 +2,7 @@ package com.twitter.haplocheirus
 
 import java.nio.{ByteBuffer, ByteOrder}
 import scala.collection.mutable
+import scala.util.Sorting
 import com.twitter.gizzard.proxy.ExceptionHandlingProxyFactory
 import com.twitter.gizzard.shards._
 import com.twitter.ostrich.Stats
@@ -70,7 +71,9 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
     val keys = mutable.Set.empty[Long]
     val secondaryKeys = mutable.Set.empty[Long]
 
-    entries.reverse.foreach { entry =>
+    val sorted = Sorting.stableSort(entries, compareEntries(_:Array[Byte], _:Array[Byte]))
+
+    sorted.foreach { entry =>
       if (entry.size < 20) {
         rv += entry
       } else {
@@ -89,6 +92,12 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
     }
 
     rv.reverse
+  }
+
+  private def compareEntries(a: Array[Byte], b: Array[Byte]) : Boolean = {
+    val ak = sortKeyFromEntry(a, 0)
+    val bk = sortKeyFromEntry(b, 0)
+    ak < bk
   }
 
   private def timelineIndexOf(entries: Seq[Array[Byte]], entryId: Long): Int = {
