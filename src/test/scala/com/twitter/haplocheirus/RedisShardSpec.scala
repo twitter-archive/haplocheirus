@@ -178,7 +178,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
           llen(timeline, 3L)
         }
 
-        redisShard.get(timeline, 0, 10, false).get.entries.toList mustEqual List(entry23a, entry19)
+        redisShard.get(timeline, 0, 10, false).get.entries.toList mustEqual List(entry23, entry19)
         reads mustEqual 1
       }
 
@@ -231,7 +231,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
           llen(timeline, 3L)
         }
 
-        redisShard.get(timeline, 0, 10, true).get.entries.toList mustEqual List(entry1, entry2, entry3)
+        redisShard.get(timeline, 0, 10, true).get.entries.toList mustEqual List(entry2, entry3, entry1)
         reads mustEqual 1
       }
     }

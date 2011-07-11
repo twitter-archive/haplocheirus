@@ -172,8 +172,8 @@ object IntegrationSpec extends ConfiguredSpecification with JMocker with ClassMo
 
       val segment = service.haploService.get(timeline1, 0, 2, false)
       segment.size mustEqual 2
-      segment.entries.get(0).array.toList mustEqual "b".getBytes.toList
-      segment.entries.get(1).array.toList mustEqual "a".getBytes.toList
+      segment.entries.get(0).array.toList mustEqual "a".getBytes.toList
+      segment.entries.get(1).array.toList mustEqual "b".getBytes.toList
     }
   }
 }
