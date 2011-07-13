@@ -171,6 +171,40 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
         reads mustEqual 1
       }
 
+      "limit and offset" in {
+        "in range" in {
+          expect {
+            one(shardInfo).hostname willReturn "host1"
+            lrange(timeline, -21, -11, List(entry23, entry20, entry19).reverse)
+            llen(timeline, 23L)
+          }
+
+          redisShard.get(timeline, 10, 10, false).get.entries.toList mustEqual List(entry23, entry20, entry19)
+          reads mustEqual 1
+        }
+
+        "out of range" in {
+          expect {
+            one(shardInfo).hostname willReturn "host1"
+            lrange(timeline, -21, -11, List())
+            llen(timeline, 3L)
+          }
+
+          redisShard.get(timeline, 10, 10, false).get.entries.toList mustEqual List()
+          reads mustEqual 1
+        }
+
+        "miss" in {
+          expect {
+            one(shardInfo).hostname willReturn "host1"
+            llen(timeline, 0L)
+          }
+
+          redisShard.get(timeline, 10, 10, false) mustEqual None
+          reads mustEqual 1
+        }
+      }
+
       "with duplicates in the sort key" in {
         expect {
           one(shardInfo).hostname willReturn "host1"

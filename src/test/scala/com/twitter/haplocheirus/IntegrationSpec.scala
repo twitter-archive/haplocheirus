@@ -151,27 +151,25 @@ object IntegrationSpec extends ConfiguredSpecification with JMocker with ClassMo
       service.nameServer.reload()
 
       expect {
-        one(jredisClient).lrange(timeline1, -3, -1) willReturn timelineFuture
-        one(timelineFuture).get(200L, TimeUnit.MILLISECONDS) willReturn List[Array[Byte]]().toJavaList
+        one(jredisClient).llen(timeline1) willReturn future
+        one(future).get(200L, TimeUnit.MILLISECONDS) willReturn 0L
 
+        one(jredisClient).llen(timeline1) willReturn future
+        one(future).get(200L, TimeUnit.MILLISECONDS) willReturn 2L
         one(jredisClient).lrange(timeline1, -3, -1) willReturn timelineFuture
         one(timelineFuture).get(200L, TimeUnit.MILLISECONDS) willReturn List("a", "b").map { _.getBytes }.toJavaList
 
-        one(jredisClient).llen(timeline1) willReturn future
-        one(future).get(200L, TimeUnit.MILLISECONDS) willReturn 3L
-
         one(jredisClient).lrange(timeline1, 0, -1) willReturn timelineFuture
-        one(timelineFuture).get(200L, TimeUnit.MILLISECONDS) willReturn List("a", "b", "c").map { _.getBytes }.toJavaList
+        one(timelineFuture).get(200L, TimeUnit.MILLISECONDS) willReturn List("a", "b").map { _.getBytes }.toJavaList
 
         one(jredisClient).del(timeline1)
         one(jredisClient).rpush(timeline1, TimelineEntry.EmptySentinel)
-        one(jredisClient).lpushx(timeline1, Array("c", "b", "a").map(_.getBytes): _*)
-
+        one(jredisClient).lpushx(timeline1, Array("b", "a").map(_.getBytes): _*)
         allowing(jredisClient).quit()
       }
 
       val segment = service.haploService.get(timeline1, 0, 2, false)
-      segment.size mustEqual 2
+      segment.size mustEqual 1
       segment.entries.get(0).array.toList mustEqual "a".getBytes.toList
       segment.entries.get(1).array.toList mustEqual "b".getBytes.toList
     }

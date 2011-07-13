@@ -189,18 +189,20 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
   def get(timeline: String, offset: Int, length: Int, dedupeSecondary: Boolean): Option[TimelineSegment] = {
     Stats.timeMicros("redisshard-get-usec") {
       readPool.withClient(shardInfo) { client =>
-        getAndFilterSentinel(client, timeline, offset, length) map { entries =>
-
-          // heuristics for detecting a request for the entire timeline
-          val size = if (offset == 0 && (length == 800 || length == 3200)) {
-            entries.size
+        // heuristics for detecting a request for the entire timeline
+        if (!(offset == 0 && (length == 800 || length == 3200))) {
+          val size = client.size(timeline)
+          if (size > 0) {
+            // empty and miss look the same to redis, fix that
+            val entries = getAndFilterSentinel(client, timeline, offset, length).get.toList
+            Some(TimelineSegment(dedupe(entries, dedupeSecondary), size-1))
           } else {
-            // -1 for sentinel, might be off by 1
-            client.size(timeline) - 1
-
+            None
           }
-
-          TimelineSegment(dedupe(entries, dedupeSecondary), size)
+        } else {
+          getAndFilterSentinel(client, timeline, offset, length) map { entries =>
+            TimelineSegment(dedupe(entries, dedupeSecondary), entries.size)
+          }
         }
       }
     }
