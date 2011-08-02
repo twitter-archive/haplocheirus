@@ -20,9 +20,9 @@ object RedisPoolSpec extends ConfiguredSpecification with JMocker with ClassMock
     }
 
     "get" in {
-      redisPool.serverMap.size mustEqual 0
+      redisPool.serverPool(0).size mustEqual 0
       redisPool.get(new ShardInfo("RedisShard", "shard1", "a")) mustEqual client
-      redisPool.serverMap.keys.toList mustEqual List("a")
+      scala.collection.jcl.Map(redisPool.serverPool(0)).keys.toList mustEqual List("a")
     }
 
     "giveBack" in {
@@ -31,12 +31,14 @@ object RedisPoolSpec extends ConfiguredSpecification with JMocker with ClassMock
       }
 
       redisPool.get(new ShardInfo("RedisShard", "shard1", "a")) mustEqual client
-      redisPool.serverMap.keys.toList mustEqual List("a")
+      scala.collection.jcl.Map(redisPool.serverPool(0)).keys.toList mustEqual List("a")
       redisPool.giveBack("a", client)
     }
 
     "toString" in {
       expect {
+        one(client).alive willReturn true
+        one(client).alive willReturn true
         one(client).alive willReturn true
       }
 
@@ -52,6 +54,7 @@ object RedisPoolSpec extends ConfiguredSpecification with JMocker with ClassMock
         expect {
           one(client).errorCount willReturn new AtomicInteger()
           one(client).alive willReturn true
+          one(client).alive willReturn true
         }
 
         redisPool.withClient(new ShardInfo("RedisShard", "shard1", "host1")) { client => 3 } mustEqual 3
@@ -62,6 +65,7 @@ object RedisPoolSpec extends ConfiguredSpecification with JMocker with ClassMock
         expect {
           one(client).errorCount willReturn new AtomicInteger()
           one(client).shutdown()
+          one(client).alive willReturn false
           one(client).alive willReturn false
         }
 

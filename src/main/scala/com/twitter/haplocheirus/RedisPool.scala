@@ -3,6 +3,7 @@ package com.twitter.haplocheirus
 import java.util.concurrent.{ConcurrentHashMap, TimeoutException}
 import java.util.concurrent.atomic.AtomicInteger
 import scala.collection.mutable
+import scala.util.Random
 import com.twitter.ostrich.Stats
 import com.twitter.util.Time
 import com.twitter.util.TimeConversions._
@@ -84,8 +85,10 @@ class RedisPool(name: String, healthTracker: RedisPoolHealthTracker, config: Red
   val log = Logger(getClass.getName)
   val exceptionLog = Logger.get("exception")
 
-  val concurrentServerMap = new ConcurrentHashMap[String, PipelinedRedisClient]
-  val serverMap = scala.collection.jcl.Map(concurrentServerMap)
+  val poolIndexGenerator = new Random
+  val serverPool = (0 to config.poolSize-1).map { i =>
+    new ConcurrentHashMap[String, PipelinedRedisClient]
+  }.toArray
 
   def makeClient(hostname: String) = {
     val timeout = config.timeoutMsec.milliseconds
@@ -96,19 +99,25 @@ class RedisPool(name: String, healthTracker: RedisPoolHealthTracker, config: Red
 
   def get(shardInfo: ShardInfo): PipelinedRedisClient = {
     val hostname = shardInfo.hostname
-    var client = concurrentServerMap.get(hostname);
+    val server = poolIndexGenerator.nextInt(config.poolSize)
+    var client = serverPool(server).get(hostname);
 
     if (healthTracker.isErrored(shardInfo, client)) {
-      if (client ne null) {
+      if ((client ne null) && client.alive) {
         throwAway(hostname, client)
       }
       throw new ShardBlackHoleException(shardInfo.id)
     }
 
-    if(client eq null) {
+    if ((client ne null) && !client.alive) {
+      serverPool(server).remove(hostname, client)
+      client = null
+    }
+
+    if (client eq null) {
       val newClient = makeClient(hostname)
-      client = concurrentServerMap.putIfAbsent(hostname, newClient);
-      if(client eq null) {
+      client = serverPool(server).putIfAbsent(hostname, newClient)
+      if (client eq null) {
         client = newClient
       }
     }
@@ -121,11 +130,6 @@ class RedisPool(name: String, healthTracker: RedisPoolHealthTracker, config: Red
     } catch {
       case e: Throwable =>
         exceptionLog.warning(e, "Error discarding dead redis client: %s", e)
-    }
-    try {
-      concurrentServerMap.remove(hostname)
-    } catch {
-      case e: NullPointerException => {}
     }
   }
 
@@ -173,20 +177,23 @@ class RedisPool(name: String, healthTracker: RedisPoolHealthTracker, config: Red
   }
 
   def shutdown() {
-    serverMap.foreach { case (hostname, client) =>
-      try {
-        client.shutdown()
-      } catch {
-        case e: Throwable =>
-          exceptionLog.error(e, "Failed to shutdown client: %s", e)
+    serverPool.map { concurrentServerMap =>
+      val serverMap = scala.collection.jcl.Map(concurrentServerMap)
+      serverMap.foreach { case (hostname, client) =>
+        try {
+          client.shutdown()
+        } catch {
+          case e: Throwable =>
+            exceptionLog.error(e, "Failed to shutdown client: %s", e)
+        }
       }
+      serverMap.clear()
     }
-    serverMap.clear()
   }
 
   override def toString = {
-    "<RedisPool: %s>".format(serverMap.map { case (hostname, client) =>
+    "<RedisPool: %s>".format(serverPool.map { scala.collection.jcl.Map(_).filter { _._2.alive }.map { case (hostname, client) =>
       "%s".format(hostname)
-    }.mkString(", "))
+    }.mkString(", ")}.mkString(", "))
   }
 }
