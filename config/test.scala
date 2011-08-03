@@ -35,6 +35,7 @@ new HaplocheirusConfig {
     }
 
     val readPoolConfig = new RedisPoolConfig {
+      val poolSize = 1
       val pipeline = 0  // for tests, force no pipeline, so we can see the results immediately.
       val timeoutMsec = 200
       val keysTimeoutMsec = 5000
@@ -42,6 +43,7 @@ new HaplocheirusConfig {
     }
 
     val writePoolConfig = new RedisPoolConfig {
+      val poolSize = 1
       val pipeline = 0  // for tests, force no pipeline, so we can see the results immediately.
       val timeoutMsec = 200
       val keysTimeoutMsec = 5000
@@ -49,6 +51,7 @@ new HaplocheirusConfig {
     }
 
     val slowPoolConfig = new RedisPoolConfig {
+      val poolSize = 1
       val pipeline = 0  // for tests, force no pipeline, so we can see the results immediately.
       val timeoutMsec = 200
       val keysTimeoutMsec = 5000
