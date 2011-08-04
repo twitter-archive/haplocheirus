@@ -68,7 +68,7 @@ class PipelinedRedisClient(hostname: String, pipelineMaxSize: Int, timeout: Dura
   }
 
   def finishRequest(request: PipelineElement) {
-    Stats.addTiming("redis-pipeline", (System.nanoTime - request.startNanoTime).toInt/1000)
+    Stats.addTiming("redis-pipeline", ((System.nanoTime/1000) - (request.startNanoTime/1000)).toInt)
     try {
       request.callback()
     } catch {
