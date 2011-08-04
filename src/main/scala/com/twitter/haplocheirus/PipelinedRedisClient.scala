@@ -23,6 +23,9 @@ object PipelinedRedisClient {
  * Thin wrapper around JRedisPipeline that will handle pipelining, and call an error handler on
  * failure.
  */
+
+case class PipelineElement(future: Future[java.lang.Long], callback: () => Unit, onError: Option[Throwable => Unit], startNanoTime: Long)
+
 class PipelinedRedisClient(hostname: String, pipelineMaxSize: Int, timeout: Duration,
                            keysTimeout: Duration, expiration: Duration) {
   val DEFAULT_PORT = 6379
@@ -47,7 +50,7 @@ class PipelinedRedisClient(hostname: String, pipelineMaxSize: Int, timeout: Dura
     PipelinedRedisClient.mockedOutJRedisClient.getOrElse(new JRedisPipeline(connectionSpec))
   }
 
-  val pipeline = new LinkedBlockingDeque[(Future[java.lang.Long], Option[Throwable => Unit], () => Unit)]
+  val pipeline = new LinkedBlockingDeque[PipelineElement]
 
   protected def uniqueTimelineName(name: String): String = {
     val newName = name + "~" + System.currentTimeMillis + "~" + (new Random().nextInt & 0x7fffffff)
@@ -64,20 +67,21 @@ class PipelinedRedisClient(hostname: String, pipelineMaxSize: Int, timeout: Dura
     redisClient.quit()
   }
 
-  def finishRequest(onError: Option[Throwable => Unit], f: () => Unit) {
+  def finishRequest(request: PipelineElement) {
+    Stats.addTiming("redis-pipeline", (System.nanoTime - request.startNanoTime).toInt/1000)
     try {
-      f()
+      request.callback()
     } catch {
       case e: ExecutionException =>
         exceptionLog.error(e, "Error in jredis request from %s: %s", hostname, e.getCause())
-        onError.foreach(_(e))
+        request.onError.foreach(_(e))
       case e: TimeoutException =>
         Stats.incr("redis-timeout")
         exceptionLog.warning(e, "Timeout waiting for redis response from %s: %s", hostname, e.getCause())
-        onError.foreach(_(e))
+        request.onError.foreach(_(e))
       case e: Throwable =>
         exceptionLog.error(e, "Unknown jredis error from %s: %s", hostname, e)
-        onError.foreach(_(e))
+        request.onError.foreach(_(e))
     }
   }
 
@@ -88,8 +92,8 @@ class PipelinedRedisClient(hostname: String, pipelineMaxSize: Int, timeout: Dura
       drained = true
       try {
         val head = pipeline.remove
-        if (head._1.isDone) {
-          finishRequest(head._2, head._3)
+        if (head.future.isDone) {
+          finishRequest(head)
           drained = false
         } else {
           pipeline.putFirst(head)
@@ -116,8 +120,7 @@ class PipelinedRedisClient(hostname: String, pipelineMaxSize: Int, timeout: Dura
   def flushPipeline() {
     while (pipeline.size > 0) {
       try {
-        val (future, onError, next) = pipeline.poll
-        finishRequest(onError, next)
+        finishRequest(pipeline.poll)
       } catch {
         case e: NullPointerException => {}
       }
@@ -125,7 +128,7 @@ class PipelinedRedisClient(hostname: String, pipelineMaxSize: Int, timeout: Dura
   }
 
   def laterWithErrorHandling(future: Future[java.lang.Long], onError: Option[Throwable => Unit])(f: => Unit) {
-    pipeline.offer((future, onError, () => f))
+    pipeline.offer(PipelineElement(future, () => f, onError, System.nanoTime))
     trimPipeline
   }
 
