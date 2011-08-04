@@ -44,7 +44,7 @@ object PipelinedRedisClientSpec extends ConfiguredSpecification with JMocker wit
           one(longFuture).isDone willReturn true
         }
         client.laterWithErrorHandling(longFuture, onError) { }
-        client.flushPipeline()
+        client.pipeline.flush()
         client.pipeline.size mustEqual 0
       }
 
@@ -55,7 +55,7 @@ object PipelinedRedisClientSpec extends ConfiguredSpecification with JMocker wit
         }
 
         client.laterWithErrorHandling(longFuture, onError) { throw new ExecutionException(new Exception("I died.")) }
-        client.flushPipeline()
+        client.pipeline.flush()
       }
     }
 
@@ -83,7 +83,7 @@ object PipelinedRedisClientSpec extends ConfiguredSpecification with JMocker wit
 
       var count = 0L
       client.push(timeline, data, None) { n => count = n }
-      client.flushPipeline()
+      client.pipeline.flush()
       count mustEqual 23
     }
 
@@ -95,7 +95,7 @@ object PipelinedRedisClientSpec extends ConfiguredSpecification with JMocker wit
       }
 
       client.pop(timeline, data, None)
-      client.flushPipeline()
+      client.pipeline.flush()
     }
 
     "pushAfter" in {
@@ -107,7 +107,7 @@ object PipelinedRedisClientSpec extends ConfiguredSpecification with JMocker wit
 
       var count = 0L
       client.pushAfter(timeline, data, data2, None) { n => count = n }
-      client.flushPipeline()
+      client.pipeline.flush()
       count mustEqual 23
     }
 
