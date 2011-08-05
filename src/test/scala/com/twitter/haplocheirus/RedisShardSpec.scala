@@ -57,9 +57,10 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
       one(longFuture).get(1000, TimeUnit.MILLISECONDS) willReturn result
     }
 
+    var client: PipelinedRedisClient = null
     doBefore {
       PipelinedRedisClient.mockedOutJRedisClient = Some(jredis)
-      val client = new PipelinedRedisClient("", 0, 1.second, 1.second, 1.second) {
+      client = new PipelinedRedisClient("", 10, 1.second, 1.second, 1.second) {
         override protected def uniqueTimelineName(name: String): String = "generated-name"
       }
       reads = 0
@@ -90,11 +91,12 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
         expect {
           one(shardInfo).hostname willReturn "host1"
           one(jredis).rpushx(timeline, Array(data): _*) willReturn longFuture
-          one(longFuture).isDone willReturn true
+          one(longFuture).get
           one(longFuture).get(1000, TimeUnit.MILLISECONDS) willReturn 100L
         }
 
         redisShard.append(timeline, List(data), None)
+        client.pipeline.size must eventually(be_==(0))
         writes mustEqual 1
       }
 
@@ -102,12 +104,13 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
         expect {
           one(shardInfo).hostname willReturn "host1"
           one(jredis).rpushx(timeline, Array(data): _*) willReturn longFuture
-          one(longFuture).isDone willReturn true
+          one(longFuture).get
           one(longFuture).get(1000, TimeUnit.MILLISECONDS) willReturn 899L
           one(jredis).ltrim(timeline, -800, -1)
         }
 
         redisShard.append(timeline, List(data), None)
+        client.pipeline.size must eventually(be_==(0))
         writes mustEqual 1
       }
     }
@@ -381,6 +384,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
           one(future).get(1000, TimeUnit.MILLISECONDS) willReturn List[Array[Byte]]().toJavaList
         }
         redisShard.merge(timeline, List(List(21L).pack.array), None)
+        client.pipeline.size must eventually(be_==(0))
         writes mustEqual 1
       }
 
@@ -392,11 +396,12 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
           one(jredis).lrange(timeline, 0, -1) willReturn future
           one(future).get(1000, TimeUnit.MILLISECONDS) willReturn existing.map { List(_).pack.array }.reverse.toJavaList
           one(jredis).linsertBefore(timeline, List(7L).pack.array, insert(0)) willReturn longFuture
-          one(longFuture).isDone willReturn true
+          one(longFuture).get
           one(longFuture).get(1000, TimeUnit.MILLISECONDS)
           one(jredis).linsertBefore(timeline, insert(0), insert(1))
         }
         redisShard.merge(timeline, insert, None)
+        client.pipeline.size must eventually(be_==(0))
         writes mustEqual 1
       }
 
@@ -419,15 +424,16 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
           one(jredis).lrange(timeline, 0, -1) willReturn future
           one(future).get(1000, TimeUnit.MILLISECONDS) willReturn existing.map { List(_).pack.array }.reverse.toJavaList
           one(jredis).rpushx(timeline, Array(List(29L).pack.array): _*) willReturn longFuture
-          one(longFuture).isDone willReturn true
+          one(longFuture).get
           one(longFuture).get(1000, TimeUnit.MILLISECONDS)
           one(jredis).rpushx(timeline, Array(List(28L).pack.array): _*) willReturn longFuture
-          one(longFuture).isDone willReturn true
+          one(longFuture).get
           one(longFuture).get(1000, TimeUnit.MILLISECONDS)
           one(jredis).rpushx(timeline, Array(List(21L).pack.array): _*)
         }
 
         redisShard.merge(timeline, insert.map { List(_).pack.array }, None)
+        client.pipeline.size must eventually(be_==(0))
         writes mustEqual 1
       }
 
@@ -439,12 +445,13 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
           one(jredis).lrange(timeline, 0, -1) willReturn future
           one(future).get(1000, TimeUnit.MILLISECONDS) willReturn existing.map { List(_).pack.array }.reverse.toJavaList
           one(jredis).linsertBefore(timeline, List(7L).pack.array, List(5L).pack.array) willReturn longFuture
-          one(longFuture).isDone willReturn true
+          one(longFuture).get
           one(longFuture).get(1000, TimeUnit.MILLISECONDS)
           one(jredis).linsertBefore(timeline, List(5L).pack.array, List(2L).pack.array)
         }
 
         redisShard.merge(timeline, insert.map { List(_).pack.array }, None)
+        client.pipeline.size must eventually(be_==(0))
         writes mustEqual 1
       }
 
@@ -456,15 +463,16 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
           one(jredis).lrange(timeline, 0, -1) willReturn future
           one(future).get(1000, TimeUnit.MILLISECONDS) willReturn existing.map { List(_).pack.array }.reverse.toJavaList
           one(jredis).linsertBefore(timeline, List(20L).pack.array, List(19L).pack.array) willReturn longFuture
-          one(longFuture).isDone willReturn true
+          one(longFuture).get
           one(longFuture).get(1000, TimeUnit.MILLISECONDS)
           one(jredis).linsertBefore(timeline, List(16L).pack.array, List(14L).pack.array) willReturn longFuture
-          one(longFuture).isDone willReturn true
+          one(longFuture).get
           one(longFuture).get(1000, TimeUnit.MILLISECONDS)
           one(jredis).linsertBefore(timeline, List(14L).pack.array, List(13L).pack.array)
         }
 
         redisShard.merge(timeline, insert.map { List(_).pack.array }, None)
+        client.pipeline.size must eventually(be_==(0))
         writes mustEqual 1
       }
 

@@ -41,21 +41,24 @@ object PipelinedRedisClientSpec extends ConfiguredSpecification with JMocker wit
 
       "success" in {
         expect {
-          one(longFuture).isDone willReturn true
+          one(longFuture).get
         }
         client.laterWithErrorHandling(longFuture, onError) { }
-        client.pipeline.flush()
-        client.pipeline.size mustEqual 0
+        client.pipeline.shutdown()
+        client.pipeline.size must eventually(be_==(0))
+        client.pipeline.completed.await
       }
 
       "exception" in {
         expect {
+          one(longFuture).get
           one(queue).put(job)
-          one(longFuture).isDone willReturn true
         }
 
         client.laterWithErrorHandling(longFuture, onError) { throw new ExecutionException(new Exception("I died.")) }
-        client.pipeline.flush()
+        client.pipeline.shutdown()
+        client.pipeline.size must eventually(be_==(0))
+        client.pipeline.completed.await
       }
     }
 
@@ -77,37 +80,40 @@ object PipelinedRedisClientSpec extends ConfiguredSpecification with JMocker wit
     "push" in {
       expect {
         one(jredis).rpushx(timeline, Array(data): _*) willReturn longFuture
-        one(longFuture).isDone willReturn true
+        one(longFuture).get
         one(longFuture).get(1000, TimeUnit.MILLISECONDS) willReturn 23L
       }
 
       var count = 0L
       client.push(timeline, data, None) { n => count = n }
-      client.pipeline.flush()
-      count mustEqual 23
+      client.pipeline.shutdown()
+      count must eventually(be_==(23))
     }
 
     "pop" in {
       expect {
         one(jredis).lrem(timeline, data, 0) willReturn longFuture
-        one(longFuture).isDone willReturn true
-        one(longFuture).get(1000, TimeUnit.MILLISECONDS) willReturn 1L
+        one(longFuture).get
       }
 
       client.pop(timeline, data, None)
-      client.pipeline.flush()
+      client.pipeline.shutdown()
+      client.pipeline.size must eventually(be_==(0))
+      client.pipeline.completed.await
     }
 
     "pushAfter" in {
       expect {
         one(jredis).linsertBefore(timeline, data, data2) willReturn longFuture
-        one(longFuture).isDone willReturn true
+        one(longFuture).get
         one(longFuture).get(1000, TimeUnit.MILLISECONDS) willReturn 23L
       }
 
       var count = 0L
       client.pushAfter(timeline, data, data2, None) { n => count = n }
-      client.pipeline.flush()
+      client.pipeline.shutdown()
+      client.pipeline.size must eventually(be_==(0))
+      client.pipeline.completed.await
       count mustEqual 23
     }
 
