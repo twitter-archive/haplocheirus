@@ -6,6 +6,12 @@ exception TimelineStoreException {
   1: string description
 }
 
+enum TimelineSegmentState {
+  HIT,
+  MISS,
+  TIMEOUT
+}
+
 struct TimelineSegment {
   /*
    * Timeline entries are opaque binary data, with the first 20 bytes defined by the server:
@@ -36,7 +42,7 @@ struct TimelineSegment {
    * The actual full length of the timeline as stored in redis.
    */
   2: i32 size;
-  3: optional bool hit = 1;
+  3: optional TimelineSegmentState state = 0;
 }
 
 struct TimelineGet {
