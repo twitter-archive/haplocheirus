@@ -1,12 +1,34 @@
 package com.twitter.haplocheirus
 
-import com.twitter.gizzard.{Future, Hash}
+import java.util.concurrent.{ArrayBlockingQueue, ThreadPoolExecutor, TimeUnit, RejectedExecutionException}
+import com.twitter.gizzard.Hash
 import com.twitter.gizzard.nameserver.NameServer
 import com.twitter.gizzard.scheduler.{CopyJobFactory, JobScheduler, JsonJob, PrioritizingJobScheduler}
 import com.twitter.gizzard.shards.{ShardBlackHoleException, ShardOfflineException}
 import com.twitter.gizzard.thrift.conversions.Sequences._
 import com.twitter.ostrich.Stats
+import com.twitter.util.{Future, Promise, Try, Return}
+import com.twitter.util.TimeConversions._
 
+
+class MultiGetPool(config: MultiGetPoolConfig) {
+  var timeout = config.timeout
+  val queue = new ArrayBlockingQueue[Runnable](config.maxQueueSize)
+  val pool = new ThreadPoolExecutor(config.corePoolSize,
+                                    config.maxPoolSize,
+                                    config.keepAliveTime,
+                                    TimeUnit.MILLISECONDS,
+                                    queue)
+
+  def submit(job: Runnable) = pool.submit(job)
+  def shutdown() = pool.shutdown()
+}
+
+class MultiRunnable[A, B](task: A => B, command: A, promise: Promise[B]) extends Runnable {
+  def run() {
+    promise() = Try(task(command))
+  }
+}
 
 class TimelineStoreService(val nameServer: NameServer[HaplocheirusShard],
                            val scheduler: PrioritizingJobScheduler[JsonJob],
@@ -14,7 +36,8 @@ class TimelineStoreService(val nameServer: NameServer[HaplocheirusShard],
                            val copyFactory: CopyJobFactory[HaplocheirusShard],
                            val readPool: RedisPool,
                            val writePool: RedisPool,
-                           val slowPool: RedisPool)
+                           val slowPool: RedisPool,
+                           val multiGetPool: MultiGetPool)
       extends JobInjector {
 
   val writeQueue = scheduler(Priority.Write.id).queue
@@ -26,6 +49,7 @@ class TimelineStoreService(val nameServer: NameServer[HaplocheirusShard],
 
   def shutdown() {
     scheduler.shutdown()
+    multiGetPool.shutdown()
     multiPushScheduler.shutdown()
     readPool.shutdown()
     writePool.shutdown()
@@ -101,6 +125,50 @@ class TimelineStoreService(val nameServer: NameServer[HaplocheirusShard],
       case Some(_) => Stats.incr("timeline-hit")
     }
     tm
+  }
+
+  def getMulti(gets: Seq[TimelineGet]) = {
+    val getter: TimelineGet => Option[TimelineSegment] = { command =>
+      get(command.timeline_id, command.offset, command.length, command.dedupe)
+    }
+    getGenericMulti(gets, getter)
+  }
+
+  def getRangeMulti(gets: Seq[TimelineGetRange]) = {
+    val getter: TimelineGetRange => Option[TimelineSegment] = { command =>
+      getRange(command.timeline_id, command.from_id, command.to_id, command.dedupe)
+    }
+    getGenericMulti(gets, getter)
+  }
+
+  def getGenericMulti[A](gets: Seq[A], getter: A => Option[TimelineSegment]) = {
+    val futures = gets map { get =>
+      val future = new Promise[Option[TimelineSegment]]
+      val task = new MultiRunnable[A, Option[TimelineSegment]](getter, get, future)
+      try {
+        multiGetPool.submit(task)
+      } catch {
+        case e: RejectedExecutionException => Stats.incr("get-multi-rejected")
+      }
+      future
+    }
+    futureCollect(futures).within(multiGetPool.timeout)
+    futures map { _ within 0.seconds }
+  }
+
+  /* "collect" and "value" semi-cut-n-pasted from newer util */
+  def futureCollect[A](fs: Seq[Future[A]]): Future[Seq[A]] = {
+    val collected = fs.foldLeft(futureValue(Nil: List[A])) { case (a, e) =>
+      a flatMap { aa => e map { _ :: aa } }
+    } map { _.reverse }
+
+    collected
+  }
+
+  def futureValue[A](a: A): Future[A] = {
+    val value = new Promise[A]
+    value.update(Return(a))
+    value
   }
 
   def store(timeline: String, entries: Seq[Array[Byte]]) {

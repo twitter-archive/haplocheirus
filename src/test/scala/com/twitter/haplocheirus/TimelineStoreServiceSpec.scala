@@ -1,8 +1,12 @@
 package com.twitter.haplocheirus
 
+import java.util.concurrent.{TimeUnit, TimeoutException}
 import com.twitter.gizzard.Future
 import com.twitter.gizzard.nameserver.NameServer
 import com.twitter.gizzard.scheduler.{JobQueue, JobScheduler, JsonJob, PrioritizingJobScheduler}
+import com.twitter.gizzard.shards.ShardException
+import com.twitter.util.{Return, Throw}
+import com.twitter.util.TimeConversions._
 import org.specs.Specification
 import org.specs.mock.{ClassMocker, JMocker}
 import thrift.conversions.TimelineSegment._
@@ -18,6 +22,14 @@ object TimelineStoreServiceSpec extends Specification with JMocker with ClassMoc
     val readPool = mock[RedisPool]
     val writePool = mock[RedisPool]
     val slowPool = mock[RedisPool]
+    val multiGetPoolConfig = new MultiGetPoolConfig {
+      val timeout = 100.millis
+      val corePoolSize = 2
+      val maxPoolSize = 2
+      val keepAliveTime = java.lang.Long.MAX_VALUE
+      val maxQueueSize = 4
+    }
+    val multiGetPool = new MultiGetPool(multiGetPoolConfig)
     val shard1 = mock[HaplocheirusShard]
     val shard2 = mock[HaplocheirusShard]
     val copyFactory = mock[jobs.RedisCopyFactory]
@@ -30,7 +42,7 @@ object TimelineStoreServiceSpec extends Specification with JMocker with ClassMoc
         one(scheduler).apply(Priority.Write.id) willReturn jobScheduler
         one(jobScheduler).errorLimit willReturn 10
       }
-      service = new TimelineStoreService(nameServer, scheduler, multiPushScheduler, copyFactory, readPool, writePool, slowPool)
+      service = new TimelineStoreService(nameServer, scheduler, multiPushScheduler, copyFactory, readPool, writePool, slowPool, multiGetPool)
       service.addOnError = false
     }
 
@@ -110,6 +122,90 @@ object TimelineStoreServiceSpec extends Specification with JMocker with ClassMoc
       }
 
       service.getRange("t1", fromId, toId, false) mustEqual Some(TimelineSegment(data, 3))
+    }
+
+    "getMulti" in {
+      val offset = 10
+      val length = 5
+      val data = List("a".getBytes, "z".getBytes)
+      val cmd = new TimelineGet("t1", offset, length, false)
+
+      "hit" in {
+        expect {
+          one(nameServer).findCurrentForwarding(0, 632754681242344982L) willReturn shard1
+          one(shard1).get("t1", offset, length, false) willReturn Some(TimelineSegment(data, 3))
+        }
+
+        val results = service.getMulti(Seq(cmd))
+        results.size mustEqual 1
+        results(0).isReturn mustEqual true
+        results(0)() mustEqual Some(TimelineSegment(data, 3))
+      }
+
+      "miss" in {
+        expect {
+          one(nameServer).findCurrentForwarding(0, 632754681242344982L) willReturn shard1
+          one(shard1).get("t1", offset, length, false) willReturn None
+        }
+
+        val results = service.getMulti(Seq(cmd))
+        results.size mustEqual 1
+        results(0).isReturn mustEqual true
+        results(0)() mustEqual None
+      }
+
+      "timeout" in {
+        expect {
+          one(nameServer).findCurrentForwarding(0, 632754681242344982L) willReturn shard1
+          one(shard1).get("t1", offset, length, false) willThrow new ShardException("foo")
+        }
+
+        val results = service.getMulti(Seq(cmd))
+        results.size mustEqual 1
+        results(0).isThrow mustEqual true
+      }
+    }
+
+    "getRangeMulti" in {
+      val fromId = 10L
+      val toId = 7L
+      val data = List("a".getBytes, "z".getBytes)
+      val cmd = new TimelineGetRange("t1", fromId, toId, false)
+
+      "hit" in {
+        expect {
+          one(nameServer).findCurrentForwarding(0, 632754681242344982L) willReturn shard1
+          one(shard1).getRange("t1", fromId, toId, false) willReturn Some(TimelineSegment(data, 3))
+        }
+
+        val results = service.getRangeMulti(Seq(cmd))
+        results.size mustEqual 1
+        results(0).isReturn mustEqual true
+        results(0)() mustEqual Some(TimelineSegment(data, 3))
+      }
+
+      "miss" in {
+        expect {
+          one(nameServer).findCurrentForwarding(0, 632754681242344982L) willReturn shard1
+          one(shard1).getRange("t1", fromId, toId, false) willReturn None
+        }
+
+        val results = service.getRangeMulti(Seq(cmd))
+        results.size mustEqual 1
+        results(0).isReturn mustEqual true
+        results(0)() mustEqual None
+      }
+
+      "timeout" in {
+        expect {
+          one(nameServer).findCurrentForwarding(0, 632754681242344982L) willReturn shard1
+          one(shard1).getRange("t1", fromId, toId, false) willThrow new ShardException("foo")
+        }
+
+        val results = service.getRangeMulti(Seq(cmd))
+        results.size mustEqual 1
+        results(0).isThrow mustEqual true
+      }
     }
 
     "store" in {

@@ -5,6 +5,9 @@ import java.nio.ByteBuffer
 import java.util.{List => JList}
 import com.twitter.gizzard.thrift.conversions.Sequences._
 import com.twitter.haplocheirus.thrift.conversions.TimelineSegment._
+import com.twitter.haplocheirus.thrift.conversions.TimelineGet._
+import com.twitter.haplocheirus.thrift.conversions.TimelineGetRange._
+import com.twitter.util.Try
 import thrift.TimelineStoreException
 
 
@@ -45,6 +48,36 @@ class TimelineStore(service: TimelineStoreService) extends thrift.TimelineStore.
     service.getRange(timeline_id, from_id, to_id, dedupe).getOrElse {
       throw new TimelineStoreException("no timeline")
     }.toThrift
+  }
+
+  def get_multi(gets: JList[thrift.TimelineGet]) = {
+    convert_multi_results(service.getMulti(gets.toSeq map { _.fromThrift }))
+  }
+
+  def get_range_multi(get_ranges: JList[thrift.TimelineGetRange]) = {
+    convert_multi_results(service.getRangeMulti(get_ranges.toSeq map { _.fromThrift }))
+  }
+
+  def convert_multi_results(results: Seq[Try[Option[TimelineSegment]]]): JList[thrift.TimelineSegment] = {
+    val ret = results map { tryResult =>
+      try {
+        tryResult() match {
+          case None => {
+            val result = new TimelineSegment(Seq(), 0)
+            result.state = thrift.TimelineSegmentState.MISS
+            result
+          }
+          case Some(result) => result
+        }
+      } catch {
+        case e: Throwable => {
+          val result = new TimelineSegment(Seq(), 0)
+          result.state = thrift.TimelineSegmentState.TIMEOUT
+          result
+        }
+      }
+    } map { _.toThrift }
+    ret.toJavaList
   }
 
   def store(timeline_id: String, entries: JList[ByteBuffer]) {
