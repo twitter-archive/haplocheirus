@@ -1,13 +1,13 @@
 package com.twitter.haplocheirus
 
-import java.util.concurrent.{ArrayBlockingQueue, ThreadPoolExecutor, TimeUnit, RejectedExecutionException}
+import java.util.concurrent.{ArrayBlockingQueue, ThreadPoolExecutor, TimeUnit, RejectedExecutionException, TimeoutException}
 import com.twitter.gizzard.Hash
 import com.twitter.gizzard.nameserver.NameServer
 import com.twitter.gizzard.scheduler.{CopyJobFactory, JobScheduler, JsonJob, PrioritizingJobScheduler}
 import com.twitter.gizzard.shards.{ShardBlackHoleException, ShardOfflineException}
 import com.twitter.gizzard.thrift.conversions.Sequences._
 import com.twitter.ostrich.Stats
-import com.twitter.util.{Future, Promise, Try, Return}
+import com.twitter.util.{Future, Promise, Try, Return, Throw}
 import com.twitter.util.TimeConversions._
 
 
@@ -148,7 +148,10 @@ class TimelineStoreService(val nameServer: NameServer[HaplocheirusShard],
       try {
         multiGetPool.submit(task)
       } catch {
-        case e: RejectedExecutionException => Stats.incr("get-multi-rejected")
+        case e: RejectedExecutionException => {
+          Stats.incr("get-multi-rejected")
+          future() = Throw(new TimeoutException("MultiGetPool rejected job"))
+        }
       }
       future
     }
