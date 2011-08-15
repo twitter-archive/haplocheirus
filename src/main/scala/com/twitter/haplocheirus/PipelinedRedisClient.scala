@@ -2,7 +2,7 @@ package com.twitter.haplocheirus
 
 import java.io.IOException
 import java.util.Random
-import java.util.concurrent.{ExecutionException, Future, TimeoutException, TimeUnit, LinkedBlockingDeque, CountDownLatch}
+import java.util.concurrent.{ExecutionException, Future, TimeoutException, TimeUnit, LinkedBlockingDeque, LinkedBlockingQueue, CountDownLatch}
 import java.util.concurrent.atomic.AtomicInteger
 import scala.collection.mutable
 import com.twitter.gizzard.thrift.conversions.Sequences._
@@ -24,13 +24,24 @@ object PipelinedRedisClient {
  * failure.
  */
 
+case class BatchElement(redisCall: () => Future[java.lang.Long],
+                        callback: Future[java.lang.Long] => Unit,
+                        onError: Option[Throwable => Unit],
+                        startNanoTime: Long)
+
 case class PipelineElement(future: Future[java.lang.Long],
-                           callback: () => Unit,
+                           callback: Future[java.lang.Long] => Unit,
                            onError: Option[Throwable => Unit],
                            startNanoTime: Long)
 
-class Pipeline(hostname: String, maxSize: Int) extends Runnable {
-  protected val pipeline = new LinkedBlockingDeque[PipelineElement]
+class Pipeline(client: PipelinedRedisClient, hostname: String, maxSize: Int,
+               futureTimeout: Duration, batchSize: Int, batchTimeout: Duration,
+               countError: PipelinedRedisClient => Unit) extends Runnable {
+  var operationCount = 0
+
+  protected val staging = new LinkedBlockingQueue[BatchElement]
+  protected val batch = new LinkedBlockingDeque[BatchElement]
+  protected val pipeline = new LinkedBlockingQueue[PipelineElement]
   protected val exceptionLog = Logger.get("exception")
 
   private val running = new CountDownLatch(1)
@@ -38,37 +49,80 @@ class Pipeline(hostname: String, maxSize: Int) extends Runnable {
 
   def run {
     while (running.getCount > 0) {
-      val head = pipeline.poll(1000L, TimeUnit.MILLISECONDS)
-      if (head ne null) {
-        val succeeded = wrap(head, head.future.get)
-        Stats.addTiming("redis-pipeline", ((System.nanoTime/1000) - (head.startNanoTime/1000)).toInt)
+      val batchHead = batch.peek
+      if (((batchHead ne null) && ((System.nanoTime/1000) - (batchHead.startNanoTime/1000) >= batchTimeout.inMillis))
+           || batch.size >= batchSize) {
+         drainBatch
+      } else if (pipeline.size > 0) {
+        val head = pipeline.poll
+        val succeeded = wrap(head, () => head.future.get(futureTimeout.inMillis, TimeUnit.MILLISECONDS))
+        Stats.addTiming("redis-pipeline-usec", ((System.nanoTime/1000) - (head.startNanoTime/1000)).toInt)
         if (succeeded) {
-          wrap(head, head.callback)
+          wrap(head, { () => head.callback(head.future) })
         }
+        operationCount += 1
+      } else {
+        val head = batch.peek
+        val sleepTime = if (head ne null) {
+          batchTimeout.inMillis - ((System.nanoTime/1000) - (head.startNanoTime/1000))
+        } else {
+          1000L
+        }
+        val batchElement = staging.poll(sleepTime, TimeUnit.MILLISECONDS)
+        if (batchElement ne null) {
+          batch.offer(batchElement)
+        }
+        staging.drainTo(batch)
       }
     }
-    // flush when exiting
+    flush
+  }
+
+  def flush {
+    staging.drainTo(batch)
+    drainBatch
     while (pipeline.size > 0) {
       val head = pipeline.poll
-      wrap(head, head.callback)
+      wrap(head, { () => head.callback(head.future) })
     }
     completed.countDown
+  }
+
+  protected def drainBatch() {
+    while (batch.size > 0) {
+      batchElementToPipeline(batch.poll)
+    }
+  }
+
+  protected def batchElementToPipeline(batchElement: BatchElement) {
+    Stats.addTiming("redis-pipeline-batch-usec", ((System.nanoTime/1000) - (batchElement.startNanoTime/1000)).toInt)
+    val pipelineElement = new PipelineElement(
+      batchElement.redisCall(),
+      batchElement.callback,
+      batchElement.onError,
+      System.nanoTime)
+    pipeline.offer(pipelineElement)
   }
 
   def shutdown() {
     running.countDown
   }
 
-  def offer(element: PipelineElement) {
-    pipeline.offer(element)
+  def offer(redisCall: () => Future[java.lang.Long],
+             callback: Future[java.lang.Long] => Unit,
+             onError: Option[Throwable => Unit]) {
+    if (running.getCount == 0) {
+      throw new TimeoutException("client shutdown")
+    }
+    staging.offer(new BatchElement(redisCall, callback, onError, System.nanoTime))
   }
 
   def size(): Int = {
-    pipeline.size
+    staging.size + batch.size + pipeline.size
   }
 
   def isFull(onError: Option[Throwable => Unit]) {
-    if (pipeline.size > maxSize) {
+    if (size > maxSize) {
       val e = new TimeoutException
       onError.foreach(_(e))
       throw e
@@ -76,29 +130,45 @@ class Pipeline(hostname: String, maxSize: Int) extends Runnable {
   }
 
   protected def wrap(request: PipelineElement, f: () => Unit): Boolean = {
-    try {
+    val e = try {
       f()
-      true
+      None
     } catch {
       case e: ExecutionException =>
         exceptionLog.error(e, "Error in jredis request from %s: %s", hostname, e.getCause())
-        request.onError.foreach(_(e))
-        false
+        Some(e)
+      case e: ClientRuntimeException =>
+        exceptionLog.error(e, "Redis client error from %s: %s", hostname, e.getCause())
+        markDead
+        Some(e)
       case e: TimeoutException =>
         Stats.incr("redis-timeout")
         exceptionLog.warning(e, "Timeout waiting for redis response from %s: %s", hostname, e.getCause())
-        request.onError.foreach(_(e))
-        false
+        Some(e)
       case e: Throwable =>
         exceptionLog.error(e, "Unknown jredis error from %s: %s", hostname, e)
+        Some(e)
+    }
+    e match {
+      case None => true
+      case Some(e) => {
+        countError(client)
         request.onError.foreach(_(e))
         false
+      }
     }
+  }
+
+  def markDead {
+    shutdown
+    flush
+    client.shutdown
   }
 }
 
-class PipelinedRedisClient(hostname: String, pipelineMaxSize: Int, timeout: Duration,
-                           keysTimeout: Duration, expiration: Duration) {
+class PipelinedRedisClient(hostname: String, pipelineMaxSize: Int, batchSize: Int, batchTimeout: Duration,
+                           timeout: Duration, keysTimeout: Duration, expiration: Duration,
+                           countError: PipelinedRedisClient => Unit) {
   val DEFAULT_PORT = 6379
   val KEYS_KEY = "%keys"
 
@@ -120,7 +190,7 @@ class PipelinedRedisClient(hostname: String, pipelineMaxSize: Int, timeout: Dura
     PipelinedRedisClient.mockedOutJRedisClient.getOrElse(new JRedisPipeline(connectionSpec))
   }
 
-  val pipeline = new Pipeline(hostname, pipelineMaxSize)
+  val pipeline = new Pipeline(this, hostname, pipelineMaxSize, timeout, batchSize, batchTimeout, countError)
   val pipelineThread = new Thread(pipeline).start()
 
   protected def uniqueTimelineName(name: String): String = {
@@ -139,8 +209,8 @@ class PipelinedRedisClient(hostname: String, pipelineMaxSize: Int, timeout: Dura
     redisClient.quit()
   }
 
-  def laterWithErrorHandling(future: Future[java.lang.Long], onError: Option[Throwable => Unit])(f: => Unit) {
-    pipeline.offer(PipelineElement(future, () => f, onError, System.nanoTime))
+  def laterWithErrorHandling(redisCall: () => Future[java.lang.Long], onError: Option[Throwable => Unit])(f: Future[java.lang.Long] => Unit) {
+    pipeline.offer(redisCall, f, onError)
   }
 
   // def isMember(timeline: String, entry: Array[Byte]) = {
@@ -152,8 +222,8 @@ class PipelinedRedisClient(hostname: String, pipelineMaxSize: Int, timeout: Dura
   def push(timeline: String, entry: Array[Byte], onError: Option[Throwable => Unit])(f: Long => Unit) {
     pipeline.isFull(onError)
     Stats.timeMicros("redis-push-usec") {
-      val future = redisClient.rpushx(timeline, Array(entry): _*)
-      laterWithErrorHandling(future, onError) {
+      val redisCall = { () => redisClient.rpushx(timeline, Array(entry): _*) }
+      laterWithErrorHandling(redisCall, onError) { future =>
         f(future.get(timeout.inMillis, TimeUnit.MILLISECONDS).asInstanceOf[Long])
       }
     }
@@ -162,8 +232,10 @@ class PipelinedRedisClient(hostname: String, pipelineMaxSize: Int, timeout: Dura
   def pop(timeline: String, entry: Array[Byte], onError: Option[Throwable => Unit]) {
     pipeline.isFull(onError)
     Stats.timeMicros("redis-pop-usec") {
-      val future = redisClient.lrem(timeline, entry, 0)
-      laterWithErrorHandling(future, onError) { }
+      val redisCall = { () => redisClient.lrem(timeline, entry, 0) }
+      laterWithErrorHandling(redisCall, onError) { future =>
+        future.get(timeout.inMillis, TimeUnit.MILLISECONDS)
+      }
     }
   }
 
@@ -171,8 +243,8 @@ class PipelinedRedisClient(hostname: String, pipelineMaxSize: Int, timeout: Dura
                 onError: Option[Throwable => Unit])(f: Long => Unit) {
     pipeline.isFull(onError)
     Stats.timeMicros("redis-pushafter-usec") {
-      val future = redisClient.linsertBefore(timeline, oldEntry, newEntry)
-      laterWithErrorHandling(future, onError) {
+      val redisCall = { () => redisClient.linsertBefore(timeline, oldEntry, newEntry) }
+      laterWithErrorHandling(redisCall, onError) { future =>
         f(future.get(timeout.inMillis, TimeUnit.MILLISECONDS).asInstanceOf[Long])
       }
     }
