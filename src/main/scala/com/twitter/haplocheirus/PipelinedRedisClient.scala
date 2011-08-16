@@ -103,14 +103,18 @@ class Pipeline(client: PipelinedRedisClient, hostname: String, maxSize: Int,
     if (batch.size >= batchSize) {
       val task = timerTask
       timerTask = None
-      task foreach { _.cancel }
+      try {
+        task foreach { _.cancel }
+      } catch {
+        case e: IllegalStateException =>
+      }
       drainBatch
     } else if (timerTask == None) {
       val task = new TimerTask {
         def run = drainBatch
       }
-      timerTask = Some(task)
       timer.schedule(task, batchTimeout.inMillis)
+      timerTask = Some(task)
     }
   }
 
