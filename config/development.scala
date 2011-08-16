@@ -61,6 +61,14 @@ new HaplocheirusConfig {
     val rangeQueryPageSize = 20
   }
 
+  val multiGetPoolConfig = new MultiGetPoolConfig {
+    val timeout = 100.millis
+    val corePoolSize = 10
+    val maxPoolSize = 40
+    val keepAliveTime = java.lang.Long.MAX_VALUE
+    val maxQueueSize = 100
+  }
+
   val timelineTrimConfig = new TimelineTrimConfig {
     val bounds = Map(
       "default" -> new TimelineTrimBounds {
