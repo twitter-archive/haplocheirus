@@ -2,7 +2,7 @@ package com.twitter.haplocheirus
 
 import java.util.concurrent.{ExecutionException, Future, TimeUnit}
 import java.util.concurrent.atomic.AtomicInteger
-import java.util.{List => JList}
+import java.util.{List => JList, Timer}
 import com.twitter.gizzard.nameserver.NameServer
 import com.twitter.gizzard.scheduler.{JobQueue, JsonJob}
 import com.twitter.gizzard.thrift.conversions.Sequences._
@@ -24,6 +24,7 @@ object PipelinedRedisClientSpec extends ConfiguredSpecification with JMocker wit
     val keyListFuture = mock[Future[JList[String]]]
     val nameServer = mock[NameServer[HaplocheirusShard]]
     var client: PipelinedRedisClient = null
+    val timer = new Timer
 
     val timeline = "t1"
     val data = "rus".getBytes
@@ -31,7 +32,7 @@ object PipelinedRedisClientSpec extends ConfiguredSpecification with JMocker wit
     val job = jobs.Append(data, timeline, nameServer)
 
     doBefore {
-      client = new PipelinedRedisClient("localhost", 10, 1, 100.milliseconds, 1.second, 1.second, 1.day, { client: PipelinedRedisClient => }) {
+      client = new PipelinedRedisClient("localhost", 10, 1, 100.milliseconds, 1.second, 1.second, 1.day, timer, { client: PipelinedRedisClient => }) {
         override def makeRedisClient = jredis
         override protected def uniqueTimelineName(name: String) = name + "~1"
       }
@@ -44,6 +45,7 @@ object PipelinedRedisClientSpec extends ConfiguredSpecification with JMocker wit
       "success" in {
         expect {
           one(longFuture).get(1000, TimeUnit.MILLISECONDS)
+          one(jredis).quit
         }
 
         val called = new AtomicInteger(0)
@@ -58,6 +60,7 @@ object PipelinedRedisClientSpec extends ConfiguredSpecification with JMocker wit
         expect {
           one(longFuture).get(1000, TimeUnit.MILLISECONDS)
           one(queue).put(job)
+          one(jredis).quit
         }
 
         val called = new AtomicInteger(0)
@@ -89,12 +92,14 @@ object PipelinedRedisClientSpec extends ConfiguredSpecification with JMocker wit
         one(jredis).rpushx(timeline, Array(data): _*) willReturn longFuture
         one(longFuture).get(1000, TimeUnit.MILLISECONDS)
         one(longFuture).get(1000, TimeUnit.MILLISECONDS) willReturn 23L
+        one(jredis).quit
       }
 
       var count = 0L
       client.push(timeline, data, None) { n => count = n }
       count must eventually(be_==(23))
       client.pipeline.shutdown()
+      client.pipeline.completed.await
     }
 
     "pop" in {
@@ -102,10 +107,10 @@ object PipelinedRedisClientSpec extends ConfiguredSpecification with JMocker wit
         one(jredis).lrem(timeline, data, 0) willReturn longFuture
         one(longFuture).get(1000, TimeUnit.MILLISECONDS)
         one(longFuture).get(1000, TimeUnit.MILLISECONDS)
+        one(jredis).quit
       }
 
       client.pop(timeline, data, None)
-      Thread.sleep(100)
       client.pipeline.shutdown()
       client.pipeline.size must eventually(be_==(0))
       client.pipeline.completed.await
@@ -116,6 +121,7 @@ object PipelinedRedisClientSpec extends ConfiguredSpecification with JMocker wit
         one(jredis).linsertBefore(timeline, data, data2) willReturn longFuture
         one(longFuture).get(1000, TimeUnit.MILLISECONDS) willReturn 23L
         one(longFuture).get(1000, TimeUnit.MILLISECONDS) willReturn 23L
+        one(jredis).quit
       }
 
       var count = 0L

@@ -1,6 +1,6 @@
 package com.twitter.haplocheirus
 
-import java.util.{List => JList}
+import java.util.{List => JList, Timer}
 import java.util.concurrent.{Future, TimeUnit}
 import com.twitter.gizzard.shards.{ShardException, ShardInfo}
 import com.twitter.gizzard.thrift.conversions.Sequences._
@@ -58,9 +58,10 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
     }
 
     var client: PipelinedRedisClient = null
+    val timer = new Timer
     doBefore {
       PipelinedRedisClient.mockedOutJRedisClient = Some(jredis)
-      client = new PipelinedRedisClient("", 10, 10, 100.milliseconds, 1.second, 1.second, 1.second, { client: PipelinedRedisClient => }) {
+      client = new PipelinedRedisClient("", 10, 10, 100.milliseconds, 1.second, 1.second, 1.second, timer, { client: PipelinedRedisClient => }) {
         override protected def uniqueTimelineName(name: String): String = "generated-name"
       }
       reads = 0

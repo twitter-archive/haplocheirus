@@ -2,6 +2,7 @@ package com.twitter.haplocheirus
 
 import java.util.concurrent.{ConcurrentHashMap, TimeoutException}
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.Timer
 import scala.collection.mutable
 import scala.util.Random
 import com.twitter.ostrich.Stats
@@ -87,11 +88,15 @@ class RedisPool(name: String, healthTracker: RedisPoolHealthTracker, config: Red
     new ConcurrentHashMap[String, PipelinedRedisClient]
   }.toArray
 
+  val timer = new Timer
+
   def makeClient(hostname: String) = {
     val timeout = config.timeoutMsec.milliseconds
     val keysTimeout = config.keysTimeoutMsec.milliseconds
     val expiration = config.expirationHours.hours
-    new PipelinedRedisClient(hostname, config.pipeline, config.batchSize, config.batchTimeout, timeout, keysTimeout, expiration, (client: PipelinedRedisClient) => healthTracker.countError(hostname, client))
+    new PipelinedRedisClient(hostname, config.pipeline, config.batchSize, config.batchTimeout, timeout,
+                             keysTimeout, expiration, timer,
+                             (client: PipelinedRedisClient) => healthTracker.countError(hostname, client))
   }
 
   def get(shardInfo: ShardInfo): PipelinedRedisClient = {
