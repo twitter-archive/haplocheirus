@@ -75,7 +75,10 @@ class Pipeline(client: PipelinedRedisClient, hostname: String, maxSize: Int,
 
   protected def drainBatch() {
     while (batch.size > 0) {
-      batchElementToPipeline(batch.poll)
+      val batchElement = batch.poll
+      if (batchElement ne null) {
+        batchElementToPipeline(batchElement)
+      }
     }
   }
 
