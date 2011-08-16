@@ -57,18 +57,16 @@ class Pipeline(client: PipelinedRedisClient, hostname: String, maxSize: Int,
          drainBatch
       } else if (pipeline.size > 0) {
         val head = pipeline.poll
-        val succeeded = wrap(head, { () =>
+        wrap(head, { () =>
           try {
             head.future.get(futureTimeout.inMillis, TimeUnit.MILLISECONDS)
+            Stats.addTiming("redis-pipeline-usec", ((System.nanoTime/1000) - (head.startNanoTime/1000)).toInt)
+            head.callback(head.future)
+            operationCount += 1
           } catch {
             case e: TimeoutException => pipeline.offerFirst(head)
           }
         })
-        Stats.addTiming("redis-pipeline-usec", ((System.nanoTime/1000) - (head.startNanoTime/1000)).toInt)
-        if (succeeded) {
-          wrap(head, { () => head.callback(head.future) })
-        }
-        operationCount += 1
       } else {
         val head = batch.peek
         val sleepTime = if (head ne null) {
