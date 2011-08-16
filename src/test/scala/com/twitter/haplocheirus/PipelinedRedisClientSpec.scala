@@ -44,6 +44,7 @@ object PipelinedRedisClientSpec extends ConfiguredSpecification with JMocker wit
       "success" in {
         expect {
           one(longFuture).get(1000, TimeUnit.MILLISECONDS)
+          one(jredis).quit()
         }
 
         val called = new AtomicInteger(0)
@@ -58,6 +59,7 @@ object PipelinedRedisClientSpec extends ConfiguredSpecification with JMocker wit
         expect {
           one(longFuture).get(1000, TimeUnit.MILLISECONDS)
           one(queue).put(job)
+          one(jredis).quit()
         }
 
         val called = new AtomicInteger(0)
@@ -94,7 +96,6 @@ object PipelinedRedisClientSpec extends ConfiguredSpecification with JMocker wit
       var count = 0L
       client.push(timeline, data, None) { n => count = n }
       count must eventually(be_==(23))
-      client.pipeline.shutdown()
     }
 
     "pop" in {
@@ -102,6 +103,7 @@ object PipelinedRedisClientSpec extends ConfiguredSpecification with JMocker wit
         one(jredis).lrem(timeline, data, 0) willReturn longFuture
         one(longFuture).get(1000, TimeUnit.MILLISECONDS)
         one(longFuture).get(1000, TimeUnit.MILLISECONDS)
+        one(jredis).quit()
       }
 
       client.pop(timeline, data, None)
@@ -116,6 +118,7 @@ object PipelinedRedisClientSpec extends ConfiguredSpecification with JMocker wit
         one(jredis).linsertBefore(timeline, data, data2) willReturn longFuture
         one(longFuture).get(1000, TimeUnit.MILLISECONDS) willReturn 23L
         one(longFuture).get(1000, TimeUnit.MILLISECONDS) willReturn 23L
+        one(jredis).quit()
       }
 
       var count = 0L
