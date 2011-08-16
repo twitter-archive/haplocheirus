@@ -51,14 +51,14 @@ class TimelineStore(service: TimelineStoreService) extends thrift.TimelineStore.
   }
 
   def get_multi(gets: JList[thrift.TimelineGet]) = {
-    convert_multi_results(service.getMulti(gets.toSeq map { _.fromThrift }))
+    convertMultiResults(service.getMulti(gets.toSeq map { _.fromThrift }))
   }
 
   def get_range_multi(get_ranges: JList[thrift.TimelineGetRange]) = {
-    convert_multi_results(service.getRangeMulti(get_ranges.toSeq map { _.fromThrift }))
+    convertMultiResults(service.getRangeMulti(get_ranges.toSeq map { _.fromThrift }))
   }
 
-  def convert_multi_results(results: Seq[Try[Option[TimelineSegment]]]): JList[thrift.TimelineSegment] = {
+  protected def convertMultiResults(results: Seq[Try[Option[TimelineSegment]]]): JList[thrift.TimelineSegment] = {
     val ret = results map { tryResult =>
       try {
         tryResult() match {

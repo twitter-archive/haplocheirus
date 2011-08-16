@@ -1,6 +1,6 @@
 package com.twitter.haplocheirus
 
-import java.util.concurrent.{ArrayBlockingQueue, ThreadPoolExecutor, TimeUnit, RejectedExecutionException, TimeoutException}
+import java.util.concurrent.{ArrayBlockingQueue, CountDownLatch, ExecutorService, ThreadPoolExecutor, TimeUnit, RejectedExecutionException, TimeoutException}
 import com.twitter.gizzard.Hash
 import com.twitter.gizzard.nameserver.NameServer
 import com.twitter.gizzard.scheduler.{CopyJobFactory, JobScheduler, JsonJob, PrioritizingJobScheduler}
@@ -10,24 +10,29 @@ import com.twitter.ostrich.Stats
 import com.twitter.util.{Future, Promise, Try, Return, Throw}
 import com.twitter.util.TimeConversions._
 
+/* cut and pasted from newer util */
+class ExecutorServiceFuturePool(val executor: ExecutorService) {
+  def apply[T](f: => T): Future[T] = {
+    val out = new Promise[T]
+    executor.submit(new Runnable {
+      def run = out.update(Try(f))
+    })
+    out
+  }
+}
 
 class MultiGetPool(config: MultiGetPoolConfig) {
   var timeout = config.timeout
   val queue = new ArrayBlockingQueue[Runnable](config.maxQueueSize)
-  val pool = new ThreadPoolExecutor(config.corePoolSize,
-                                    config.maxPoolSize,
-                                    config.keepAliveTime,
-                                    TimeUnit.MILLISECONDS,
-                                    queue)
+  val threadPool = new ThreadPoolExecutor(config.corePoolSize,
+                                          config.maxPoolSize,
+                                          config.keepAliveTime,
+                                          TimeUnit.MILLISECONDS,
+                                          queue)
+  val futurePool = new ExecutorServiceFuturePool(threadPool)
 
-  def submit(job: Runnable) = pool.submit(job)
-  def shutdown() = pool.shutdown()
-}
-
-class MultiRunnable[A, B](task: A => B, command: A, promise: Promise[B]) extends Runnable {
-  def run() {
-    promise() = Try(task(command))
-  }
+  def submit[T](f: => T): Future[T] = futurePool(f)
+  def shutdown() = threadPool.shutdown()
 }
 
 class TimelineStoreService(val nameServer: NameServer[HaplocheirusShard],
@@ -142,20 +147,26 @@ class TimelineStoreService(val nameServer: NameServer[HaplocheirusShard],
   }
 
   def getGenericMulti[A](gets: Seq[A], getter: A => Option[TimelineSegment]) = {
+    val timeoutLatch = new CountDownLatch(1)
     val futures = gets map { get =>
-      val future = new Promise[Option[TimelineSegment]]
-      val task = new MultiRunnable[A, Option[TimelineSegment]](getter, get, future)
       try {
-        multiGetPool.submit(task)
+        multiGetPool.submit {
+          if (timeoutLatch.getCount > 0) {
+            getter(get)
+          } else {
+            Stats.incr("get-multi-expired-in-queue")
+            throw new TimeoutException("Expired in queue")
+          }
+        }
       } catch {
         case e: RejectedExecutionException => {
           Stats.incr("get-multi-rejected")
-          future() = Throw(new TimeoutException("MultiGetPool rejected job"))
+          futureThrow(new TimeoutException("MultiGetPool rejected job"))
         }
       }
-      future
     }
-    futureCollect(futures).within(multiGetPool.timeout)
+    futureCollect(futures) within multiGetPool.timeout
+    timeoutLatch.countDown
     futures map { _ within 0.seconds }
   }
 
@@ -172,6 +183,10 @@ class TimelineStoreService(val nameServer: NameServer[HaplocheirusShard],
     val value = new Promise[A]
     value.update(Return(a))
     value
+  }
+
+  def futureThrow(e: Throwable): Future[Nothing] = {
+    new Promise { update(Throw(e)) }
   }
 
   def store(timeline: String, entries: Seq[Array[Byte]]) {
