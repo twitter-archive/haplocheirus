@@ -10,6 +10,7 @@ object TimelineSegment {
       val rv = new thrift.TimelineSegment()
       rv.setEntries((segment.entries map (ByteBuffer.wrap(_))).toJavaList)
       rv.setSize(segment.size)
+      rv.state = segment.state
       rv
     }
   }

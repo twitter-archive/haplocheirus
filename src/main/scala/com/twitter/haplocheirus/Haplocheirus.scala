@@ -32,6 +32,8 @@ class Haplocheirus(config: HaplocheirusConfig) extends GizzardServer[Haplocheiru
   val writePool = new RedisPool("write", poolHealthTracker, config.redisConfig.writePoolConfig)
   //val slowPool = new RedisPool("slow", poolHealthTracker, config.redisConfig.slowPoolConfig)
   val slowPool = writePool
+  val multiGetPool = new MultiGetPool(config.multiGetPoolConfig)
+
   val shardFactory = new RedisShardFactory(readPool, writePool, slowPool,
                                            config.redisConfig.rangeQueryPageSize,
                                            config.timelineTrimConfig)
@@ -53,7 +55,8 @@ class Haplocheirus(config: HaplocheirusConfig) extends GizzardServer[Haplocheiru
 
   val haploService = {
     new TimelineStore(new TimelineStoreService(nameServer, jobScheduler, multiPushScheduler,
-                                               copyFactory, readPool, writePool, slowPool))
+                                               copyFactory, readPool, writePool, slowPool,
+                                               multiGetPool))
   }
 
   lazy val haploThriftServer = {

@@ -45,6 +45,14 @@ trait RedisConfig {
   def rangeQueryPageSize: Int
 }
 
+trait MultiGetPoolConfig {
+  def timeout: Duration
+  def corePoolSize: Int
+  def maxPoolSize: Int
+  def keepAliveTime: Long
+  def maxQueueSize: Int
+}
+
 trait TimelineTrimBounds {
   def lower: Int
   def upper: Int
@@ -63,6 +71,7 @@ trait HaplocheirusConfig extends gizzard.config.GizzardServer {
   def adminConfig: AdminConfig
 
   def redisConfig: RedisConfig
+  def multiGetPoolConfig: MultiGetPoolConfig
   def timelineTrimConfig: TimelineTrimConfig
 
   // Yuck, but JobScheduler.apply() requires an old-style configgy map.

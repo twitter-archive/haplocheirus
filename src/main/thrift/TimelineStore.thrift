@@ -6,6 +6,12 @@ exception TimelineStoreException {
   1: string description
 }
 
+enum TimelineSegmentState {
+  HIT,
+  MISS,
+  TIMEOUT
+}
+
 struct TimelineSegment {
   /*
    * Timeline entries are opaque binary data, with the first 20 bytes defined by the server:
@@ -36,6 +42,21 @@ struct TimelineSegment {
    * The actual full length of the timeline as stored in redis.
    */
   2: i32 size;
+  3: optional TimelineSegmentState state = 0;
+}
+
+struct TimelineGet {
+  1: string timeline_id;
+  2: i32 offset;
+  3: i32 length;
+  4: optional bool dedupe = 0;
+}
+
+struct TimelineGetRange {
+  1: string timeline_id;
+  2: i64 from_id;
+  3: i64 to_id;
+  4: optional bool dedupe = 0;
 }
 
 service TimelineStore {
@@ -72,6 +93,12 @@ service TimelineStore {
   TimelineSegment get(1: string timeline_id, 2: i32 offset, 3: i32 length, 4: bool dedupe) throws(1: TimelineStoreException ex)
 
   /*
+   * Unlike the normal "get" call, this call will set hit=false for missing timelines instead of
+   * throwing a "TimlineStoreException".
+   */
+  list<TimelineSegment> get_multi(1: list<TimelineGet> gets)
+
+  /*
    * Fetch any entries that have been added after from_id, until to_id. This may include entries
    * with a lower or higher id that were inserted out of order. Both from_id & to_id are optional
    * (may be blank) and are treated as prefixes so that a unique prefix may be used instead of the
@@ -79,6 +106,12 @@ service TimelineStore {
    * Throw "TimelineStoreException" if there's no such timeline in cache.
    */
   TimelineSegment get_range(1: string timeline_id, 2: i64 from_id, 3: i64 to_id, 4: bool dedupe) throws(1: TimelineStoreException ex)
+
+  /*
+   * Unlike the normal "get_range" call, this call will set hit=false for missing timelines instead
+   * of throwing a "TimlineStoreException".
+   */
+  list<TimelineSegment> get_range_multi(1: list<TimelineGetRange> get_ranges)
 
   /*
    * Atomically set a timeline's contents.
