@@ -40,8 +40,8 @@ class Pipeline(client: PipelinedRedisClient, hostname: String, maxSize: Int,
   var operationCount = 0
 
   protected val staging = new LinkedBlockingQueue[BatchElement]
-  protected val batch = new LinkedBlockingDeque[BatchElement]
-  protected val pipeline = new LinkedBlockingQueue[PipelineElement]
+  protected val batch = new LinkedBlockingQueue[BatchElement]
+  protected val pipeline = new LinkedBlockingDeque[PipelineElement]
   protected val exceptionLog = Logger.get("exception")
 
   private val running = new CountDownLatch(1)
@@ -49,13 +49,21 @@ class Pipeline(client: PipelinedRedisClient, hostname: String, maxSize: Int,
 
   def run {
     while (running.getCount > 0) {
+      staging.drainTo(batch)
+
       val batchHead = batch.peek
       if (((batchHead ne null) && ((System.nanoTime/1000) - (batchHead.startNanoTime/1000) >= batchTimeout.inMillis))
            || batch.size >= batchSize) {
          drainBatch
       } else if (pipeline.size > 0) {
         val head = pipeline.poll
-        val succeeded = wrap(head, () => head.future.get(futureTimeout.inMillis, TimeUnit.MILLISECONDS))
+        val succeeded = wrap(head, { () =>
+          try {
+            head.future.get(futureTimeout.inMillis, TimeUnit.MILLISECONDS)
+          } catch {
+            case e: TimeoutException => pipeline.offerFirst(head)
+          }
+        })
         Stats.addTiming("redis-pipeline-usec", ((System.nanoTime/1000) - (head.startNanoTime/1000)).toInt)
         if (succeeded) {
           wrap(head, { () => head.callback(head.future) })
@@ -72,7 +80,6 @@ class Pipeline(client: PipelinedRedisClient, hostname: String, maxSize: Int,
         if (batchElement ne null) {
           batch.offer(batchElement)
         }
-        staging.drainTo(batch)
       }
     }
     flush
