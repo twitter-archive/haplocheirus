@@ -1,12 +1,13 @@
 package com.twitter.haplocheirus
 
-import java.util.concurrent.{ExecutionException, Future, TimeUnit}
+import java.util.concurrent.{ExecutionException, Future, TimeUnit, TimeoutException}
 import java.util.{List => JList}
 import com.twitter.gizzard.nameserver.Forwarding
 import com.twitter.gizzard.scheduler.{JsonJob, MemoryJobQueue}
 import com.twitter.gizzard.shards.{Busy, ShardId, ShardInfo}
 import com.twitter.gizzard.thrift.conversions.Sequences._
 import com.twitter.ostrich.Stats
+import com.twitter.util.TimeConversions._
 import org.jredis.protocol.ResponseStatus
 import org.jredis.ri.alphazero.{JRedisFutureSupport, JRedisPipeline}
 import org.specs.Specification
@@ -169,6 +170,64 @@ object IntegrationSpec extends ConfiguredSpecification with JMocker with ClassMo
       segment.size mustEqual 1
       segment.entries.get(0).array.toList mustEqual "a".getBytes.toList
       segment.entries.get(1).array.toList mustEqual "b".getBytes.toList
+    }
+
+    "get_multi hit" in {
+      expect {
+        one(jredisClient).llen(timeline1) willReturn future
+        one(future).get(200L, TimeUnit.MILLISECONDS) willReturn 2L
+        one(jredisClient).lrange(timeline1, -3, -1) willReturn timelineFuture
+        one(timelineFuture).get(200L, TimeUnit.MILLISECONDS) willReturn List("a", "b").map { _.getBytes }.toJavaList
+      }
+
+      val cmd = new thrift.TimelineGet(timeline1, 0, 2)
+      cmd.dedupe = false
+      val results = service.haploService.get_multi(Seq(cmd).toJavaList)
+      results.size mustEqual 1
+      val segment = results.toSeq(0)
+      segment.state mustEqual thrift.TimelineSegmentState.HIT
+      segment.size mustEqual 1
+      segment.entries.get(0).array.toList mustEqual "a".getBytes.toList
+      segment.entries.get(1).array.toList mustEqual "b".getBytes.toList
+    }
+
+    "get_multi miss" in {
+      expect {
+        one(jredisClient).llen(timeline1) willReturn future
+        one(future).get(200L, TimeUnit.MILLISECONDS) willReturn 0L
+        one(jredisClient).llen(timeline1) willReturn future
+        one(future).get(200L, TimeUnit.MILLISECONDS) willReturn 0L
+      }
+
+      val cmd = new thrift.TimelineGet(timeline1, 0, 2)
+      cmd.dedupe = false
+      val results = service.haploService.get_multi(Seq(cmd).toJavaList)
+      results.size mustEqual 1
+      val segment = results.toSeq(0)
+      segment.state mustEqual thrift.TimelineSegmentState.MISS
+      segment.size mustEqual 0
+    }
+
+    "get_multi exception" in {
+      expect {
+        one(jredisClient).llen(timeline1) willReturn future
+        one(future).get(200L, TimeUnit.MILLISECONDS) willReturn 0L
+      }
+
+      val cmd = new thrift.TimelineGet(timeline1, 0, 2)
+      cmd.dedupe = false
+
+      val oldTimeout = service.multiGetPool.timeout
+      service.multiGetPool.timeout = 0.seconds
+
+      val results = service.haploService.get_multi(Seq(cmd).toJavaList)
+
+      service.multiGetPool.timeout = oldTimeout
+
+      results.size mustEqual 1
+      val segment = results.toSeq(0)
+      segment.state mustEqual thrift.TimelineSegmentState.TIMEOUT
+      segment.size mustEqual 0
     }
   }
 }

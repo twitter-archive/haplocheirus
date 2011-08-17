@@ -1,12 +1,42 @@
 package com.twitter.haplocheirus
 
-import com.twitter.gizzard.{Future, Hash}
+import java.util.concurrent.{ArrayBlockingQueue, CountDownLatch, ExecutorService, ThreadPoolExecutor, TimeUnit, RejectedExecutionException, TimeoutException}
+import com.twitter.gizzard.Hash
 import com.twitter.gizzard.nameserver.NameServer
 import com.twitter.gizzard.scheduler.{CopyJobFactory, JobScheduler, JsonJob, PrioritizingJobScheduler}
 import com.twitter.gizzard.shards.{ShardBlackHoleException, ShardOfflineException}
 import com.twitter.gizzard.thrift.conversions.Sequences._
 import com.twitter.ostrich.Stats
+import com.twitter.util.{Future, Promise, Try, Return, Throw}
+import com.twitter.util.TimeConversions._
 
+/* cut and pasted from newer util */
+class ExecutorServiceFuturePool(val executor: ExecutorService) {
+  def apply[T](f: => T): Future[T] = {
+    val out = new Promise[T]
+    executor.submit(new Runnable {
+      def run = out.update(Try(f))
+    })
+    out
+  }
+}
+
+class MultiGetPool(config: MultiGetPoolConfig) {
+  var timeout = config.timeout
+  val queue = new ArrayBlockingQueue[Runnable](config.maxQueueSize)
+  val threadPool = new ThreadPoolExecutor(config.corePoolSize,
+                                          config.maxPoolSize,
+                                          config.keepAliveTime,
+                                          TimeUnit.MILLISECONDS,
+                                          queue)
+  val futurePool = new ExecutorServiceFuturePool(threadPool)
+
+  Stats.makeGauge("get-multi-pool-size") { threadPool.getPoolSize().toDouble }
+  Stats.makeGauge("get-multi-queue-depth") { queue.size.toDouble }
+
+  def submit[T](f: => T): Future[T] = futurePool(f)
+  def shutdown() = threadPool.shutdown()
+}
 
 class TimelineStoreService(val nameServer: NameServer[HaplocheirusShard],
                            val scheduler: PrioritizingJobScheduler[JsonJob],
@@ -14,7 +44,8 @@ class TimelineStoreService(val nameServer: NameServer[HaplocheirusShard],
                            val copyFactory: CopyJobFactory[HaplocheirusShard],
                            val readPool: RedisPool,
                            val writePool: RedisPool,
-                           val slowPool: RedisPool)
+                           val slowPool: RedisPool,
+                           val multiGetPool: MultiGetPool)
       extends JobInjector {
 
   val writeQueue = scheduler(Priority.Write.id).queue
@@ -26,6 +57,7 @@ class TimelineStoreService(val nameServer: NameServer[HaplocheirusShard],
 
   def shutdown() {
     scheduler.shutdown()
+    multiGetPool.shutdown()
     multiPushScheduler.shutdown()
     readPool.shutdown()
     writePool.shutdown()
@@ -101,6 +133,65 @@ class TimelineStoreService(val nameServer: NameServer[HaplocheirusShard],
       case Some(_) => Stats.incr("timeline-hit")
     }
     tm
+  }
+
+  def getMulti(gets: Seq[TimelineGet]) = {
+    Stats.addTiming("get-multi-width", gets.size)
+    val getter: TimelineGet => Option[TimelineSegment] = { command =>
+      get(command.timeline_id, command.offset, command.length, command.dedupe)
+    }
+    getGenericMulti(gets, getter)
+  }
+
+  def getRangeMulti(gets: Seq[TimelineGetRange]) = {
+    Stats.addTiming("get-range-multi-width", gets.size)
+    val getter: TimelineGetRange => Option[TimelineSegment] = { command =>
+      getRange(command.timeline_id, command.from_id, command.to_id, command.dedupe)
+    }
+    getGenericMulti(gets, getter)
+  }
+
+  def getGenericMulti[A](gets: Seq[A], getter: A => Option[TimelineSegment]) = {
+    val timeoutLatch = new CountDownLatch(1)
+    val futures = gets map { get =>
+      try {
+        multiGetPool.submit {
+          if (timeoutLatch.getCount > 0) {
+            getter(get)
+          } else {
+            Stats.incr("get-multi-expired-in-queue")
+            throw new TimeoutException("Expired in queue")
+          }
+        }
+      } catch {
+        case e: RejectedExecutionException => {
+          Stats.incr("get-multi-rejected")
+          futureThrow(new TimeoutException("MultiGetPool rejected job"))
+        }
+      }
+    }
+    futureCollect(futures) within multiGetPool.timeout
+    timeoutLatch.countDown
+    futures map { _ within 0.seconds }
+  }
+
+  /* "collect" and "value" semi-cut-n-pasted from newer util */
+  def futureCollect[A](fs: Seq[Future[A]]): Future[Seq[A]] = {
+    val collected = fs.foldLeft(futureValue(Nil: List[A])) { case (a, e) =>
+      a flatMap { aa => e map { _ :: aa } }
+    } map { _.reverse }
+
+    collected
+  }
+
+  def futureValue[A](a: A): Future[A] = {
+    val value = new Promise[A]
+    value.update(Return(a))
+    value
+  }
+
+  def futureThrow(e: Throwable): Future[Nothing] = {
+    new Promise { update(Throw(e)) }
   }
 
   def store(timeline: String, entries: Seq[Array[Byte]]) {

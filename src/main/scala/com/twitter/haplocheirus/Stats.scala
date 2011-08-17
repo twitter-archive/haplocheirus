@@ -22,6 +22,8 @@ trait StatsProvider {
     }
   }
 
+  def makeGauge(name: String)(f: => Double) = com.twitter.ostrich.Stats.makeGauge(name)(f)
+
   def time[T](k: String)(f: => T): T = com.twitter.ostrich.Stats.time(k)(f)
 
   def incr(name: String, count: Int): Long = com.twitter.ostrich.Stats.incr(name, count)
