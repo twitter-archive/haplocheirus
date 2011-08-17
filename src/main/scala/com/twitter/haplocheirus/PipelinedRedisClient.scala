@@ -64,7 +64,7 @@ class Pipeline(client: PipelinedRedisClient, hostname: String, maxSize: Int,
         })
       }
     }
-    drainBatch
+    drainBatch(false)
     while (pipeline.size > 0) {
       val head = pipeline.poll
       wrap(head, { () => head.callback(head.future) })
@@ -73,17 +73,19 @@ class Pipeline(client: PipelinedRedisClient, hostname: String, maxSize: Int,
     completed.countDown
   }
 
-  protected def drainBatch() {
+  protected def drainBatch(recordTime: Boolean) {
     while (batch.size > 0) {
       val batchElement = batch.poll
       if (batchElement ne null) {
+        if (recordTime) {
+          Stats.addTiming("redis-pipeline-batch-usec", ((System.nanoTime/1000) - (batchElement.startNanoTime/1000)).toInt)
+        }
         batchElementToPipeline(batchElement)
       }
     }
   }
 
   protected def batchElementToPipeline(batchElement: BatchElement) {
-    Stats.addTiming("redis-pipeline-batch-usec", ((System.nanoTime/1000) - (batchElement.startNanoTime/1000)).toInt)
     val pipelineElement = new PipelineElement(
       batchElement.redisCall(),
       batchElement.callback,
@@ -111,10 +113,14 @@ class Pipeline(client: PipelinedRedisClient, hostname: String, maxSize: Int,
       } catch {
         case e: IllegalStateException =>
       }
-      drainBatch
+      drainBatch(true)
+      Stats.incr("redis-pipeline-batch-drain-full")
     } else if (timerTask == None) {
       val task = new TimerTask {
-        def run = drainBatch
+        def run = {
+          drainBatch(false)
+          Stats.incr("redis-pipeline-batch-drain-timeout")
+        }
       }
       timer.schedule(task, batchTimeout.inMillis)
       timerTask = Some(task)
