@@ -31,6 +31,9 @@ class MultiGetPool(config: MultiGetPoolConfig) {
                                           queue)
   val futurePool = new ExecutorServiceFuturePool(threadPool)
 
+  Stats.makeGauge("get-multi-pool-size") { threadPool.getPoolSize().toDouble }
+  Stats.makeGauge("get-multi-queue-depth") { queue.size.toDouble }
+
   def submit[T](f: => T): Future[T] = futurePool(f)
   def shutdown() = threadPool.shutdown()
 }
@@ -133,6 +136,7 @@ class TimelineStoreService(val nameServer: NameServer[HaplocheirusShard],
   }
 
   def getMulti(gets: Seq[TimelineGet]) = {
+    Stats.addTiming("get-multi-width", gets.size)
     val getter: TimelineGet => Option[TimelineSegment] = { command =>
       get(command.timeline_id, command.offset, command.length, command.dedupe)
     }
@@ -140,6 +144,7 @@ class TimelineStoreService(val nameServer: NameServer[HaplocheirusShard],
   }
 
   def getRangeMulti(gets: Seq[TimelineGetRange]) = {
+    Stats.addTiming("get-range-multi-width", gets.size)
     val getter: TimelineGetRange => Option[TimelineSegment] = { command =>
       getRange(command.timeline_id, command.from_id, command.to_id, command.dedupe)
     }
