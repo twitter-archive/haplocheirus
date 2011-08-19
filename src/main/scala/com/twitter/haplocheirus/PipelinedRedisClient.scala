@@ -28,12 +28,12 @@ object PipelinedRedisClient {
 case class BatchElement(redisCall: () => Future[java.lang.Long],
                         callback: Future[java.lang.Long] => Unit,
                         onError: Option[Throwable => Unit],
-                        startTime: Time)
+                        startNanoTime: Long)
 
 case class PipelineElement(future: Future[java.lang.Long],
                            callback: Future[java.lang.Long] => Unit,
                            onError: Option[Throwable => Unit],
-                           startTime: Time)
+                           startNanoTime: Long)
 
 class Pipeline(client: PipelinedRedisClient, hostname: String, maxSize: Int,
                futureTimeout: Duration, batchSize: Int, batchTimeout: Duration,
@@ -56,7 +56,7 @@ class Pipeline(client: PipelinedRedisClient, hostname: String, maxSize: Int,
         wrap(head, { () =>
           try {
             head.future.get(1000L, TimeUnit.MILLISECONDS)
-            Stats.addTiming("redis-pipeline-usec", (Time.now - head.startTime).inMillis.toInt)
+            Stats.addTiming("redis-pipeline-usec", ((System.nanoTime/1000) - (head.startNanoTime/1000)).toInt)
             head.callback(head.future)
             operationCount += 1
           } catch {
@@ -89,7 +89,7 @@ class Pipeline(client: PipelinedRedisClient, hostname: String, maxSize: Int,
       val batchElement = batch.poll
       if (batchElement ne null) {
         if (atMaxBatchSize) {
-          Stats.addTiming("redis-pipeline-batch-usec", (Time.now - batchElement.startTime).inMillis.toInt)
+          Stats.addTiming("redis-pipeline-batch-usec", ((System.nanoTime/1000) - (batchElement.startNanoTime/1000)).toInt)
         }
         batchElementToPipeline(batchElement)
       }
@@ -101,7 +101,7 @@ class Pipeline(client: PipelinedRedisClient, hostname: String, maxSize: Int,
       batchElement.redisCall(),
       batchElement.callback,
       batchElement.onError,
-      Time.now)
+      System.nanoTime)
     pipeline.offer(pipelineElement)
   }
 
@@ -120,7 +120,7 @@ class Pipeline(client: PipelinedRedisClient, hostname: String, maxSize: Int,
       throw new TimeoutException("client shutdown")
     }
     this.synchronized {
-      batch.offer(new BatchElement(redisCall, callback, onError, Time.now))
+      batch.offer(new BatchElement(redisCall, callback, onError, System.nanoTime))
       if (batch.size >= batchSize) {
         drainBatch(true)
         Stats.incr("redis-pipeline-batch-drain-full")
