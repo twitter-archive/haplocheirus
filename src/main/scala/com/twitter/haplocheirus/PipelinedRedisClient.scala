@@ -53,7 +53,7 @@ class Pipeline(client: PipelinedRedisClient, hostname: String, maxSize: Int,
     while (isRunning) {
       val head = pipeline.poll(1000L, TimeUnit.MILLISECONDS)
       if (head ne null) {
-        wrap(head, { () =>
+        wrap({ () =>
           try {
             head.future.get(1000L, TimeUnit.MILLISECONDS)
             Stats.addTiming("redis-pipeline-usec", ((System.nanoTime/1000) - (head.startNanoTime/1000)).toInt)
@@ -62,7 +62,7 @@ class Pipeline(client: PipelinedRedisClient, hostname: String, maxSize: Int,
           } catch {
             case e: TimeoutException => pipeline.offerFirst(head)
           }
-        })
+        }, head.onError)
       }
     }
     this.synchronized {
@@ -70,7 +70,7 @@ class Pipeline(client: PipelinedRedisClient, hostname: String, maxSize: Int,
     }
     while (pipeline.size > 0) {
       val head = pipeline.poll
-      wrap(head, { () => head.callback(head.future) })
+      wrap({ () => head.callback(head.future) }, head.onError)
     }
     client.redisClient.quit()
     completed.countDown
@@ -91,7 +91,7 @@ class Pipeline(client: PipelinedRedisClient, hostname: String, maxSize: Int,
         if (atMaxBatchSize) {
           Stats.addTiming("redis-pipeline-batch-usec", ((System.nanoTime/1000) - (batchElement.startNanoTime/1000)).toInt)
         }
-        batchElementToPipeline(batchElement)
+        wrap({ () => batchElementToPipeline(batchElement) }, batchElement.onError)
       }
     }
   }
@@ -152,7 +152,7 @@ class Pipeline(client: PipelinedRedisClient, hostname: String, maxSize: Int,
     }
   }
 
-  protected def wrap(request: PipelineElement, f: () => Unit): Boolean = {
+  protected def wrap(f: () => Unit, onError: Option[Throwable => Unit]): Boolean = {
     val e = try {
       f()
       None
@@ -176,7 +176,7 @@ class Pipeline(client: PipelinedRedisClient, hostname: String, maxSize: Int,
       case None => true
       case Some(e) => {
         countError(client)
-        request.onError.foreach(_(e))
+        onError.foreach(_(e))
         false
       }
     }
