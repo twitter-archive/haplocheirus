@@ -2,6 +2,7 @@ package com.twitter.haplocheirus
 
 import java.util.concurrent.{ConcurrentHashMap, TimeoutException}
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.Timer
 import scala.collection.mutable
 import scala.util.Random
 import com.twitter.ostrich.Stats
@@ -17,8 +18,7 @@ class RedisPoolHealthTracker(config: RedisPoolHealthTrackerConfig) {
   val concurrentErrorMap = new ConcurrentHashMap[String, AtomicInteger]
   val concurrentDisabledMap = new ConcurrentHashMap[String, Time]
 
-  def countError(shardInfo: ShardInfo, client: PipelinedRedisClient) = {
-    val hostname = shardInfo.hostname
+  def countError(hostname: String, client: PipelinedRedisClient) = {
     var count = concurrentErrorMap.get(hostname)
     if (count eq null) {
       val newCount = new AtomicInteger()
@@ -41,8 +41,7 @@ class RedisPoolHealthTracker(config: RedisPoolHealthTrackerConfig) {
     }
   }
 
-  def countNonError(shardInfo: ShardInfo, client: PipelinedRedisClient) = {
-    val hostname = shardInfo.hostname
+  def countNonError(hostname: String, client: PipelinedRedisClient) = {
     if (concurrentErrorMap.containsKey(hostname)) {
       try {
         concurrentErrorMap.remove(hostname)
@@ -53,8 +52,7 @@ class RedisPoolHealthTracker(config: RedisPoolHealthTrackerConfig) {
     client.errorCount.set(0)
   }
 
-  def isErrored(shardInfo: ShardInfo, client: PipelinedRedisClient): Boolean = {
-    val hostname = shardInfo.hostname
+  def isErrored(hostname: String, client: PipelinedRedisClient): Boolean = {
     val timeout = concurrentDisabledMap.get(hostname)
     val hostnameErrored = if (!(timeout eq null)) {
       if (Time.now < timeout) {
@@ -63,7 +61,7 @@ class RedisPoolHealthTracker(config: RedisPoolHealthTrackerConfig) {
         try {
           concurrentDisabledMap.remove(hostname)
           log.error("Reenabling %s", hostname)
-          countNonError(shardInfo, client) // To remove from the error map
+          countNonError(hostname, client) // To remove from the error map
         } catch {
           case e: NullPointerException => {}
         }
@@ -90,11 +88,15 @@ class RedisPool(name: String, healthTracker: RedisPoolHealthTracker, config: Red
     new ConcurrentHashMap[String, PipelinedRedisClient]
   }.toArray
 
+  val timer = new Timer
+
   def makeClient(hostname: String) = {
     val timeout = config.timeoutMsec.milliseconds
     val keysTimeout = config.keysTimeoutMsec.milliseconds
     val expiration = config.expirationHours.hours
-    new PipelinedRedisClient(hostname, config.pipeline, timeout, keysTimeout, expiration)
+    new PipelinedRedisClient(hostname, config.pipeline, config.batchSize, config.batchTimeout, timeout,
+                             keysTimeout, expiration, timer,
+                             (client: PipelinedRedisClient) => healthTracker.countError(hostname, client))
   }
 
   def get(shardInfo: ShardInfo): PipelinedRedisClient = {
@@ -102,7 +104,7 @@ class RedisPool(name: String, healthTracker: RedisPoolHealthTracker, config: Red
     val server = poolIndexGenerator.nextInt(config.poolSize)
     var client = serverPool(server).get(hostname);
 
-    if (healthTracker.isErrored(shardInfo, client)) {
+    if (healthTracker.isErrored(shardInfo.hostname, client)) {
       if ((client ne null) && client.alive) {
         throwAway(hostname, client)
       }
@@ -148,7 +150,7 @@ class RedisPool(name: String, healthTracker: RedisPoolHealthTracker, config: Red
       case e: ShardBlackHoleException =>
         throw e
       case e =>
-        healthTracker.countError(shardInfo, client)
+        healthTracker.countError(hostname, client)
         throw e
     }
     val r = try {
@@ -156,23 +158,23 @@ class RedisPool(name: String, healthTracker: RedisPoolHealthTracker, config: Red
     } catch {
       case e: ClientRuntimeException =>
         exceptionLog.error(e, "Redis client error: %s", e)
-        healthTracker.countError(shardInfo, client)
+        healthTracker.countError(hostname, client)
         throwAway(hostname, client)
         throw e
       case e: TimeoutException =>
         Stats.incr("redis-timeout")
         exceptionLog.warning(e, "Redis request timeout: %s", e)
-        healthTracker.countError(shardInfo, client)
+        healthTracker.countError(hostname, client)
         throw e
       case e: Throwable =>
         exceptionLog.error(e, "Non-redis error: %s", e)
-        healthTracker.countError(shardInfo, client)
+        healthTracker.countError(hostname, client)
         throw e
     } finally {
       Stats.timeMicros("redis-release-usec") { giveBack(hostname, client) }
     }
 
-    healthTracker.countNonError(shardInfo, client)
+    healthTracker.countNonError(hostname, client)
     r
   }
 

@@ -70,16 +70,16 @@ object IntegrationSpec extends ConfiguredSpecification with JMocker with ClassMo
       // that they happened.
       expect {
         one(jredisClient).rpushx(timeline1, Array(data.array): _*) willReturn future
-        one(future).isDone willReturn true
+        one(future).get(1000L, TimeUnit.MILLISECONDS) willReturn 1L
+        one(future).get(200L, TimeUnit.MILLISECONDS) willReturn 1L
         one(jredisClient).rpushx(timeline1, Array(data.array): _*) willReturn future
-        one(future).isDone willReturn true
-        one(jredisClient).rpushx(timeline2, Array(data.array): _*) willReturn future
-        one(future).isDone willReturn true
-        one(jredisClient).rpushx(timeline2, Array(data.array): _*) willReturn future
-        one(future).isDone willReturn true
-        one(future).get(200L, TimeUnit.MILLISECONDS) willReturn 1L
+        one(future).get(1000L, TimeUnit.MILLISECONDS) willReturn 2L
         one(future).get(200L, TimeUnit.MILLISECONDS) willReturn 2L
+        one(jredisClient).rpushx(timeline2, Array(data.array): _*) willReturn future
+        one(future).get(1000L, TimeUnit.MILLISECONDS) willReturn 1L
         one(future).get(200L, TimeUnit.MILLISECONDS) willReturn 1L
+        one(jredisClient).rpushx(timeline2, Array(data.array): _*) willReturn future
+        one(future).get(1000L, TimeUnit.MILLISECONDS) willReturn 2L
         one(future).get(200L, TimeUnit.MILLISECONDS) willReturn 2L
       }
 
@@ -92,17 +92,16 @@ object IntegrationSpec extends ConfiguredSpecification with JMocker with ClassMo
     "write to the error log on failure, and retry successfully" in {
       expect {
         one(jredisClient).rpushx(timeline1, Array(data.array): _*) willReturn future
-        one(future).isDone willReturn true
+        one(future).get(1000L, TimeUnit.MILLISECONDS) willReturn 1L
+        one(future).get(200L, TimeUnit.MILLISECONDS) willReturn 1L
         one(jredisClient).rpushx(timeline1, Array(data.array): _*) willReturn future
-        one(future).isDone willReturn true
+        one(future).get(1000L, TimeUnit.MILLISECONDS) willReturn 1L
+        one(future).get(200L, TimeUnit.MILLISECONDS) willReturn 1L
         one(jredisClient).rpushx(timeline2, Array(data.array): _*) willReturn future
-        one(future).isDone willReturn true
+        one(future).get(1000L, TimeUnit.MILLISECONDS) willReturn 1L
+        one(future).get(200L, TimeUnit.MILLISECONDS) willReturn 1L
         one(jredisClient).rpushx(timeline2, Array(data.array): _*) willReturn future
-        one(future).isDone willReturn true
-        one(future).get(200L, TimeUnit.MILLISECONDS) willReturn 1L
-        one(future).get(200L, TimeUnit.MILLISECONDS) willReturn 1L
-        one(future).get(200L, TimeUnit.MILLISECONDS) willReturn 1L
-        one(future).get(200L, TimeUnit.MILLISECONDS) willThrow new ExecutionException(new Exception("Oups!"))
+        one(future).get(1000L, TimeUnit.MILLISECONDS) willThrow new ExecutionException(new Exception("Oups!"))
       }
 
       val oldCount = pushAttempts()
@@ -113,7 +112,7 @@ object IntegrationSpec extends ConfiguredSpecification with JMocker with ClassMo
 
       expect {
         allowing(jredisClient).rpushx(timeline2, Array(data.array): _*) willReturn future
-        allowing(future).isDone willReturn true
+        allowing(future).get(1000L, TimeUnit.MILLISECONDS) willReturn 3L
         allowing(future).get(200L, TimeUnit.MILLISECONDS) willReturn 3L
       }
 
@@ -124,11 +123,9 @@ object IntegrationSpec extends ConfiguredSpecification with JMocker with ClassMo
     "only call error handler once on multiple failure" in {
       expect {
         one(jredisClient).rpushx(timeline1, Array(data.array): _*) willReturn future
+        one(future).get(1000L, TimeUnit.MILLISECONDS) willThrow new ExecutionException(new Exception("Oops!"))
         one(jredisClient).rpushx(timeline1, Array(data.array): _*) willReturn future
-        one(future).isDone willReturn true
-        one(future).isDone willReturn true
-        one(future).get(200L, TimeUnit.MILLISECONDS) willThrow new ExecutionException(new Exception("Oops!"))
-        one(future).get(200L, TimeUnit.MILLISECONDS) willThrow new ExecutionException(new Exception("Oops!"))
+        one(future).get(1000L, TimeUnit.MILLISECONDS) willThrow new ExecutionException(new Exception("Oops!"))
       }
 
       val oldCount = pushAttempts()
@@ -139,7 +136,7 @@ object IntegrationSpec extends ConfiguredSpecification with JMocker with ClassMo
 
       expect {
         allowing(jredisClient).rpushx(timeline1, Array(data.array): _*) willReturn future
-        allowing(future).isDone willReturn true
+        allowing(future).get(1000L, TimeUnit.MILLISECONDS) willReturn 3L
         allowing(future).get(200L, TimeUnit.MILLISECONDS) willReturn 3L
       }
 
