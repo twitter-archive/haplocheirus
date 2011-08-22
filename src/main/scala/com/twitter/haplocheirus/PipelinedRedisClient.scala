@@ -89,7 +89,7 @@ class Pipeline(client: PipelinedRedisClient, hostname: String, maxSize: Int,
       val batchElement = batch.poll
       if (batchElement ne null) {
         if (atMaxBatchSize) {
-          Stats.addTiming("redis-pipeline-batch-usec", ((System.nanoTime/1000) - (batchElement.startNanoTime/1000)).toInt)
+          Stats.addTiming("redis-pipeline-batch-msec", ((System.nanoTime/1000000) - (batchElement.startNanoTime/1000000)).toInt)
         }
         wrap({ () => batchElementToPipeline(batchElement) }, batchElement.onError)
       }
