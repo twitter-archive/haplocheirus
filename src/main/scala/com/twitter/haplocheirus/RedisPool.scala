@@ -154,7 +154,13 @@ class RedisPool(name: String, healthTracker: RedisPoolHealthTracker, config: Red
         throw e
     }
     val r = try {
-      f(client)
+      if (config.pipelineReads == true) {
+        f(client)
+      } else {
+        client.synchronized {
+          f(client)
+        }
+      }
     } catch {
       case e: ClientRuntimeException =>
         exceptionLog.error(e, "Redis client error: %s", e)

@@ -28,6 +28,7 @@ trait RedisPoolHealthTrackerConfig {
 trait RedisPoolConfig {
   def poolSize: Int  //  number of connections per redis
   def pipeline: Int  //  max outstanding redis operations
+  var pipelineReads = true  // whether pipelining of read requests is allowed
   def batchSize: Int //  number of requests to batch before writing to the wire
   def batchTimeout: Duration // send batch after timeout, even if not full
 
