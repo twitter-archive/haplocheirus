@@ -72,7 +72,11 @@ class Pipeline(client: PipelinedRedisClient, hostname: String, maxSize: Int,
       val head = pipeline.poll
       wrap({ () => head.callback(head.future) }, head.onError)
     }
-    client.redisClient.quit()
+    try {
+      client.redisClient.quit()
+    } catch {
+      case e: ClientRuntimeException =>
+    }
     completed.countDown
   }
 
