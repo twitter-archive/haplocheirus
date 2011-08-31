@@ -34,10 +34,7 @@ class RedisPoolHealthTracker(config: RedisPoolHealthTrackerConfig) {
     }
 
     if (client ne null) {
-      val clientC = client.errorCount.incrementAndGet
-      if (clientC > config.clientErrorLimit) {
-        log.error("Too many errors on client for %s", hostname)
-      }
+      client.errorCount.incrementAndGet
     }
   }
 
@@ -52,16 +49,16 @@ class RedisPoolHealthTracker(config: RedisPoolHealthTrackerConfig) {
     client.errorCount.set(0)
   }
 
-  def isErrored(hostname: String, client: PipelinedRedisClient): Boolean = {
+  def isErrored(hostname: String): Boolean = {
     val timeout = concurrentDisabledMap.get(hostname)
-    val hostnameErrored = if (!(timeout eq null)) {
+    if (!(timeout eq null)) {
       if (Time.now < timeout) {
         true
       } else {
         try {
-          concurrentDisabledMap.remove(hostname)
           log.error("Reenabling %s", hostname)
-          countNonError(hostname, client) // To remove from the error map
+          concurrentErrorMap.remove(hostname)
+          concurrentDisabledMap.remove(hostname)
         } catch {
           case e: NullPointerException => {}
         }
@@ -70,12 +67,6 @@ class RedisPoolHealthTracker(config: RedisPoolHealthTrackerConfig) {
     } else {
       false
     }
-    val clientErrored = if ((client ne null) && (client.errorCount.get > config.clientErrorLimit)) {
-      true
-    } else {
-      false
-    }
-    hostnameErrored || clientErrored
   }
 }
 
@@ -104,10 +95,13 @@ class RedisPool(name: String, healthTracker: RedisPoolHealthTracker, config: Red
     val server = poolIndexGenerator.nextInt(config.poolSize)
     var client = serverPool(server).get(hostname);
 
-    if (healthTracker.isErrored(shardInfo.hostname, client)) {
-      if ((client ne null) && client.alive) {
+    if ((client ne null) && (client.errorCount.get > config.clientErrorLimit)) {
+      if (client.alive) {
         throwAway(hostname, client)
       }
+    }
+
+    if (healthTracker.isErrored(shardInfo.hostname)) {
       throw new ShardBlackHoleException(shardInfo.id)
     }
 

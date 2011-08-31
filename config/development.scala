@@ -29,7 +29,6 @@ new HaplocheirusConfig {
 
   val redisConfig = new RedisConfig {
     val poolHealthTrackerConfig = new RedisPoolHealthTrackerConfig {
-      val clientErrorLimit = 100
       val autoDisableErrorLimit = 200
       val autoDisableDuration = 60.seconds
     }
@@ -42,6 +41,7 @@ new HaplocheirusConfig {
       val timeoutMsec = 200
       val keysTimeoutMsec = 5000
       val expirationHours = 24 * 21
+      val clientErrorLimit = 100
     }
 
     val writePoolConfig = new RedisPoolConfig {
@@ -52,6 +52,7 @@ new HaplocheirusConfig {
       val timeoutMsec = 200
       val keysTimeoutMsec = 5000
       val expirationHours = 24 * 21
+      val clientErrorLimit = 100
     }
 
     val slowPoolConfig = new RedisPoolConfig {
@@ -62,6 +63,7 @@ new HaplocheirusConfig {
       val timeoutMsec = 200
       val keysTimeoutMsec = 5000
       val expirationHours = 24 * 21
+      val clientErrorLimit = 100
     }
 
     val rangeQueryPageSize = 20
