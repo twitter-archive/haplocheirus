@@ -78,6 +78,7 @@ class RedisPool(name: String, healthTracker: RedisPoolHealthTracker, config: Red
   val serverPool = (0 to config.poolSize-1).map { i =>
     new ConcurrentHashMap[String, PipelinedRedisClient]
   }.toArray
+  val serverLock = new ConcurrentHashMap[String, Int]
 
   val timer = new Timer
 
@@ -111,10 +112,15 @@ class RedisPool(name: String, healthTracker: RedisPoolHealthTracker, config: Red
     }
 
     if (client eq null) {
-      val newClient = makeClient(hostname)
-      client = serverPool(server).putIfAbsent(hostname, newClient)
-      if (client eq null) {
-        client = newClient
+      val lock = serverLock.put(hostname, 1)
+      if (lock == 1) {
+        throw new TimeoutException
+      }
+      try {
+        client = makeClient(hostname)
+        serverPool(server).put(hostname, client)
+      } finally {
+        serverLock.remove(hostname)
       }
     }
     client
