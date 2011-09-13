@@ -291,86 +291,42 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
       "with missing fromId" in {
         expect {
           one(shardInfo).hostname willReturn "host1"
-          lrange(timeline, -3, -1, List(entry23, entry20, entry19).reverse)
-          one(jredis).lrange(timeline, -7, -5) willReturn future
-          one(future).get(1000, TimeUnit.MILLISECONDS) willReturn List[Array[Byte]]().toJavaList
-          llen(timeline, 3L)
+          lrange(timeline, -600, -1, List(entry23, entry20, entry19, entry10).reverse)
         }
 
-        redisShard.getRange(timeline, 10L, 0L, false).get.entries.toList mustEqual List(entry23, entry20, entry19)
+        redisShard.getRange(timeline, 11L, 0L, false).get.entries.toList mustEqual List(entry23, entry20, entry19)
         reads mustEqual 1
       }
 
       "with fromId" in {
-        "in the first page" in {
-          expect {
-            one(shardInfo).hostname willReturn "host1"
-            lrange(timeline, -3, -1, List(entry23, entry20, entry19).reverse)
-            llen(timeline, 3L)
-          }
-
-          redisShard.getRange(timeline, 19L, 0L, false).get.entries.toList mustEqual List(entry23, entry20)
-          reads mustEqual 1
+        expect {
+          one(shardInfo).hostname willReturn "host1"
+          lrange(timeline, -600, -1, List(entry23, entry20, entry19, entry10).reverse)
         }
 
-        "in a later page" in {
-          expect {
-            one(shardInfo).hostname willReturn "host1"
-            lrange(timeline, -3, -1, List(entry23, entry20, entry19).reverse)
-            llen(timeline, 3L)
-            lrange(timeline, -7, -5, List(entry17, entry13, entry10).reverse)
-          }
-
-          redisShard.getRange(timeline, 13L, 0L, false).get.entries.toList mustEqual List(entry23, entry20, entry19, entry17)
-          reads mustEqual 1
-        }
+        redisShard.getRange(timeline, 19L, 0L, false).get.entries.toList mustEqual List(entry23, entry20)
+        reads mustEqual 1
       }
 
       "with toId" in {
-        "in the first page" in {
-          expect {
-            allowing(shardInfo).hostname willReturn "host1"
-            lrange(timeline, -3, -1, List(entry23, entry20, entry19).reverse)
-            llen(timeline, 3L)
-            lrange(timeline, -3, -1, List(entry23, entry20, entry19).reverse)
-            llen(timeline, 3L)
-            lrange(timeline, -3, -1, List(entry23, entry20, entry19).reverse)
-            llen(timeline, 3L)
-          }
-
-          redisShard.getRange(timeline, 19L, 30L, false).get.entries.toList mustEqual List(entry23, entry20)
-          redisShard.getRange(timeline, 19L, 23L, false).get.entries.toList mustEqual List(entry23, entry20)
-          redisShard.getRange(timeline, 19L, 20L, false).get.entries.toList mustEqual List(entry20)
-          reads mustEqual 3
+        expect {
+          allowing(shardInfo).hostname willReturn "host1"
+          lrange(timeline, -600, -1, List(entry23, entry20, entry19).reverse)
+          lrange(timeline, -600, -1, List(entry23, entry20, entry19).reverse)
+          lrange(timeline, -600, -1, List(entry23, entry20, entry19).reverse)
+          allowing(jredis).expire(timeline, 1)
         }
 
-        "in a later page" in {
-          expect {
-            allowing(shardInfo).hostname willReturn "host1"
-            lrange(timeline, -3, -1, List(entry23, entry20, entry19).reverse)
-            llen(timeline, 3L)
-            lrange(timeline, -7, -5, List(entry17, entry13, entry10).reverse)
-            lrange(timeline, -3, -1, List(entry23, entry20, entry19).reverse)
-            llen(timeline, 3L)
-            lrange(timeline, -7, -5, List(entry17, entry13, entry10).reverse)
-            lrange(timeline, -3, -1, List(entry23, entry20, entry19).reverse)
-            llen(timeline, 3L)
-            lrange(timeline, -7, -5, List(entry17, entry13, entry10).reverse)
-          }
-
-          redisShard.getRange(timeline, 13L, 30L, false).get.entries.toList mustEqual List(entry23, entry20, entry19, entry17)
-          redisShard.getRange(timeline, 13L, 20L, false).get.entries.toList mustEqual List(entry20, entry19, entry17)
-          redisShard.getRange(timeline, 13L, 17L, false).get.entries.toList mustEqual List(entry17)
-          reads mustEqual 3
-        }
+        redisShard.getRange(timeline, 19L, 30L, false).get.entries.toList mustEqual List(entry23, entry20)
+        redisShard.getRange(timeline, 19L, 23L, false).get.entries.toList mustEqual List(entry20)
+        redisShard.getRange(timeline, 19L, 20L, false).get.entries.toList mustEqual List()
+        reads mustEqual 3
       }
 
       "with dupes" in {
         expect {
           one(shardInfo).hostname willReturn "host1"
-          lrange(timeline, -3, -1, List(entry23, entry20, entry20).reverse)
-          llen(timeline, 3L)
-          lrange(timeline, -7, -5, List(entry20, entry17, entry13).reverse)
+          lrange(timeline, -600, -1, List(entry23, entry20, entry20,entry20, entry17, entry13).reverse)
         }
 
         redisShard.getRange(timeline, 13L, 0L, false).get.entries.toList mustEqual List(entry23, entry20, entry17)

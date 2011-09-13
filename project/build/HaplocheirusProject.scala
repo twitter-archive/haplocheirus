@@ -4,9 +4,10 @@ import com.twitter.sbt._
 class HaplocheirusProject(info: ProjectInfo) extends StandardProject(info) with GithubPublisher {
   override def filterScalaJars = false
 
-  val scalaTools = "org.scala-lang" % "scala-compiler" % "2.7.7"  
+  val scalaTools = "org.scala-lang" % "scala-compiler" % "2.7.7"
   val gizzard = "com.twitter" % "gizzard" % "1.8.0-haplo"
-  val jredis = "jredis" % "jredis" % "1.0-tw1"
+  // remove otherwise will be in both libs AND lib_managed. sbt COULD use whats in maven
+  // val jredis = "jredis" % "jredis" % "1.0-tw1"
   val codec = "commons-codec" % "commons-codec" % "1.4"
   val xrayspecs = "com.twitter" % "xrayspecs" % "1.0.7"  //--auto--
 
