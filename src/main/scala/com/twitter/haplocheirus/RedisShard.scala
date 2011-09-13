@@ -216,46 +216,25 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
 
   def getRange(timeline: String, fromId: Long, toId: Long, dedupeSecondary: Boolean): Option[TimelineSegment] = {
     readPool.withClient(shardInfo) { client =>
-      val entries = new mutable.ArrayBuffer[Array[Byte]]()
-      var cursor = 0
-      var fromIdIndex = -1
+      val entries = dedupe(client.get(timeline, 0, 600), dedupeSecondary)
 
-      val size = client.size(timeline)
-
-      if (size <= 0) {
-        None
+      val lastIndex = entries.size
+      val toIdIndex = if (toId > 0) {
+        val i = entries.findIndexOf { sortKeyFromEntry(_) < toId }
+        if (i >= 0) i else 0
       } else {
-        while (fromIdIndex < 0) {
-          val newEntries = client.get(timeline, cursor, rangeQueryPageSize)
-
-          cursor += newEntries.size
-
-          if (newEntries.size == 0) {
-            // never found the requested id, so return the entire timeline.
-            fromIdIndex = entries.size
-          } else {
-            entries ++= newEntries
-            fromIdIndex = timelineIndexOf(entries, fromId)
-          }
-        }
-
-        if (entries.size > rangeQueryPageSize) {
-          Stats.incr("timeline-range-page-miss")
-        } else {
-          Stats.incr("timeline-range-page-hit")
-        }
-
-        val toIdIndex = if (toId > 0) {
-          val i = timelineIndexOf(entries, toId)
-          if (i >= 0) i else 0
-        } else {
-          0
-        }
-
-        val filteredEntries = entries.take(fromIdIndex).drop(toIdIndex) filter isSentinel
-
-        Some(TimelineSegment(dedupe(filteredEntries, dedupeSecondary), size - 1))
+        0
       }
+
+      var fromIdIndex = if (fromId >= 0) {
+        var f = entries.findIndexOf { sortKeyFromEntry(_) <= fromId }
+        if (f >= 0) f else lastIndex
+      } else {
+        lastIndex
+      }
+
+      val filteredEntries = entries.slice(toIdIndex, fromIdIndex)
+      Some(TimelineSegment(filteredEntries, filteredEntries.size))
     }
   }
 
