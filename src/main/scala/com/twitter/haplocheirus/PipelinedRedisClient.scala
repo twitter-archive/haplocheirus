@@ -273,7 +273,11 @@ class PipelinedRedisClient(hostname: String, pipelineMaxSize: Int, batchSize: In
     val start = -1 - offset
     val end = if (length > 0) (start - length + 1) else 0
     Stats.timeMicros("redis-get-usec") {
-      redisClient.lrange(timeline, end, start).get(timeout.inMillis, TimeUnit.MILLISECONDS).toSeq.reverse
+      val rv = redisClient.lrange(timeline, end, start).get(timeout.inMillis, TimeUnit.MILLISECONDS).toSeq.reverse
+      if (rv.size > 0) {
+        redisClient.expire(timeline, expiration.inSeconds)
+      }
+      rv
     }
   }
 
@@ -298,7 +302,8 @@ class PipelinedRedisClient(hostname: String, pipelineMaxSize: Int, batchSize: In
           redisClient.rpushx(tempName, slice: _*)
         }
 
-        redisClient.rename(tempName, timeline).get(timeout.inMillis, TimeUnit.MILLISECONDS)
+        redisClient.rename(tempName, timeline)
+        redisClient.expire(timeline, expiration.inSeconds).get(timeout.inMillis, TimeUnit.MILLISECONDS)
       }
     }
   }
@@ -320,7 +325,8 @@ class PipelinedRedisClient(hostname: String, pipelineMaxSize: Int, batchSize: In
   def setLive(timeline: String, entries: Seq[Array[Byte]]) {
     Stats.timeMicros("redis-setlive-usec") {
       if (entries.length > 0) {
-        redisClient.lpushx(timeline, entries.toArray: _*).get(timeout.inMillis, TimeUnit.MILLISECONDS)
+        redisClient.lpushx(timeline, entries.toArray: _*)
+        redisClient.expire(timeline, expiration.inSeconds).get(timeout.inMillis, TimeUnit.MILLISECONDS)
       }
       0
     }

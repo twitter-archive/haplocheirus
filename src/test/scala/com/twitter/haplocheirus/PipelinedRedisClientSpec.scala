@@ -138,6 +138,7 @@ object PipelinedRedisClientSpec extends ConfiguredSpecification with JMocker wit
       expect {
         one(jredis).lrange(timeline, -15, -6) willReturn future2
         one(future2).get(1000, TimeUnit.MILLISECONDS) willReturn result.reverse.toJavaList
+        one(jredis).expire(timeline, 86400)
       }
 
       client.get(timeline, 5, 10).toList mustEqual result
@@ -149,9 +150,10 @@ object PipelinedRedisClientSpec extends ConfiguredSpecification with JMocker wit
       val entry3 = List(19L).pack.array
 
       expect {
-        one(jredis).rpush(timeline + "~1", entry3) willReturn longFuture
-        one(jredis).rpushx(timeline + "~1", entry2, entry1) willReturn longFuture
-        one(jredis).rename(timeline + "~1", timeline) willReturn future
+        one(jredis).rpush(timeline + "~1", entry3)
+        one(jredis).rpushx(timeline + "~1", entry2, entry1)
+        one(jredis).rename(timeline + "~1", timeline)
+        one(jredis).expire(timeline, 86400) willReturn future
         one(future).get(1000, TimeUnit.MILLISECONDS) willReturn ResponseStatus.STATUS_OK
       }
 
@@ -174,6 +176,8 @@ object PipelinedRedisClientSpec extends ConfiguredSpecification with JMocker wit
 
       expect {
         one(jredis).lpushx(timeline, entry1, entry2, entry3)
+        one(jredis).expire(timeline, 86400) willReturn future
+        one(future).get(1000, TimeUnit.MILLISECONDS) willReturn ResponseStatus.STATUS_OK
       }
 
       client.setLive(timeline, List(entry1, entry2, entry3))

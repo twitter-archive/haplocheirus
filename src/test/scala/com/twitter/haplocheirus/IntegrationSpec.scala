@@ -156,13 +156,16 @@ object IntegrationSpec extends ConfiguredSpecification with JMocker with ClassMo
         one(future).get(200L, TimeUnit.MILLISECONDS) willReturn 2L
         one(jredisClient).lrange(timeline1, -3, -1) willReturn timelineFuture
         one(timelineFuture).get(200L, TimeUnit.MILLISECONDS) willReturn List("a", "b").map { _.getBytes }.toJavaList
+        one(jredisClient).expire(timeline1, 86400)
 
         one(jredisClient).lrange(timeline1, 0, -1) willReturn timelineFuture
         one(timelineFuture).get(200L, TimeUnit.MILLISECONDS) willReturn List("a", "b").map { _.getBytes }.toJavaList
+        one(jredisClient).expire(timeline1, 86400)
 
         one(jredisClient).del(timeline1)
         one(jredisClient).rpush(timeline1, TimelineEntry.EmptySentinel)
         one(jredisClient).lpushx(timeline1, Array("b", "a").map(_.getBytes): _*)
+        one(jredisClient).expire(timeline1, 86400)
         allowing(jredisClient).quit()
       }
 
@@ -178,6 +181,7 @@ object IntegrationSpec extends ConfiguredSpecification with JMocker with ClassMo
         one(future).get(200L, TimeUnit.MILLISECONDS) willReturn 2L
         one(jredisClient).lrange(timeline1, -3, -1) willReturn timelineFuture
         one(timelineFuture).get(200L, TimeUnit.MILLISECONDS) willReturn List("a", "b").map { _.getBytes }.toJavaList
+        one(jredisClient).expire(timeline1, 86400)
       }
 
       val cmd = new thrift.TimelineGet(timeline1, 0, 2)
