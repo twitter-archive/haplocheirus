@@ -233,7 +233,7 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
         lastIndex
       }
 
-      val filteredEntries = entries.slice(toIdIndex, fromIdIndex)
+      val filteredEntries = entries.slice(toIdIndex, fromIdIndex) filter isSentinel
       Some(TimelineSegment(filteredEntries, filteredEntries.size))
     }
   }
