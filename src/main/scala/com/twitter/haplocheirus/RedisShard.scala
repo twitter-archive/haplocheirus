@@ -216,25 +216,30 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
 
   def getRange(timeline: String, fromId: Long, toId: Long, dedupeSecondary: Boolean): Option[TimelineSegment] = {
     readPool.withClient(shardInfo) { client =>
-      val entries = dedupe(client.get(timeline, 0, 600), dedupeSecondary)
+      val results = client.get(timeline, 0, 600)
+      if (results.size > 0) {
+        val entries = dedupe(results, dedupeSecondary)
 
-      val lastIndex = entries.size
-      val toIdIndex = if (toId > 0) {
-        val i = entries.findIndexOf { sortKeyFromEntry(_) < toId }
-        if (i >= 0) i else 0
+        val lastIndex = entries.size
+        val toIdIndex = if (toId > 0) {
+          val i = entries.findIndexOf { sortKeyFromEntry(_) < toId }
+          if (i >= 0) i else 0
+        } else {
+          0
+        }
+
+        var fromIdIndex = if (fromId >= 0) {
+          var f = entries.findIndexOf { sortKeyFromEntry(_) <= fromId }
+          if (f >= 0) f else lastIndex
+        } else {
+          lastIndex
+        }
+
+        val filteredEntries = entries.slice(toIdIndex, fromIdIndex) filter isSentinel
+        Some(TimelineSegment(filteredEntries, filteredEntries.size))
       } else {
-        0
+        None
       }
-
-      var fromIdIndex = if (fromId >= 0) {
-        var f = entries.findIndexOf { sortKeyFromEntry(_) <= fromId }
-        if (f >= 0) f else lastIndex
-      } else {
-        lastIndex
-      }
-
-      val filteredEntries = entries.slice(toIdIndex, fromIdIndex) filter isSentinel
-      Some(TimelineSegment(filteredEntries, filteredEntries.size))
     }
   }
 
