@@ -351,6 +351,17 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
         redisShard.getRange(timeline, 13L, 0L, false).get.entries.toList mustEqual List(entry23, entry20, entry17)
         reads mustEqual 1
       }
+
+      "miss" in {
+        expect {
+          one(shardInfo).hostname willReturn "host1"
+          one(jredis).lrange(timeline, -600, -1) willReturn future
+          one(future).get(1000, TimeUnit.MILLISECONDS) willReturn (Seq[TimelineEntry]()).toJavaList
+        }
+
+        redisShard.getRange(timeline, 19L, 20L, false) mustEqual None
+        reads mustEqual 1
+      }
     }
 
     "merge" in {
