@@ -189,20 +189,15 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
   def get(timeline: String, offset: Int, length: Int, dedupeSecondary: Boolean): Option[TimelineSegment] = {
     Stats.timeMicros("redisshard-get-usec") {
       readPool.withClient(shardInfo) { client =>
-        // heuristics for detecting a request for the entire timeline
-        if (!(offset == 0 && (length == 800 || length == 3200))) {
-          val size = client.size(timeline)
-          if (size > 0) {
-            // empty and miss look the same to redis, fix that
-            val entries = getAndFilterSentinel(client, timeline, offset, length).get.toList
-            Some(TimelineSegment(dedupe(entries, dedupeSecondary), size-1))
-          } else {
-            None
-          }
+        // we've changed the size semantics to always return the size of theresult set.
+        val entries = client.get(timeline, 0, -1)
+
+        if (entries.isEmpty) {
+          None
         } else {
-          getAndFilterSentinel(client, timeline, offset, length) map { entries =>
-            TimelineSegment(dedupe(entries, dedupeSecondary), entries.size)
-          }
+          val filtered = entries filter isSentinel
+          val filteredEntries = dedupe(filtered, dedupeSecondary).slice(offset, length)
+          Some(TimelineSegment(filteredEntries, filteredEntries.size))
         }
       }
     }
@@ -216,25 +211,30 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
 
   def getRange(timeline: String, fromId: Long, toId: Long, dedupeSecondary: Boolean): Option[TimelineSegment] = {
     readPool.withClient(shardInfo) { client =>
-      val entries = dedupe(client.get(timeline, 0, 600), dedupeSecondary)
+      val results = client.get(timeline, 0, 600)
+      if (results.size > 0) {
+        val entries = dedupe(results, dedupeSecondary)
 
-      val lastIndex = entries.size
-      val toIdIndex = if (toId > 0) {
-        val i = entries.findIndexOf { sortKeyFromEntry(_) < toId }
-        if (i >= 0) i else 0
+        val lastIndex = entries.size
+        val toIdIndex = if (toId > 0) {
+          val i = entries.findIndexOf { sortKeyFromEntry(_) < toId }
+          if (i >= 0) i else 0
+        } else {
+          0
+        }
+
+        var fromIdIndex = if (fromId >= 0) {
+          var f = entries.findIndexOf { sortKeyFromEntry(_) <= fromId }
+          if (f >= 0) f else lastIndex
+        } else {
+          lastIndex
+        }
+
+        val filteredEntries = entries.slice(toIdIndex, fromIdIndex) filter isSentinel
+        Some(TimelineSegment(filteredEntries, filteredEntries.size))
       } else {
-        0
+        None
       }
-
-      var fromIdIndex = if (fromId >= 0) {
-        var f = entries.findIndexOf { sortKeyFromEntry(_) <= fromId }
-        if (f >= 0) f else lastIndex
-      } else {
-        lastIndex
-      }
-
-      val filteredEntries = entries.slice(toIdIndex, fromIdIndex) filter isSentinel
-      Some(TimelineSegment(filteredEntries, filteredEntries.size))
     }
   }
 
