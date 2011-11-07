@@ -52,6 +52,12 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
       one(future).get(1000, TimeUnit.MILLISECONDS) willReturn (Seq(TimelineEntry.EmptySentinel) ++ result).toJavaList
     }
 
+    def lrangeWithoutEmptySentinel(timeline: String, start: Int, end: Int, result: Seq[Array[Byte]]) {
+      one(jredis).lrange(timeline, start, end) willReturn future
+      one(future).get(1000, TimeUnit.MILLISECONDS) willReturn result.toJavaList
+
+    }
+
     def llen(timeline: String, result: Long) {
       one(jredis).llen(timeline) willReturn longFuture
       one(longFuture).get(1000, TimeUnit.MILLISECONDS) willReturn result
@@ -173,8 +179,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
       "unique entries" in {
         expect {
           one(shardInfo).hostname willReturn "host1"
-          lrange(timeline, -11, -1, List(entry23, entry20, entry19).reverse)
-          llen(timeline, 3L)
+          lrange(timeline, 0, -1, List(entry23, entry20, entry19).reverse)
           one(jredis).expire(timeline, 1)
         }
 
@@ -186,20 +191,18 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
         "in range" in {
           expect {
             one(shardInfo).hostname willReturn "host1"
-            lrange(timeline, -21, -11, List(entry23, entry20, entry19).reverse)
-            llen(timeline, 23L)
+            lrange(timeline, 0, -1, List(entry23, entry20, entry19).reverse)
             one(jredis).expire(timeline, 1)
           }
 
-          redisShard.get(timeline, 10, 10, false).get.entries.toList mustEqual List(entry23, entry20, entry19)
+          redisShard.get(timeline, 1, 10, false).get.entries.toList mustEqual List(entry20, entry19)
           reads mustEqual 1
         }
 
         "out of range" in {
           expect {
             one(shardInfo).hostname willReturn "host1"
-            lrange(timeline, -21, -11, List())
-            llen(timeline, 3L)
+            lrange(timeline, 0, -1, List(entry23))
             one(jredis).expire(timeline, 1)
           }
 
@@ -210,10 +213,10 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
         "miss" in {
           expect {
             one(shardInfo).hostname willReturn "host1"
-            llen(timeline, 0L)
+            lrangeWithoutEmptySentinel(timeline, 0, -1, List())
           }
 
-          redisShard.get(timeline, 10, 10, false) mustEqual None
+          redisShard.get(timeline, 0, 10, false) mustEqual None
           reads mustEqual 1
         }
       }
@@ -221,8 +224,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
       "with duplicates in the sort key" in {
         expect {
           one(shardInfo).hostname willReturn "host1"
-          lrange(timeline, -11, -1, List(entry23, entry23a, entry19).reverse)
-          llen(timeline, 3L)
+          lrange(timeline, 0, -1, List(entry23, entry23a, entry19).reverse)
           one(jredis).expire(timeline, 1)
         }
 
@@ -234,11 +236,9 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
         "to be deduped" in {
           expect {
             allowing(shardInfo).hostname willReturn "host1"
-            lrange(timeline, -11, -1, List(entry23a, entry20, entry19a).reverse)
-            llen(timeline, 3L)
+            lrange(timeline, 0, -1, List(entry23a, entry20, entry19a).reverse)
             one(jredis).expire(timeline, 1)
-            lrange(timeline, -11, -1, List(entry23a, entry20, entry19a).reverse)
-            llen(timeline, 3L)
+            lrange(timeline, 0, -1, List(entry23a, entry20, entry19a).reverse)
             one(jredis).expire(timeline, 1)
           }
 
@@ -250,8 +250,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
         "not marked as having a secondary key" in {
           expect {
             allowing(shardInfo).hostname willReturn "host1"
-            lrange(timeline, -11, -1, List(entry23a, entry20, entry19uniq).reverse)
-            llen(timeline, 3L)
+            lrange(timeline, 0, -1, List(entry23a, entry20, entry19uniq).reverse)
             one(jredis).expire(timeline, 1)
           }
 
@@ -263,8 +262,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
       "with duplicates between the secondary and primary keys" in {
         expect {
           one(shardInfo).hostname willReturn "host1"
-          lrange(timeline, -11, -1, List(entry23share, entry23, entry20).reverse)
-          llen(timeline, 3L)
+          lrange(timeline, 0, -1, List(entry23share, entry23, entry20).reverse)
           one(jredis).expire(timeline, 1)
         }
 
@@ -279,8 +277,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
 
         expect {
           one(shardInfo).hostname willReturn "host1"
-          lrange(timeline, -11, -1, List(entry1, entry2, entry3).reverse)
-          llen(timeline, 3L)
+          lrange(timeline, 0, -1, List(entry1, entry2, entry3).reverse)
           one(jredis).expire(timeline, 1)
         }
 
@@ -593,7 +590,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
     "exceptions are wrapped" in {
       expect {
         one(shardInfo).hostname willReturn "host1"
-        one(jredis).llen(timeline) willThrow new IllegalStateException("aiee")
+        one(jredis).lrange(timeline, 0, -1) willThrow new IllegalStateException("aiee")
       }
 
       redisShard.get(timeline, 0, 10, true) must throwA[ShardException]
