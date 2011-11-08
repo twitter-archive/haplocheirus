@@ -149,12 +149,10 @@ object IntegrationSpec extends ConfiguredSpecification with JMocker with ClassMo
       service.nameServer.reload()
 
       expect {
-        one(jredisClient).llen(timeline1) willReturn future
-        one(future).get(200L, TimeUnit.MILLISECONDS) willReturn 0L
+        one(jredisClient).lrange(timeline1, 0, -1) willReturn timelineFuture
+        one(timelineFuture).get(200L, TimeUnit.MILLISECONDS) willReturn  Seq[Array[Byte]]().toJavaList
 
-        one(jredisClient).llen(timeline1) willReturn future
-        one(future).get(200L, TimeUnit.MILLISECONDS) willReturn 2L
-        one(jredisClient).lrange(timeline1, -3, -1) willReturn timelineFuture
+        one(jredisClient).lrange(timeline1, 0, -1) willReturn timelineFuture
         one(timelineFuture).get(200L, TimeUnit.MILLISECONDS) willReturn List("a", "b").map { _.getBytes }.toJavaList
         one(jredisClient).expire(timeline1, 86400)
 
@@ -170,16 +168,14 @@ object IntegrationSpec extends ConfiguredSpecification with JMocker with ClassMo
       }
 
       val segment = service.haploService.get(timeline1, 0, 2, false)
-      segment.size mustEqual 1
+      segment.size mustEqual 2
       segment.entries.get(0).array.toList mustEqual "a".getBytes.toList
       segment.entries.get(1).array.toList mustEqual "b".getBytes.toList
     }
 
     "get_multi hit" in {
       expect {
-        one(jredisClient).llen(timeline1) willReturn future
-        one(future).get(200L, TimeUnit.MILLISECONDS) willReturn 2L
-        one(jredisClient).lrange(timeline1, -3, -1) willReturn timelineFuture
+        one(jredisClient).lrange(timeline1, 0, -1) willReturn timelineFuture
         one(timelineFuture).get(200L, TimeUnit.MILLISECONDS) willReturn List("a", "b").map { _.getBytes }.toJavaList
         one(jredisClient).expire(timeline1, 86400)
       }
@@ -190,17 +186,17 @@ object IntegrationSpec extends ConfiguredSpecification with JMocker with ClassMo
       results.size mustEqual 1
       val segment = results.toSeq(0)
       segment.state mustEqual thrift.TimelineSegmentState.HIT
-      segment.size mustEqual 1
+      segment.size mustEqual 2
       segment.entries.get(0).array.toList mustEqual "a".getBytes.toList
       segment.entries.get(1).array.toList mustEqual "b".getBytes.toList
     }
 
     "get_multi miss" in {
       expect {
-        one(jredisClient).llen(timeline1) willReturn future
-        one(future).get(200L, TimeUnit.MILLISECONDS) willReturn 0L
-        one(jredisClient).llen(timeline1) willReturn future
-        one(future).get(200L, TimeUnit.MILLISECONDS) willReturn 0L
+        one(jredisClient).lrange(timeline1, 0, -1) willReturn future
+        one(future).get(200L, TimeUnit.MILLISECONDS) willReturn  Seq[Array[Byte]]().toJavaList
+        one(jredisClient).lrange(timeline1, 0, -1) willReturn future
+        one(future).get(200L, TimeUnit.MILLISECONDS) willReturn  Seq[Array[Byte]]().toJavaList
       }
 
       val cmd = new thrift.TimelineGet(timeline1, 0, 2)
@@ -214,8 +210,8 @@ object IntegrationSpec extends ConfiguredSpecification with JMocker with ClassMo
 
     "get_multi exception" in {
       expect {
-        one(jredisClient).llen(timeline1) willReturn future
-        one(future).get(200L, TimeUnit.MILLISECONDS) willReturn 0L
+        one(jredisClient).lrange(timeline1, 0, -1) willReturn future
+        one(future).get(200L, TimeUnit.MILLISECONDS) willReturn Seq[Array[Byte]]().toJavaList
       }
 
       val cmd = new thrift.TimelineGet(timeline1, 0, 2)
