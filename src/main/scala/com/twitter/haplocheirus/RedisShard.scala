@@ -190,13 +190,13 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
     Stats.timeMicros("redisshard-get-usec") {
       readPool.withClient(shardInfo) { client =>
         // we've changed the size semantics to always return the size of theresult set.
-        val entries = client.get(timeline, 0, -1)
+        val results = client.get(timeline, 0, -1)
 
-        if (entries.isEmpty) {
+        if (results.isEmpty) {
           None
         } else {
-          val filtered = entries filter isSentinel
-          val filteredEntries = dedupe(filtered, dedupeSecondary).slice(offset, length)
+          val entries = results filter isSentinel
+          val filteredEntries = dedupe(entries, dedupeSecondary).slice(offset, length)
           Some(TimelineSegment(filteredEntries, filteredEntries.size))
         }
       }
@@ -211,7 +211,7 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
 
   def getRange(timeline: String, fromId: Long, toId: Long, dedupeSecondary: Boolean): Option[TimelineSegment] = {
     readPool.withClient(shardInfo) { client =>
-      val results = client.get(timeline, 0, 600)
+      val results = client.get(timeline, 0, -1)
       if (results.size > 0) {
         val entries = dedupe(results, dedupeSecondary)
 
