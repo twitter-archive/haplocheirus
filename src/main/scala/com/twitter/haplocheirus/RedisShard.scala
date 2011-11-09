@@ -222,33 +222,46 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
   }
 
   def getRange(timeline: String, fromId: Long, toId: Long, dedupeSecondary: Boolean): Option[TimelineSegment] = {
-    readPool.withClient(shardInfo) { client =>
-      val results = client.get(timeline, 0, -1)
-      if (results.size > 0) {
-        val entries = dedupe(results, dedupeSecondary)
+     readPool.withClient(shardInfo) { client =>
+       var results = client.get(timeline, 0, 600)
+       if (results.size > 0) {
+         def findfromIdIndex(entries: Seq[Array[Byte]], fromId: Long) = {
+           val lastIndex = entries.size
+           if (fromId >= 0) {
+             var f = entries.findIndexOf { sortKeyFromEntry(_) <= fromId }
+             if (f >= 0) f else lastIndex
+           } else {
+             lastIndex
+           }
+         }
 
-        val lastIndex = entries.size
-        val toIdIndex = if (toId > 0) {
-          val i = entries.findIndexOf { sortKeyFromEntry(_) < toId }
-          if (i >= 0) i else 0
-        } else {
-          0
-        }
+         var entries = dedupe(results, dedupeSecondary)
+         var fromIdIndex = findfromIdIndex(entries, fromId)
 
-        var fromIdIndex = if (fromId >= 0) {
-          var f = entries.findIndexOf { sortKeyFromEntry(_) <= fromId }
-          if (f >= 0) f else lastIndex
-        } else {
-          lastIndex
-        }
+         println(fromIdIndex + " : " + entries.size + " : " + results.size)
+         if (fromIdIndex == entries.size && results.size >= 600) {
+           results = client.get(timeline, 0, -1)
+           entries = dedupe(results, dedupeSecondary)
+            println(fromIdIndex)
+           fromIdIndex = findfromIdIndex(entries, fromId)
+         }
 
-        val filteredEntries = fastSlice(entries, toIdIndex, fromIdIndex) filter isSentinel
-        Some(TimelineSegment(filteredEntries, filteredEntries.size))
-      } else {
-        None
-      }
-    }
-  }
+         println(fromIdIndex)
+         val toIdIndex = if (toId > 0) {
+           val i = entries.findIndexOf { sortKeyFromEntry(_) < toId }
+           if (i >= 0) i else 0
+         } else {
+           0
+         }
+
+
+         val filteredEntries = fastSlice(entries, toIdIndex, fromIdIndex) filter isSentinel
+         Some(TimelineSegment(filteredEntries, filteredEntries.size))
+       } else {
+         None
+       }
+     }
+   }
 
   def merge(timeline: String, entries: Seq[Array[Byte]], onError: Option[Throwable => Unit]) {
     slowPool.withClient(shardInfo) { client =>

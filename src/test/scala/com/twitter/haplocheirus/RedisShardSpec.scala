@@ -9,7 +9,7 @@ import org.jredis.ClientRuntimeException
 import org.jredis.ri.alphazero.{JRedisClient, JRedisFutureSupport, JRedisPipeline}
 import org.specs.Specification
 import org.specs.mock.{ClassMocker, JMocker}
-
+import scala.collection.mutable.ListBuffer
 
 object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMocker {
   "RedisShard" should {
@@ -301,7 +301,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
       "with missing fromId" in {
         expect {
           one(shardInfo).hostname willReturn "host1"
-          lrange(timeline, 0, -1, List(entry23, entry20, entry19, entry10).reverse)
+          lrange(timeline, -600, -1, List(entry23, entry20, entry19, entry10).reverse)
           one(jredis).expire(timeline, 1)
         }
 
@@ -312,7 +312,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
       "with fromId" in {
         expect {
           one(shardInfo).hostname willReturn "host1"
-          lrange(timeline, 0, -1, List(entry23, entry20, entry19, entry10).reverse)
+          lrange(timeline, -600, -1, List(entry23, entry20, entry19, entry10).reverse)
           one(jredis).expire(timeline, 1)
         }
 
@@ -323,11 +323,11 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
       "with toId" in {
         expect {
           allowing(shardInfo).hostname willReturn "host1"
-          lrange(timeline, 0, -1, List(entry23, entry20, entry19).reverse)
+          lrange(timeline, -600, -1, List(entry23, entry20, entry19).reverse)
           one(jredis).expire(timeline, 1)
-          lrange(timeline, 0, -1, List(entry23, entry20, entry19).reverse)
+          lrange(timeline, -600, -1, List(entry23, entry20, entry19).reverse)
           one(jredis).expire(timeline, 1)
-          lrange(timeline, 0, -1, List(entry23, entry20, entry19).reverse)
+          lrange(timeline, -600, -1, List(entry23, entry20, entry19).reverse)
           one(jredis).expire(timeline, 1)
           allowing(jredis).expire(timeline, 1)
         }
@@ -341,7 +341,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
       "with dupes" in {
         expect {
           one(shardInfo).hostname willReturn "host1"
-          lrange(timeline, 0, -1, List(entry23, entry20, entry20,entry20, entry17, entry13).reverse)
+          lrange(timeline, -600, -1, List(entry23, entry20, entry20,entry20, entry17, entry13).reverse)
           one(jredis).expire(timeline, 1)
         }
 
@@ -352,12 +352,29 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
       "miss" in {
         expect {
           one(shardInfo).hostname willReturn "host1"
-          one(jredis).lrange(timeline, 0, -1) willReturn future
+          one(jredis).lrange(timeline, -600, -1) willReturn future
           one(future).get(1000, TimeUnit.MILLISECONDS) willReturn (Seq[TimelineEntry]()).toJavaList
         }
 
         redisShard.getRange(timeline, 19L, 20L, false) mustEqual None
         reads mustEqual 1
+      }
+
+      "when fromId is > that first element from first page " in {
+        var list = new ListBuffer[Array[Byte]]
+        (1 to 605) foreach { a =>
+          list += TimelineEntry(a.toLong, 0L, 0).data
+        }
+
+        expect {
+          one(shardInfo).hostname willReturn "host1"
+          lrangeWithoutEmptySentinel(timeline, -600, -1, list.drop(5))
+          one(jredis).expire(timeline, 1)
+          lrangeWithoutEmptySentinel(timeline, 0, -1, list)
+          one(jredis).expire(timeline, 1)
+        }
+
+        redisShard.getRange(timeline, 1L, 0L, false).get.entries.toList mustEqual list.drop(1).reverse
       }
     }
 
