@@ -204,7 +204,7 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
         // we've changed the size semantics to always return the size of theresult set.
         val entries = client.get(timeline, 0, -1)
 
-        if (results.isEmpty) {
+        if (entries.isEmpty) {
           None
         } else {
           val filtered = entries filter isSentinel
