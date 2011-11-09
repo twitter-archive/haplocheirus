@@ -360,7 +360,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
         reads mustEqual 1
       }
 
-      "when fromId is > that first element from first page " in {
+      "when fromIdIndex is past first page paginate to second page" in {
         var list = new ListBuffer[Array[Byte]]
         (1 to 605) foreach { a =>
           list += TimelineEntry(a.toLong, 0L, 0).data
@@ -375,6 +375,21 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
         }
 
         redisShard.getRange(timeline, 1L, 0L, false).get.entries.toList mustEqual list.drop(1).reverse
+      }
+
+      "when fromId is set 0 only grab first page" in {
+        var list = new ListBuffer[Array[Byte]]
+        (1 to 605) foreach { a =>
+          list += TimelineEntry(a.toLong, 0L, 0).data
+        }
+
+        expect {
+          one(shardInfo).hostname willReturn "host1"
+          lrangeWithoutEmptySentinel(timeline, -600, -1, list.drop(5))
+          one(jredis).expire(timeline, 1)
+        }
+
+        redisShard.getRange(timeline, 0L, 606L, false).get.entries.toList mustEqual list.drop(5).reverse
       }
     }
 

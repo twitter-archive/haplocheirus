@@ -227,7 +227,7 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
        if (results.size > 0) {
          def findfromIdIndex(entries: Seq[Array[Byte]], fromId: Long) = {
            val lastIndex = entries.size
-           if (fromId >= 0) {
+           if (fromId > 0) {
              var f = entries.findIndexOf { sortKeyFromEntry(_) <= fromId }
              if (f >= 0) f else lastIndex
            } else {
@@ -238,7 +238,7 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
          var entries = dedupe(results, dedupeSecondary)
          var fromIdIndex = findfromIdIndex(entries, fromId)
 
-         if (fromIdIndex == entries.size && results.size >= 600) {
+         if (fromId > 0 && fromIdIndex == entries.size && results.size >= 600) {
            results = client.get(timeline, 0, -1)
            entries = dedupe(results, dedupeSecondary)
            fromIdIndex = findfromIdIndex(entries, fromId)
