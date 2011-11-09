@@ -223,7 +223,7 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
 
   def getRange(timeline: String, fromId: Long, toId: Long, dedupeSecondary: Boolean): Option[TimelineSegment] = {
      readPool.withClient(shardInfo) { client =>
-       var results = client.get(timeline, 0, 600)
+       var results = if (fromId == 0) client.get(timeline, 0, -1) else client.get(timeline, 0, 600)
        if (results.size > 0) {
          def findfromIdIndex(entries: Seq[Array[Byte]], fromId: Long) = {
            val lastIndex = entries.size

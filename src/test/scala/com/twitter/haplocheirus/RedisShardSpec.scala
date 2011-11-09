@@ -377,7 +377,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
         redisShard.getRange(timeline, 1L, 0L, false).get.entries.toList mustEqual list.drop(1).reverse
       }
 
-      "when fromId is set 0 only grab first page" in {
+      "when fromId is set to 0 only grab everything" in {
         var list = new ListBuffer[Array[Byte]]
         (1 to 605) foreach { a =>
           list += TimelineEntry(a.toLong, 0L, 0).data
@@ -385,11 +385,11 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
 
         expect {
           one(shardInfo).hostname willReturn "host1"
-          lrangeWithoutEmptySentinel(timeline, -600, -1, list.drop(5))
+          lrangeWithoutEmptySentinel(timeline, 0, -1, list)
           one(jredis).expire(timeline, 1)
         }
 
-        redisShard.getRange(timeline, 0L, 606L, false).get.entries.toList mustEqual list.drop(5).reverse
+        redisShard.getRange(timeline, 0L, 606L, false).get.entries.toList mustEqual list.reverse
       }
     }
 
