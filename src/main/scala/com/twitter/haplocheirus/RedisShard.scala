@@ -112,6 +112,18 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
     }
   }
 
+  private def fastSlice(entries: Seq[Array[Byte]], fromIndex: Int, toIndex: Int) = {
+    val result = new scala.collection.mutable.ListBuffer[Array[Byte]]
+    var i = 0
+    entries.foreach { entry =>
+      if (i >= fromIndex && i < toIndex) {
+        result += entry
+      }
+      i += 1
+    }
+    result
+  }
+
   def append(timeline: String, entries: Seq[Array[Byte]], onError: Option[Throwable => Unit]) {
     writePool.withClient(shardInfo) { client =>
       entries.foreach { entry =>
@@ -179,7 +191,7 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
       // if we fetched too many nodes because we didn't get a sentinel
       // value, throw away the last element.
       if (length > 0 && filtered.size > length) {
-        Some(filtered.slice(0, filtered.size - 1))
+        Some(filtered.take(filtered.size - 1))
       } else {
         Some(filtered)
       }
@@ -190,13 +202,13 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
     Stats.timeMicros("redisshard-get-usec") {
       readPool.withClient(shardInfo) { client =>
         // we've changed the size semantics to always return the size of theresult set.
-        val results = client.get(timeline, 0, -1)
+        val entries = client.get(timeline, 0, -1)
 
-        if (results.isEmpty) {
+        if (entries.isEmpty) {
           None
         } else {
-          val entries = results filter isSentinel
-          val filteredEntries = dedupe(entries, dedupeSecondary).slice(offset, length)
+          val filtered = entries filter isSentinel
+          val filteredEntries = fastSlice(dedupe(filtered, dedupeSecondary), offset, length)
           Some(TimelineSegment(filteredEntries, filteredEntries.size))
         }
       }
@@ -230,7 +242,7 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
           lastIndex
         }
 
-        val filteredEntries = entries.slice(toIdIndex, fromIdIndex) filter isSentinel
+        val filteredEntries = fastSlice(entries, toIdIndex, fromIdIndex) filter isSentinel
         Some(TimelineSegment(filteredEntries, filteredEntries.size))
       } else {
         None
