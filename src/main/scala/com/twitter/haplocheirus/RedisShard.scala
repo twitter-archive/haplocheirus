@@ -223,6 +223,9 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
 
   def getRange(timeline: String, fromId: Long, toId: Long, dedupeSecondary: Boolean): Option[TimelineSegment] = {
      readPool.withClient(shardInfo) { client =>
+       //  if fromId IS NOT set its a max id query and we need to grab the whole timeline
+       //  if fromId IS set its a since id query and we optimistically grab the first 600 entries
+       //    if since id isn't found in first 600 we grab the rest of the timeline.
        var results = if (fromId <= 0) client.get(timeline, 0, -1) else client.get(timeline, 0, 600)
        if (results.size > 0) {
          def findfromIdIndex(entries: Seq[Array[Byte]], fromId: Long) = {
