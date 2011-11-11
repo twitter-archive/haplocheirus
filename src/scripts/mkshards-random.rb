@@ -18,27 +18,31 @@ $:.push(File.dirname($0))
 require 'optparse'
 require 'yaml'
 
-options = {
+$options = {
   :config_filename => ENV['HOME'] + "/.shards.yml",
   :count => 500,
+  :constraints => true,
 }
 
 parser = OptionParser.new do |opts|
   opts.banner = "Usage: #{$0} [options]"
   opts.separator "Example: #{$0} -f shards.yml"
 
-  opts.on("-f", "--config=FILENAME", "load shard database config (default: #{options[:config_filename]})") do |filename|
-    options[:config_filename] = filename
+  opts.on("-f", "--config=FILENAME", "load shard database config (default: #{$options[:config_filename]})") do |filename|
+    $options[:config_filename] = filename
   end
-  opts.on("-n", "--count=N", "create N bins (default: #{options[:count]})") do |count|
-    options[:count] = count.to_i
+  opts.on("-n", "--count=N", "create N bins (default: #{$options[:count]})") do |count|
+    $options[:count] = count.to_i
+  end
+  opts.on("-c", "--disable-constraints", "Disables the rack diversity constraints") do
+    $options[:constraints] = false
   end
 end
 
 parser.parse!(ARGV)
 
 config = begin
-  YAML.load_file(options[:config_filename])
+  YAML.load_file($options[:config_filename])
 rescue => e
   puts "Exception while reading config file: #{e}"
   {}
@@ -70,10 +74,14 @@ class RandomDistribution
   # Optionally, and initial shard number. Defaults to 0.
   def initialize(hosts, shard_count, initial_shard = 0)
     raise(ArgumentError, "no hosts") if hosts.empty?
-    @hosts  = hosts
+    @hosts = hosts
     @shards = @hosts.inject({}) do |acc, h|
       acc[h] = (initial_shard...(initial_shard + shard_count)).map { |i| "#{h}:#{i}" }
       acc
+    end
+
+    if hosts.length * shard_count % 2 != 0
+      @shards[hosts[0]].delete_at(-1)
     end
 
     # poorly named...
@@ -84,6 +92,10 @@ class RandomDistribution
     shuffle
   end
 
+  def size
+    @forward.keys.size
+  end
+  
   def each(&block) #:yields: host:port => host:port
     @forward.each(&block)
   end
@@ -95,7 +107,11 @@ class RandomDistribution
           shard = @shards[host].pop
           pair = nil
 
-          until pair && check_pair(host, pair)
+          if $options[:constraints]
+            until pair && check_pair(host, pair)
+              pair = random_pair(host)
+            end
+          else
             pair = random_pair(host)
           end
 
@@ -111,7 +127,7 @@ class RandomDistribution
 
   def random_pair(host)
     p = host
-    p = @hosts[rand(@hosts.size)] until p != host && @shards[p].any?
+    p = @hosts[rand(@hosts.size)] until (!$options[:contraints] || p != host) && @shards[p].any?
     p
   end
 
@@ -149,29 +165,35 @@ class RandomDistribution
 end
 
 distribution = RandomDistribution.new(db_trees, 7, 6379)
+shards_per_forwarding = (($options[:count] - 1) / distribution.size) + 1
 
 puts "Creating bins"
 STDOUT.flush
-options[:count].times do |i|
-  table_name = [ namespace, "haplo_%04d" % i ].compact.join("_")
-  lower_bound = (1 << 60) / options[:count] * i
 
-  gizzmo.call "create com.twitter.gizzard.shards.ReplicatingShard localhost/#{table_name}_replicating"
+current_shard = 0
+weight = 4 # FIXME: fixed weight
 
+
+puts $options[:count]
+shards_per_forwarding.times do |i|
   # FIXME: fixed replication factor of 2
   distribution.each do |pair_1, pair_2|
-    weight = 4 # FIXME: fixed weight
-    gizzmo.call "create com.twitter.haplocheirus.RedisShard #{pair_1}/#{table_name}_1"
+    if current_shard >= $options[:count]
+      break
+    end
+    table_name = [ namespace, "haplo_%04d" % current_shard ].compact.join("_")
+    gizzmo.call "create com.twitter.gizzard.shards.ReplicatingShard localhost/#{table_name}_replicating"
+
+    gizzmo.call "create com.twitter.haplocheirus.RedisShard #{pair_1}/#{table_name}_1 #{pair_2}/#{table_name}_2"
     gizzmo.call "addlink localhost/#{table_name}_replicating #{pair_1}/#{table_name}_1 #{weight}"
-
-    gizzmo.call "create com.twitter.haplocheirus.RedisShard #{pair_2}/#{table_name}_2"
     gizzmo.call "addlink localhost/#{table_name}_replicating #{pair_2}/#{table_name}_2 #{weight}"
+
+    lower_bound = (1 << 60) / $options[:count] * current_shard
+    gizzmo.call "addforwarding -- 0 #{lower_bound} localhost/#{table_name}_replicating"
+
+    current_shard += 1
+    $stdout.flush
   end
-
-  gizzmo.call "addforwarding -- 0 #{lower_bound} localhost/#{table_name}_replicating"
-
-  print "."
-  print "#{i+1}" if (i + 1) % 100 == 0
-  STDOUT.flush
 end
+
 puts "Done."
