@@ -149,10 +149,10 @@ object IntegrationSpec extends ConfiguredSpecification with JMocker with ClassMo
       service.nameServer.reload()
 
       expect {
-        one(jredisClient).lrange(timeline1, 0, -1) willReturn timelineFuture
+        one(jredisClient).lrange(timeline1, -52, -1) willReturn timelineFuture
         one(timelineFuture).get(200L, TimeUnit.MILLISECONDS) willReturn  Seq[Array[Byte]]().toJavaList
 
-        one(jredisClient).lrange(timeline1, 0, -1) willReturn timelineFuture
+        one(jredisClient).lrange(timeline1, -52, -1) willReturn timelineFuture
         one(timelineFuture).get(200L, TimeUnit.MILLISECONDS) willReturn List("a", "b").map { _.getBytes }.toJavaList
         one(jredisClient).expire(timeline1, 86400)
 
@@ -175,7 +175,7 @@ object IntegrationSpec extends ConfiguredSpecification with JMocker with ClassMo
 
     "get_multi hit" in {
       expect {
-        one(jredisClient).lrange(timeline1, 0, -1) willReturn timelineFuture
+        one(jredisClient).lrange(timeline1, -52, -1) willReturn timelineFuture
         one(timelineFuture).get(200L, TimeUnit.MILLISECONDS) willReturn List("a", "b").map { _.getBytes }.toJavaList
         one(jredisClient).expire(timeline1, 86400)
       }
@@ -193,9 +193,9 @@ object IntegrationSpec extends ConfiguredSpecification with JMocker with ClassMo
 
     "get_multi miss" in {
       expect {
-        one(jredisClient).lrange(timeline1, 0, -1) willReturn future
+        one(jredisClient).lrange(timeline1, -52, -1) willReturn future
         one(future).get(200L, TimeUnit.MILLISECONDS) willReturn  Seq[Array[Byte]]().toJavaList
-        one(jredisClient).lrange(timeline1, 0, -1) willReturn future
+        one(jredisClient).lrange(timeline1, -52, -1) willReturn future
         one(future).get(200L, TimeUnit.MILLISECONDS) willReturn  Seq[Array[Byte]]().toJavaList
       }
 
@@ -210,7 +210,7 @@ object IntegrationSpec extends ConfiguredSpecification with JMocker with ClassMo
 
     "get_multi exception" in {
       expect {
-        one(jredisClient).lrange(timeline1, 0, -1) willReturn future
+        one(jredisClient).lrange(timeline1, -52, -1) willReturn future
         one(future).get(200L, TimeUnit.MILLISECONDS) willReturn Seq[Array[Byte]]().toJavaList
       }
 

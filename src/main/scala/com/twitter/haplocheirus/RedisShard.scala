@@ -43,6 +43,7 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
 
   // do removes the old, painful way. turn this off once everyone is in haplo.
   val OLD_STYLE = true
+  val bufferLimit = 50
 
   private val log = Logger.get(getClass.getName)
 
@@ -202,7 +203,10 @@ class RedisShard(val shardInfo: ShardInfo, val weight: Int, val children: Seq[Ha
     Stats.timeMicros("redisshard-get-usec") {
       readPool.withClient(shardInfo) { client =>
         // we've changed the size semantics to always return the size of theresult set.
-        val entries = client.get(timeline, 0, -1)
+        val entries = if (dedupeSecondary)
+            client.get(timeline, 0, -1)
+          else
+            client.get(timeline, 0, offset + length + bufferLimit)
 
         if (entries.isEmpty) {
           None

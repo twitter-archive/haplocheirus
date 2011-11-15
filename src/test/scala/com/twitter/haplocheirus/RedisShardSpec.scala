@@ -179,7 +179,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
       "unique entries" in {
         expect {
           one(shardInfo).hostname willReturn "host1"
-          lrange(timeline, 0, -1, List(entry23, entry20, entry19).reverse)
+          lrange(timeline, -60, -1, List(entry23, entry20, entry19).reverse)
           one(jredis).expire(timeline, 1)
         }
 
@@ -191,7 +191,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
         "in range" in {
           expect {
             one(shardInfo).hostname willReturn "host1"
-            lrange(timeline, 0, -1, List(entry23, entry20, entry19).reverse)
+            lrange(timeline, -61, -1, List(entry23, entry20, entry19).reverse)
             one(jredis).expire(timeline, 1)
           }
 
@@ -202,7 +202,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
         "out of range" in {
           expect {
             one(shardInfo).hostname willReturn "host1"
-            lrange(timeline, 0, -1, List(entry23))
+            lrange(timeline, -70, -1, List(entry23))
             one(jredis).expire(timeline, 1)
           }
 
@@ -213,7 +213,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
         "miss" in {
           expect {
             one(shardInfo).hostname willReturn "host1"
-            lrangeWithoutEmptySentinel(timeline, 0, -1, List())
+            lrangeWithoutEmptySentinel(timeline, -60, -1, List())
           }
 
           redisShard.get(timeline, 0, 10, false) mustEqual None
@@ -224,7 +224,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
       "with duplicates in the sort key" in {
         expect {
           one(shardInfo).hostname willReturn "host1"
-          lrange(timeline, 0, -1, List(entry23, entry23a, entry19).reverse)
+          lrange(timeline, -60, -1, List(entry23, entry23a, entry19).reverse)
           one(jredis).expire(timeline, 1)
         }
 
@@ -236,7 +236,7 @@ object RedisShardSpec extends ConfiguredSpecification with JMocker with ClassMoc
         "to be deduped" in {
           expect {
             allowing(shardInfo).hostname willReturn "host1"
-            lrange(timeline, 0, -1, List(entry23a, entry20, entry19a).reverse)
+            lrange(timeline, -60, -1, List(entry23a, entry20, entry19a).reverse)
             one(jredis).expire(timeline, 1)
             lrange(timeline, 0, -1, List(entry23a, entry20, entry19a).reverse)
             one(jredis).expire(timeline, 1)
